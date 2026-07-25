@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Populate with your Govee API key (from the Govee Home app: Profile > Settings > Apply for API Key)
-GOVEE_API_KEY="ab436707-1276-4de3-a6b6-2e1a31dac35c"
+# GOVEE_API_KEY="..."
 
 curl --request GET \
   --url "https://openapi.api.govee.com/router/api/v1/user/devices" \

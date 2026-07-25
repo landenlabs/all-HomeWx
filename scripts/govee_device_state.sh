@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Populate with your Govee API key (from the Govee Home app: Profile > Settings > Apply for API Key)
-GOVEE_API_KEY="ab436707-1276-4de3-a6b6-2e1a31dac35c"
+# GOVEE_API_KEY="..."
 
 SKU="H5107"
 DEVICE="01:32:52:C1:04:3A:C4:B4"
