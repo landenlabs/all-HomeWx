@@ -1,0 +1,70 @@
+{
+  "code": 200,
+  "message": "success",
+  "data": [
+    {
+      "sku": "H5107",
+      "device": "01:32:52:C1:04:3A:C4:B4",
+      "deviceName": "sun room",
+      "type": "devices.types.thermometer",
+      "capabilities": [
+        {
+          "type": "devices.capabilities.property",
+          "instance": "sensorTemperature"
+        },
+        {
+          "type": "devices.capabilities.property",
+          "instance": "sensorHumidity"
+        }
+      ]
+    },
+    {
+      "sku": "H5110",
+      "device": "E8:DA:F2:B2:04:C6:50:06",
+      "deviceName": "Tmp-2 Basement SE",
+      "type": "devices.types.thermometer",
+      "capabilities": [
+        {
+          "type": "devices.capabilities.property",
+          "instance": "sensorTemperature"
+        },
+        {
+          "type": "devices.capabilities.property",
+          "instance": "sensorHumidity"
+        }
+      ]
+    },
+    {
+      "sku": "H5110",
+      "device": "47:E4:F2:B2:02:C6:0A:6D",
+      "deviceName": "Tmp-3 1st floor",
+      "type": "devices.types.thermometer",
+      "capabilities": [
+        {
+          "type": "devices.capabilities.property",
+          "instance": "sensorTemperature"
+        },
+        {
+          "type": "devices.capabilities.property",
+          "instance": "sensorHumidity"
+        }
+      ]
+    },
+    {
+      "sku": "H5110",
+      "device": "3B:26:F2:B2:02:C6:21:92",
+      "deviceName": "Tmp-1 attic",
+      "type": "devices.types.thermometer",
+      "capabilities": [
+        {
+          "type": "devices.capabilities.property",
+          "instance": "sensorTemperature"
+        },
+        {
+          "type": "devices.capabilities.property",
+          "instance": "sensorHumidity"
+        }
+      ]
+    }
+  ]
+}

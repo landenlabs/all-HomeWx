@@ -1,0 +1,10 @@
+<resources>
+    <color name="bg_root">#0B0F14</color>
+    <color name="bg_panel_top">#101826</color>
+    <color name="bg_panel_bottom">#0D1218</color>
+    <color name="text_primary">#F2F5F8</color>
+    <color name="text_secondary">#9AA7B4</color>
+    <color name="accent_warm">#FDB813</color>
+    <color name="accent_cool">#8AB4F8</color>
+    <color name="divider">#1E2A38</color>
+</resources>
