@@ -20,9 +20,7 @@
 
         <activity
             android:name=".MainActivity"
-            android:screenOrientation="portrait"
             android:launchMode="singleTask"
-            android:configChanges="orientation|screenSize|keyboardHidden"
             android:exported="true"
             android:showWhenLocked="true"
             android:turnScreenOn="true"

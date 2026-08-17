@@ -1,5 +1,10 @@
 package com.dlang.homewx.model
 
+import com.dlang.homewx.weather.CurrentConditions
+import com.dlang.homewx.weather.DailyExtremes
+import com.dlang.homewx.weather.HistoricalTempAverage
+import com.dlang.homewx.weather.WeatherForecast
+
 data class SensorReading(
     val id: String,
     val roomName: String,
@@ -7,7 +12,11 @@ data class SensorReading(
     val humidityPct: Double?,
     val online: Boolean,
     val updatedAtMillis: Long,
-    val error: String? = null
+    val error: String? = null,
+    val tempTrend1hF: Double? = null,
+    val humidityTrend1hPct: Double? = null,
+    val lastSuccessAtMillis: Long? = null,
+    val failureCountToday: Int = 0
 )
 
 enum class LightMode { ACTIVE, QUIET }
@@ -15,6 +24,12 @@ enum class LightMode { ACTIVE, QUIET }
 data class UiState(
     val sensors: List<SensorReading> = emptyList(),
     val lightMode: LightMode = LightMode.ACTIVE,
-    val weatherSummary: String = "",
+    val currentWeather: CurrentConditions? = null,
+    val weatherForecast: WeatherForecast? = null,
+    val tempTrendNextHourF: Double? = null,
+    val pressureTrend6hInHg: Double? = null,
+    val dailyExtremes: DailyExtremes = DailyExtremes(),
+    val historicalTempAverage: HistoricalTempAverage? = null,
+    val weatherError: String? = null,
     val lastError: String? = null
 )

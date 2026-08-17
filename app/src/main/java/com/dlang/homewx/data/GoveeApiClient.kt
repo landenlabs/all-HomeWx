@@ -45,7 +45,7 @@ class GoveeApiClient(private val apiKey: String = BuildConfig.GOVEE_API_KEY) {
             .build()
 
         client.newCall(request).execute().use { response ->
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string()
             if (!response.isSuccessful) {
                 throw GoveeApiException("listDevices failed: HTTP ${response.code} $body")
             }
@@ -86,7 +86,7 @@ class GoveeApiClient(private val apiKey: String = BuildConfig.GOVEE_API_KEY) {
             .build()
 
         client.newCall(request).execute().use { response ->
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string()
             if (!response.isSuccessful) {
                 throw GoveeApiException("getDeviceState failed for ${device.deviceName}: HTTP ${response.code} $body")
             }

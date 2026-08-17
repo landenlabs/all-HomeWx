@@ -6,4 +6,16 @@
     <string name="future_info_placeholder">Future info panel\n(news, calendar, etc.)</string>
     <string name="weather_placeholder">Loading weather…</string>
     <string name="no_sensors_placeholder">No Govee sensors found yet</string>
+    <string name="weather_label_condition">Cond</string>
+    <string name="weather_label_temp_high">Temp ↑</string>
+    <string name="weather_label_temp_low">Temp ↓</string>
+    <string name="weather_label_wind_high">Wind ↑</string>
+    <string name="weather_label_wind_low">Wind ↓</string>
+    <string name="weather_label_humidity">Humid</string>
+    <string name="weather_label_wind_speed">Wind</string>
+    <string name="weather_label_wind_direction">Dir</string>
+    <string name="weather_label_precipitation">Precip</string>
+    <string name="weather_label_pressure">Pres</string>
+    <string name="weather_label_ly_max">LY Max</string>
+    <string name="weather_label_ly_min">LY Min</string>
 </resources>

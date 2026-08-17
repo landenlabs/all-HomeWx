@@ -1,0 +1,49 @@
+Condition,IconCode,Timing
+Tornado,00,Night + Day
+Tropical Storm,01,Night + Day
+Hurricane,02,Night + Day
+Strong Storms,03,Night + Day
+Thunderstorms,04,Night + Day
+Rain / Snow,05,Night + Day
+Rain / Sleet,06,Night + Day
+Wintry Mix,07,Night + Day
+Freezing Drizzle,08,Night + Day
+Drizzle,09,Night + Day
+Freezing Rain,10,Night + Day
+Showers,11,Night + Day
+Rain,12,Night + Day
+Flurries,13,Night + Day
+Snow Showers,14,Night + Day
+Blowing / Drifting Snow,15,Night + Day
+Snow,16,Night + Day
+Hail,17,Night + Day
+Sleet,18,Night + Day
+Blowing Dust / Sandstorm,19,Night + Day
+Foggy,20,Night + Day
+Haze,21,Night + Day
+Smoke,22,Night + Day
+Breezy,23,Night + Day
+Windy,24,Night + Day
+Frigid / Ice Crystals,25,Night + Day
+Cloudy,26,Night + Day
+Mostly Cloudy,27,Night
+Mostly Cloudy,28,Night
+Partly Cloudy,29,Night
+Partly Cloudy,30,Night
+Clear,31,Night
+Sunny,32,Day
+Fair / Mostly Clear,33,Night
+Fair / Mostly Sunny,34,Day
+Mixed Rain and Hail,35,Night + Day
+Reserved for Future Use,36,Night + Day
+Isolated Thunderstorms,37,Day
+Scattered Thunderstorms,38,Day
+Scattered Showers,39,Day
+Heavy Rain,40,Night + Day
+Scattered Snow Showers,41,Night + Day
+Heavy Snow,42,Night + Day
+Blizzard,43,Night + Day
+Not Available (N/A),44,Night + Day
+Scattered Showers,45,Night
+Scattered Snow Showers,46,Night
+Scattered Thunderstorms,47,Night

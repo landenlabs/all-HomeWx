@@ -8,32 +8,67 @@
     android:paddingBottom="8dp"
     android:gravity="center_vertical">
 
-    <TextView
-        android:id="@+id/roomNameText"
+    <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:textColor="@color/text_primary"
-        android:textSize="18sp"
-        tools:text="Sun room" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/roomNameText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_primary"
+            android:textSize="18sp"
+            tools:text="Sun room" />
+
+        <TextView
+            android:id="@+id/sensorWarningText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textColor="#E36464"
+            android:textSize="14sp"
+            android:visibility="gone"
+            tools:text="[ No data last 12 min ]" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/humidityText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginEnd="20dp"
         android:textColor="@color/accent_cool"
         android:textSize="18sp"
         tools:text="70.7%" />
 
     <TextView
+        android:id="@+id/humidityTrendText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:layout_marginEnd="20dp"
+        android:textColor="@color/text_secondary"
+        android:textSize="14sp"
+        tools:text="+1.2%" />
+
+    <TextView
         android:id="@+id/tempText"
-        android:layout_width="72dp"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:gravity="end"
         android:textColor="@color/accent_warm"
         android:textSize="20sp"
         android:textStyle="bold"
         tools:text="68°F" />
+
+    <TextView
+        android:id="@+id/tempTrendText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:textColor="@color/text_secondary"
+        android:textSize="14sp"
+        tools:text="+1°F" />
 
 </LinearLayout>
