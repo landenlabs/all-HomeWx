@@ -46,6 +46,20 @@
         tools:text="16 Aug, Sun 10:54 PM" />
 
     <ImageButton
+        android:id="@+id/weatherGraphsButton"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_marginStart="24dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/weather_graphs_title"
+        android:padding="2dp"
+        android:src="@drawable/ic_graph"
+        app:layout_constraintBottom_toBottomOf="@id/weatherDateTimeText"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/weatherDateTimeText"
+        app:tint="@color/text_secondary" />
+
+    <ImageButton
         android:id="@+id/settingsButton"
         android:layout_width="28dp"
         android:layout_height="28dp"
@@ -307,5 +321,39 @@
         android:layout_height="wrap_content"
         android:visibility="gone"
         app:constraint_referenced_ids="stripChartTitleText,stripChartView" />
+
+    <!-- 3 charts sharing equal height, spanning the full width of the info panel -->
+    <LinearLayout
+        android:id="@+id/weatherGraphsPanel"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/centerDivider">
+
+        <com.github.mikephil.charting.charts.LineChart
+            android:id="@+id/windSpeedChartView"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_margin="8dp" />
+
+        <com.github.mikephil.charting.charts.LineChart
+            android:id="@+id/precipitationChartView"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_margin="8dp" />
+
+        <com.github.mikephil.charting.charts.LineChart
+            android:id="@+id/pressureChartView"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_margin="8dp" />
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

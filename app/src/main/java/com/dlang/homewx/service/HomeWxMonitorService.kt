@@ -16,6 +16,7 @@ import com.dlang.homewx.data.DailySnapshot
 import com.dlang.homewx.data.DailySnapshotStore
 import com.dlang.homewx.data.GoveeRepository
 import com.dlang.homewx.data.SensorHistoryStore
+import com.dlang.homewx.data.WeatherMetricsHistoryStore
 import com.dlang.homewx.model.LightMode
 import com.dlang.homewx.news.NewsRepository
 import com.dlang.homewx.news.NewsSourceId
@@ -50,6 +51,7 @@ class HomeWxMonitorService : LifecycleService() {
     private val lightSensorMonitor by lazy { LightSensorMonitor(applicationContext) }
     private val goveeRepository = GoveeRepository()
     private val sensorHistoryStore by lazy { SensorHistoryStore(applicationContext) }
+    private val weatherMetricsHistoryStore by lazy { WeatherMetricsHistoryStore(applicationContext) }
     private val dailySnapshotStore by lazy { DailySnapshotStore(applicationContext) }
     private val weatherDailyTracker = WeatherDailyTracker()
     private val newsRepository = NewsRepository()
@@ -130,6 +132,7 @@ class HomeWxMonitorService : LifecycleService() {
                     val forecast = weatherRepository.getForecast()
                     latestForecast = forecast
                     weatherDailyTracker.recordSample(current.observedAtMillis, current.temperatureF, current.windSpeedMph)
+                    withContext(Dispatchers.IO) { weatherMetricsHistoryStore.record(current) }
                     val tempTrend = forecast.hourlyDelta(current.observedAtMillis, 1, current.temperatureF) { it.temperatureF }
                     val pressureTrend = forecast.hourlyDelta(current.observedAtMillis, 6, current.pressureInHg) { it.pressureInHg }
                     AppState.uiState.update {
