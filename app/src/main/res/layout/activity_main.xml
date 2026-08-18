@@ -137,35 +137,35 @@
         app:layout_constraintStart_toEndOf="@id/weatherIcon"
         app:layout_constraintTop_toTopOf="@id/weatherBackgroundImage">
 
-        <TextView style="@style/WeatherLabel" android:text="@string/weather_label_condition" />
-        <TextView android:id="@+id/conditionValueText" style="@style/WeatherValue" />
-        <TextView style="@style/WeatherLabel" android:text="@string/weather_label_humidity" />
-        <TextView android:id="@+id/humidityValueText" style="@style/WeatherValue" />
+        <TextView style="@style/wx_label" android:text="@string/wx_lbl_condition" />
+        <TextView android:id="@+id/conditionValueText" style="@style/wx_value" />
+        <TextView style="@style/wx_label" android:text="@string/wx_lbl_humidity" />
+        <TextView android:id="@+id/humidityValueText" style="@style/wx_value" />
 
-        <TextView style="@style/WeatherLabel" android:text="@string/weather_label_temp_high" />
-        <TextView android:id="@+id/tempHighValueText" style="@style/WeatherValue" />
-        <TextView style="@style/WeatherLabel" android:text="@string/weather_label_temp_low" />
-        <TextView android:id="@+id/tempLowValueText" style="@style/WeatherValue" />
+        <TextView style="@style/wx_label" android:text="@string/wx_lbl_temp_low" />
+        <TextView android:id="@+id/tempLowValueText" style="@style/wx_value" />
+        <TextView style="@style/wx_label" android:text="@string/wx_lbl_temp_high" />
+        <TextView android:id="@+id/tempHighValueText" style="@style/wx_value" />
 
-        <TextView style="@style/WeatherLabel" android:text="@string/weather_label_wind_high" />
-        <TextView android:id="@+id/windHighValueText" style="@style/WeatherValue" />
-        <TextView style="@style/WeatherLabel" android:text="@string/weather_label_wind_low" />
-        <TextView android:id="@+id/windLowValueText" style="@style/WeatherValue" />
+        <TextView style="@style/wx_label" android:text="@string/wx_lbl_wind_low" />
+        <TextView android:id="@+id/windLowValueText" style="@style/wx_value" />
+        <TextView style="@style/wx_label" android:text="@string/wx_lbl_wind_high" />
+        <TextView android:id="@+id/windHighValueText" style="@style/wx_value" />
 
-        <TextView style="@style/WeatherLabel" android:text="@string/weather_label_wind_speed" />
-        <TextView android:id="@+id/windSpeedValueText" style="@style/WeatherValue" />
-        <TextView style="@style/WeatherLabel" android:text="@string/weather_label_wind_direction" />
-        <TextView android:id="@+id/windDirectionValueText" style="@style/WeatherValue" />
+        <TextView style="@style/wx_label" android:text="@string/wx_lbl_wind_speed" />
+        <TextView android:id="@+id/windSpeedValueText" style="@style/wx_value" />
+        <TextView style="@style/wx_label" android:text="@string/wx_lbl_wind_direction" />
+        <TextView android:id="@+id/windDirectionValueText" style="@style/wx_value" />
 
-        <TextView style="@style/WeatherLabel" android:text="@string/weather_label_precipitation" />
-        <TextView android:id="@+id/precipitationValueText" style="@style/WeatherValue" />
-        <TextView style="@style/WeatherLabel" android:text="@string/weather_label_pressure" />
-        <TextView android:id="@+id/pressureValueText" style="@style/WeatherValue" />
+        <TextView style="@style/wx_label" android:text="@string/wx_lbl_precipitation" />
+        <TextView android:id="@+id/precipitationValueText" style="@style/wx_value" />
+        <TextView style="@style/wx_label" android:text="@string/wx_lbl_pressure" />
+        <TextView android:id="@+id/pressureValueText" style="@style/wx_value" />
 
-        <TextView style="@style/WeatherLabel" android:text="@string/weather_label_ly_max" />
-        <TextView android:id="@+id/lyMaxValueText" style="@style/WeatherValue" />
-        <TextView style="@style/WeatherLabel" android:text="@string/weather_label_ly_min" />
-        <TextView android:id="@+id/lyMinValueText" style="@style/WeatherValue" />
+        <TextView style="@style/wx_label" android:text="@string/wx_lbl_ly_min" />
+        <TextView android:id="@+id/lyMinValueText" style="@style/wx_value" />
+        <TextView style="@style/wx_label" android:text="@string/wx_lbl_ly_max" />
+        <TextView android:id="@+id/lyMaxValueText" style="@style/wx_value" />
     </GridLayout>
 
     <!-- SENSORS SECTION -->
