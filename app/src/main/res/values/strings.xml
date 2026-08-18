@@ -37,6 +37,9 @@
     <string name="settings_light_threshold_label">Active/quiet threshold</string>
     <string name="settings_section_sensors">SENSORS</string>
     <string name="settings_no_sensors">No indoor sensors yet</string>
+    <string name="settings_section_webview_logging">ARTICLE VIEWER</string>
+    <string name="settings_webview_logging_switch">Log WebView request domains</string>
+    <string name="settings_webview_logging_path">Log file: %1$s</string>
     <string name="settings_save">Save</string>
     <string name="settings_saved">Settings saved</string>
 </resources>

@@ -16,6 +16,7 @@ object AppSettings {
     private const val KEY_BACKGROUND_DARKEN_PERCENT = "background_darken_percent"
     private const val KEY_HIDDEN_SENSOR_IDS = "hidden_sensor_ids"
     private const val KEY_LIGHT_THRESHOLD_LUX = "light_threshold_lux"
+    private const val KEY_WEBVIEW_REQUEST_LOGGING_ENABLED = "webview_request_logging_enabled"
 
     const val DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES = 30
     const val MIN_WEATHER_SAMPLE_INTERVAL_MINUTES = 1
@@ -59,6 +60,13 @@ object AppSettings {
 
     fun setLightThresholdLux(context: Context, lux: Float) {
         prefs(context).edit { putFloat(KEY_LIGHT_THRESHOLD_LUX, lux.coerceIn(MIN_LIGHT_THRESHOLD_LUX, MAX_LIGHT_THRESHOLD_LUX)) }
+    }
+
+    fun isWebViewRequestLoggingEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_WEBVIEW_REQUEST_LOGGING_ENABLED, false)
+
+    fun setWebViewRequestLoggingEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit { putBoolean(KEY_WEBVIEW_REQUEST_LOGGING_ENABLED, enabled) }
     }
 
     fun getHiddenSensorIds(context: Context): Set<String> =

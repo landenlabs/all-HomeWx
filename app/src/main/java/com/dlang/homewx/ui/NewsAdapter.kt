@@ -12,6 +12,9 @@ class NewsAdapter(private val onItemClick: (NewsItem) -> Unit) : RecyclerView.Ad
     private var items: List<NewsItem> = emptyList()
 
     fun submit(newItems: List<NewsItem>) {
+        // observeState() calls this on every AppState.uiState tick (sensors, lux, weather...),
+        // not just when news actually changes - skip the rebind or thumbnails flash on every tick.
+        if (newItems == items) return
         items = newItems
         notifyDataSetChanged()
     }

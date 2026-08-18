@@ -15,6 +15,7 @@ import androidx.core.view.WindowInsetsCompat
 import com.dlang.homewx.R
 import com.dlang.homewx.databinding.ActivitySettingsBinding
 import com.dlang.homewx.model.SensorReading
+import com.dlang.homewx.news.WebRequestLogger
 import com.dlang.homewx.state.AppState
 import com.dlang.homewx.weather.WeatherSourceConfig
 import com.dlang.homewx.weather.WeatherSourceId
@@ -161,6 +162,12 @@ class SettingsActivity : AppCompatActivity() {
         val storedSensorId = AppSettings.getTempSensorOverrideSensorId(this)
         val sensorIndex = sensorIds.indexOf(storedSensorId).coerceAtLeast(0)
         binding.tempOverrideSensorSpinner.setSelection(sensorIndex)
+
+        binding.webviewLoggingSwitch.isChecked = AppSettings.isWebViewRequestLoggingEnabled(this)
+        binding.webviewLogPathText.text = getString(
+            R.string.settings_webview_logging_path,
+            WebRequestLogger.logFile(this).absolutePath
+        )
     }
 
     private fun saveSettings() {
@@ -182,6 +189,8 @@ class SettingsActivity : AppCompatActivity() {
             .map { it.tag as String }
             .toSet()
         AppSettings.setHiddenSensorIds(this, hiddenIds)
+
+        AppSettings.setWebViewRequestLoggingEnabled(this, binding.webviewLoggingSwitch.isChecked)
 
         Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()
         finish()

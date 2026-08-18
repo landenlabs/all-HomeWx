@@ -9,7 +9,6 @@ import android.text.style.RelativeSizeSpan
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
-import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -26,6 +25,7 @@ import com.dlang.homewx.databinding.ActivityMainBinding
 import com.dlang.homewx.model.LightMode
 import com.dlang.homewx.model.SensorReading
 import com.dlang.homewx.model.UiState
+import com.dlang.homewx.news.LoggingWebViewClient
 import com.dlang.homewx.news.NewsItem
 import com.dlang.homewx.news.NewsSourceId
 import com.dlang.homewx.power.ScreenPowerController
@@ -199,7 +199,7 @@ class MainActivity : AppCompatActivity() {
         binding.articleWebView.settings.domStorageEnabled = true
         // Without a client, the WebView hands off navigation to an external browser app
         // instead of keeping the tapped story inside this same panel.
-        binding.articleWebView.webViewClient = WebViewClient()
+        binding.articleWebView.webViewClient = LoggingWebViewClient(this)
     }
 
     private fun showNewsArticle(item: NewsItem) {
