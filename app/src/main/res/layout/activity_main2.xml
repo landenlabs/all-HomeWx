@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_root">
+
+    <!-- Split Screen 50/50 Guideline -->
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/middleGuideline"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintGuide_percent="0.5" />
+
+    <!-- TOP PANEL BACKGROUND -->
+    <View
+        android:id="@+id/topPanelBackground"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@color/bg_panel_top"
+        app:layout_constraintBottom_toTopOf="@id/middleGuideline"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Date/Time Header & Settings -->
+    <TextView
+        android:id="@+id/weatherDateTimeText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="24dp"
+        android:gravity="center"
+        android:textColor="@color/text_secondary"
+        android:textSize="24sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="16 Aug, Sun 10:54 PM" />
+
+    <ImageButton
+        android:id="@+id/settingsButton"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_marginEnd="24dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/settings_title"
+        android:padding="2dp"
+        android:src="@drawable/ic_settings"
+        app:layout_constraintBottom_toBottomOf="@id/weatherDateTimeText"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/weatherDateTimeText"
+        app:tint="@color/text_secondary" />
+
+    <!-- WEATHER ROW (Background + Scrim) -->
+    <ImageView
+        android:id="@+id/weatherBackgroundImage"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:contentDescription="@null"
+        android:scaleType="centerCrop"
+        app:layout_constraintBottom_toTopOf="@id/topDivider"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/weatherDateTimeText"
+        tools:src="@drawable/wx_bg_clear" />
+
+    <View
+        android:id="@+id/weatherBackgroundScrim"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="#000000"
+        app:layout_constraintBottom_toBottomOf="@id/weatherBackgroundImage"
+        app:layout_constraintEnd_toEndOf="@id/weatherBackgroundImage"
+        app:layout_constraintStart_toStartOf="@id/weatherBackgroundImage"
+        app:layout_constraintTop_toTopOf="@id/weatherBackgroundImage" />
+
+    <!-- Main Temperature Display -->
+    <ImageView
+        android:id="@+id/weatherIcon"
+        android:layout_width="144dp"
+        android:layout_height="144dp"
+        android:layout_marginStart="24dp"
+        android:contentDescription="@null"
+        android:src="@drawable/wx_sun_44d"
+        app:layout_constraintBottom_toTopOf="@id/currentTempText"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/weatherBackgroundImage"
+        app:layout_constraintVertical_chainStyle="packed" />
+
+    <TextView
+        android:id="@+id/currentTempText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/weather_placeholder"
+        android:textColor="@color/text_primary"
+        android:textSize="44sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toTopOf="@id/tempTrendText"
+        app:layout_constraintEnd_toEndOf="@id/weatherIcon"
+        app:layout_constraintStart_toStartOf="@id/weatherIcon"
+        app:layout_constraintTop_toBottomOf="@id/weatherIcon" />
+
+    <TextView
+        android:id="@+id/tempTrendText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/text_secondary"
+        android:textSize="33sp"
+        app:layout_constraintBottom_toBottomOf="@id/weatherBackgroundImage"
+        app:layout_constraintEnd_toEndOf="@id/weatherIcon"
+        app:layout_constraintStart_toStartOf="@id/weatherIcon"
+        app:layout_constraintTop_toBottomOf="@id/currentTempText"
+        tools:text="+2°F" />
+
+    <!-- Flow Helper managing table elements in 4 columns -->
+    <androidx.constraintlayout.helper.widget.Flow
+        android:id="@+id/weatherDetailsFlow"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginStart="10dp"
+        android:layout_marginEnd="24dp"
+        app:constraint_referenced_ids="lblCond,conditionValueText,lblHum,humidityValueText,lblHigh,tempHighValueText,lblLow,tempLowValueText,lblWindH,windHighValueText,lblWindL,windLowValueText,lblWindSpd,windSpeedValueText,lblWindDir,windDirectionValueText,lblPrecip,precipitationValueText,lblPress,pressureValueText,lblLyMax,lyMaxValueText,lblLyMin,lyMinValueText"
+        app:flow_maxElementsWrap="4"
+        app:flow_wrapMode="aligned"
+        app:layout_constraintBottom_toBottomOf="@id/weatherBackgroundImage"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/weatherIcon"
+        app:layout_constraintTop_toTopOf="@id/weatherBackgroundImage" />
+
+    <!-- Table Views (Referenced inside Flow above) -->
+    <TextView android:id="@+id/lblCond" android:layout_width="0dp" android:layout_height="wrap_content" android:text="@string/weather_label_condition" android:textColor="@color/accent_cool" android:textSize="24sp" />
+    <TextView android:id="@+id/conditionValueText" android:layout_width="0dp" android:layout_height="wrap_content" android:textColor="@color/text_primary" android:textSize="24sp" />
+    <TextView android:id="@+id/lblHum" android:layout_width="0dp" android:layout_height="wrap_content" android:text="@string/weather_label_humidity" android:textColor="@color/accent_cool" android:textSize="24sp" />
+    <TextView android:id="@+id/humidityValueText" android:layout_width="0dp" android:layout_height="wrap_content" android:textColor="@color/text_primary" android:textSize="24sp" />
+
+    <TextView android:id="@+id/lblHigh" android:layout_width="0dp" android:layout_height="wrap_content" android:text="@string/weather_label_temp_high" android:textColor="@color/accent_cool" android:textSize="24sp" />
+    <TextView android:id="@+id/tempHighValueText" android:layout_width="0dp" android:layout_height="wrap_content" android:textColor="@color/text_primary" android:textSize="24sp" />
+    <TextView android:id="@+id/lblLow" android:layout_width="0dp" android:layout_height="wrap_content" android:text="@string/weather_label_temp_low" android:textColor="@color/accent_cool" android:textSize="24sp" />
+    <TextView android:id="@+id/tempLowValueText" android:layout_width="0dp" android:layout_height="wrap_content" android:textColor="@color/text_primary" android:textSize="24sp" />
+
+    <TextView android:id="@+id/lblWindH" android:layout_width="0dp" android:layout_height="wrap_content" android:text="@string/weather_label_wind_high" android:textColor="@color/accent_cool" android:textSize="24sp" />
+    <TextView android:id="@+id/windHighValueText" android:layout_width="0dp" android:layout_height="wrap_content" android:textColor="@color/text_primary" android:textSize="24sp" />
+    <TextView android:id="@+id/lblWindL" android:layout_width="0dp" android:layout_height="wrap_content" android:text="@string/weather_label_wind_low" android:textColor="@color/accent_cool" android:textSize="24sp" />
+    <TextView android:id="@+id/windLowValueText" android:layout_width="0dp" android:layout_height="wrap_content" android:textColor="@color/text_primary" android:textSize="24sp" />
+
+    <TextView android:id="@+id/lblWindSpd" android:layout_width="0dp" android:layout_height="wrap_content" android:text="@string/weather_label_wind_speed" android:textColor="@color/accent_cool" android:textSize="24sp" />
+    <TextView android:id="@+id/windSpeedValueText" android:layout_width="0dp" android:layout_height="wrap_content" android:textColor="@color/text_primary" android:textSize="24sp" />
+    <TextView android:id="@+id/lblWindDir" android:layout_width="0dp" android:layout_height="wrap_content" android:text="@string/weather_label_wind_direction" android:textColor="@color/accent_cool" android:textSize="24sp" />
+    <TextView android:id="@+id/windDirectionValueText" android:layout_width="0dp" android:layout_height="wrap_content" android:textColor="@color/text_primary" android:textSize="24sp" />
+
+    <TextView android:id="@+id/lblPrecip" android:layout_width="0dp" android:layout_height="wrap_content" android:text="@string/weather_label_precipitation" android:textColor="@color/accent_cool" android:textSize="24sp" />
+    <TextView android:id="@+id/precipitationValueText" android:layout_width="0dp" android:layout_height="wrap_content" android:textColor="@color/text_primary" android:textSize="24sp" />
+    <TextView android:id="@+id/lblPress" android:layout_width="0dp" android:layout_height="wrap_content" android:text="@string/weather_label_pressure" android:textColor="@color/accent_cool" android:textSize="24sp" />
+    <TextView android:id="@+id/pressureValueText" android:layout_width="0dp" android:layout_height="wrap_content" android:textColor="@color/text_primary" android:textSize="24sp" />
+
+    <TextView android:id="@+id/lblLyMax" android:layout_width="0dp" android:layout_height="wrap_content" android:text="@string/weather_label_ly_max" android:textColor="@color/accent_cool" android:textSize="24sp" />
+    <TextView android:id="@+id/lyMaxValueText" android:layout_width="0dp" android:layout_height="wrap_content" android:textColor="@color/text_primary" android:textSize="24sp" />
+    <TextView android:id="@+id/lblLyMin" android:layout_width="0dp" android:layout_height="wrap_content" android:text="@string/weather_label_ly_min" android:textColor="@color/accent_cool" android:textSize="24sp" />
+    <TextView android:id="@+id/lyMinValueText" android:layout_width="0dp" android:layout_height="wrap_content" android:textColor="@color/text_primary" android:textSize="24sp" />
+
+    <!-- Top Section Divider -->
+    <View
+        android:id="@+id/topDivider"
+        android:layout_width="0dp"
+        android:layout_height="1dp"
+        android:layout_marginBottom="8dp"
+        android:background="@color/divider"
+        app:layout_constraintBottom_toTopOf="@id/sensorsTitleText"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- Indoor Sensors Header & List -->
+    <TextView
+        android:id="@+id/sensorsTitleText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
+        android:letterSpacing="0.08"
+        android:text="SENSORS"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp"
+        app:layout_constraintBottom_toTopOf="@id/sensorRecyclerView"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <TextView
+        android:id="@+id/sensorErrorText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:textColor="#E36464"
+        android:textSize="13sp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="@id/sensorsTitleText"
+        app:layout_constraintStart_toStartOf="@id/sensorsTitleText"
+        app:layout_constraintTop_toBottomOf="@id/sensorsTitleText"
+        tools:text="Sensor error: timeout" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/sensorRecyclerView"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:clipToPadding="false"
+        android:overScrollMode="never"
+        app:layout_constraintBottom_toTopOf="@id/middleGuideline"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- Middle Divider -->
+    <View
+        android:id="@+id/centerDivider"
+        android:layout_width="0dp"
+        android:layout_height="2dp"
+        android:background="@color/divider"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/middleGuideline" />
+
+    <!-- BOTTOM PANEL BACKGROUND & CONTENT -->
+    <View
+        android:id="@+id/bottomPanelBg"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@color/bg_panel_bottom"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/centerDivider" />
+
+    <TextView
+        android:id="@+id/futureInfoPlaceholderText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="future_info_placeholder"
+        android:textColor="@color/text_secondary"
+        android:textSize="18sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/centerDivider" />
+
+    <!-- Strip Chart Container Group -->
+    <androidx.constraintlayout.widget.Group
+        android:id="@+id/stripChartGroup"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:constraint_referenced_ids="stripChartTitleText,stripChartView" />
+
+    <TextView
+        android:id="@+id/stripChartTitleText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
+        android:textColor="@color/text_primary"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/centerDivider"
+        tools:text="Sun room - temperature" />
+
+    <com.dlang.homewx.ui.StripChartView
+        android:id="@+id/stripChartView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_margin="16dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/stripChartTitleText" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

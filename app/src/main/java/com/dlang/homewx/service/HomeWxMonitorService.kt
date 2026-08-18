@@ -317,6 +317,7 @@ class HomeWxMonitorService : LifecycleService() {
         private const val QUIET_POLL_INTERVAL_MS = 15 * 60 * 1000L
         private const val HOUR_MILLIS = 60 * 60 * 1000L
         private const val SENSOR_TREND_TOLERANCE_MS = 20 * 60 * 1000L
+        private const val NEWS_POLL_INTERVAL_MS = 10 * 60 * 1000L
 
         fun start(context: Context) {
             val intent = Intent(context, HomeWxMonitorService::class.java)

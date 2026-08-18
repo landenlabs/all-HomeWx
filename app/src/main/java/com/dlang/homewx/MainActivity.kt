@@ -22,11 +22,13 @@ import com.dlang.homewx.data.SensorHistoryStore
 import com.dlang.homewx.databinding.ActivityMainBinding
 import com.dlang.homewx.model.SensorReading
 import com.dlang.homewx.model.UiState
+import com.dlang.homewx.news.NewsSourceId
 import com.dlang.homewx.power.ScreenPowerController
 import com.dlang.homewx.service.HomeWxMonitorService
 import com.dlang.homewx.settings.AppSettings
 import com.dlang.homewx.settings.SettingsActivity
 import com.dlang.homewx.state.AppState
+import com.dlang.homewx.ui.NewsAdapter
 import com.dlang.homewx.ui.SensorAdapter
 import com.dlang.homewx.ui.weatherBackgroundRes
 import com.dlang.homewx.ui.weatherIconRes
@@ -34,6 +36,7 @@ import com.dlang.homewx.weather.DailyExtreme
 import com.dlang.homewx.weather.HomeLocation
 import com.dlang.homewx.weather.WeatherForecast
 import com.dlang.homewx.weather.startOfDay
+import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -50,8 +53,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var screenPowerController: ScreenPowerController
     private val sensorAdapter = SensorAdapter(onSensorClick = ::showSensorHistory)
+    private val newsAdapter = NewsAdapter()
     private val sensorHistoryStore by lazy { SensorHistoryStore(applicationContext) }
     private val dailySnapshotStore by lazy { DailySnapshotStore(applicationContext) }
+
+    private var selectedNewsSource = NewsSourceId.values().first()
 
     private val forecastDayFormat = SimpleDateFormat("EEE MMM d", Locale.getDefault())
     private val weatherDateTimeFormat = SimpleDateFormat("dd MMM, EEE hh:mm a", Locale.getDefault())
@@ -103,6 +109,7 @@ class MainActivity : AppCompatActivity() {
         binding.sensorRecyclerView.adapter = sensorAdapter
         binding.weatherRow.setOnTouchListener { _, event -> weatherGestureDetector.onTouchEvent(event) }
         binding.settingsButton.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
+        setUpNewsTabs()
 
         HomeWxMonitorService.start(this)
 
@@ -114,6 +121,27 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         binding.weatherBackgroundScrim.alpha = AppSettings.getBackgroundDarkenPercent(this) / 100f
         sensorAdapter.submit(visibleSensors(AppState.uiState.value.sensors))
+    }
+
+    private fun setUpNewsTabs() {
+        binding.newsRecyclerView.layoutManager = LinearLayoutManager(this)
+        binding.newsRecyclerView.adapter = newsAdapter
+
+        binding.newsTabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) {
+                selectedNewsSource = tab.tag as NewsSourceId
+                refreshNewsList()
+            }
+            override fun onTabUnselected(tab: TabLayout.Tab) = Unit
+            override fun onTabReselected(tab: TabLayout.Tab) = Unit
+        })
+        NewsSourceId.values().forEach { source ->
+            binding.newsTabLayout.addTab(binding.newsTabLayout.newTab().setText(source.label).apply { tag = source })
+        }
+    }
+
+    private fun refreshNewsList() {
+        newsAdapter.submit(AppState.uiState.value.newsItemsBySource[selectedNewsSource].orEmpty())
     }
 
     private fun visibleSensors(sensors: List<SensorReading>): List<SensorReading> {
@@ -149,6 +177,7 @@ class MainActivity : AppCompatActivity() {
                 sensorAdapter.submit(visibleSensors(state.sensors))
                 sensorsUpdatedAtMillis = state.sensorsUpdatedAtMillis
                 updateSensorsTitle()
+                refreshNewsList()
                 latestForecast = state.weatherForecast
 
                 if (viewingDayOffset == 0) {
@@ -280,7 +309,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSensorHistory(reading: SensorReading) {
-        binding.futureInfoPlaceholderText.visibility = View.GONE
+        binding.newsPanel.visibility = View.GONE
         binding.stripChartPanel.visibility = View.VISIBLE
         binding.stripChartTitleText.text = "${reading.roomName} — temperature"
         lifecycleScope.launch {
