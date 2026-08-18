@@ -16,60 +16,66 @@
         android:background="@color/bg_panel_top"
         android:orientation="vertical"
         android:paddingStart="24dp"
-        android:paddingTop="20dp"
+        android:paddingTop="8dp"
         android:paddingEnd="24dp"
         android:paddingBottom="16dp">
 
-        <!-- status / clock row -->
-        <LinearLayout
+        <!-- date/time title row, with the settings gear floating on its right -->
+        <RelativeLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:layout_height="wrap_content">
 
             <TextView
-                android:id="@+id/dateText"
-                android:layout_width="0dp"
+                android:id="@+id/weatherDateTimeText"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
+                android:gravity="center"
                 android:textColor="@color/text_secondary"
-                android:textSize="16sp"
-                tools:text="Friday, July 24" />
+                android:textSize="24sp"
+                tools:text="16 Aug, Sun 10:54 PM" />
 
-            <TextView
-                android:id="@+id/modeChip"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/accent_warm"
-                android:textSize="14sp"
-                android:text="☀ Active" />
+            <ImageButton
+                android:id="@+id/settingsButton"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/settings_title"
+                android:padding="2dp"
+                android:src="@drawable/ic_settings"
+                app:tint="@color/text_secondary" />
+        </RelativeLayout>
 
-            <TextView
-                android:id="@+id/clockText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:textColor="@color/text_primary"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                tools:text="7:42 PM" />
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/weatherDateTimeText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:gravity="center"
-            android:textColor="@color/text_secondary"
-            android:textSize="24sp"
-            tools:text="16 Aug, Sun 10:54 PM" />
-
-        <LinearLayout
+        <!-- weatherRow takes all leftover vertical space in topPanel (the sensor
+             list below is wrap_content, sized to only its visible rows), so the
+             background fills the whole row and the content is centered in it. -->
+        <RelativeLayout
             android:id="@+id/weatherRow"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1.85"
-            android:orientation="horizontal">
+            android:layout_weight="1">
+
+            <ImageView
+                android:id="@+id/weatherBackgroundImage"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="@null"
+                android:scaleType="centerCrop"
+                tools:src="@drawable/wx_bg_clear" />
+
+            <View
+                android:id="@+id/weatherBackgroundScrim"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#000000" />
+
+            <LinearLayout
+                android:id="@+id/weatherRowContent"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_centerVertical="true"
+                android:orientation="horizontal">
 
             <!-- icon + big temperature, top-aligned -->
             <LinearLayout
@@ -131,7 +137,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="0.75"
                         android:text="@string/weather_label_condition"
-                        android:textColor="@color/text_secondary"
+                        android:textColor="@color/accent_cool"
                         android:textSize="24sp" />
                     <TextView
                         android:id="@+id/conditionValueText"
@@ -146,7 +152,7 @@
                         android:layout_weight="0.75"
                         android:layout_marginStart="8dp"
                         android:text="@string/weather_label_humidity"
-                        android:textColor="@color/text_secondary"
+                        android:textColor="@color/accent_cool"
                         android:textSize="24sp" />
                     <TextView
                         android:id="@+id/humidityValueText"
@@ -169,7 +175,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="0.75"
                         android:text="@string/weather_label_temp_high"
-                        android:textColor="@color/text_secondary"
+                        android:textColor="@color/accent_cool"
                         android:textSize="24sp" />
                     <TextView
                         android:id="@+id/tempHighValueText"
@@ -184,7 +190,7 @@
                         android:layout_weight="0.75"
                         android:layout_marginStart="8dp"
                         android:text="@string/weather_label_temp_low"
-                        android:textColor="@color/text_secondary"
+                        android:textColor="@color/accent_cool"
                         android:textSize="24sp" />
                     <TextView
                         android:id="@+id/tempLowValueText"
@@ -207,7 +213,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="0.75"
                         android:text="@string/weather_label_wind_high"
-                        android:textColor="@color/text_secondary"
+                        android:textColor="@color/accent_cool"
                         android:textSize="24sp" />
                     <TextView
                         android:id="@+id/windHighValueText"
@@ -222,7 +228,7 @@
                         android:layout_weight="0.75"
                         android:layout_marginStart="8dp"
                         android:text="@string/weather_label_wind_low"
-                        android:textColor="@color/text_secondary"
+                        android:textColor="@color/accent_cool"
                         android:textSize="24sp" />
                     <TextView
                         android:id="@+id/windLowValueText"
@@ -245,7 +251,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="0.75"
                         android:text="@string/weather_label_wind_speed"
-                        android:textColor="@color/text_secondary"
+                        android:textColor="@color/accent_cool"
                         android:textSize="24sp" />
                     <TextView
                         android:id="@+id/windSpeedValueText"
@@ -260,7 +266,7 @@
                         android:layout_weight="0.75"
                         android:layout_marginStart="8dp"
                         android:text="@string/weather_label_wind_direction"
-                        android:textColor="@color/text_secondary"
+                        android:textColor="@color/accent_cool"
                         android:textSize="24sp" />
                     <TextView
                         android:id="@+id/windDirectionValueText"
@@ -283,7 +289,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="0.75"
                         android:text="@string/weather_label_precipitation"
-                        android:textColor="@color/text_secondary"
+                        android:textColor="@color/accent_cool"
                         android:textSize="24sp" />
                     <TextView
                         android:id="@+id/precipitationValueText"
@@ -298,7 +304,7 @@
                         android:layout_weight="0.75"
                         android:layout_marginStart="8dp"
                         android:text="@string/weather_label_pressure"
-                        android:textColor="@color/text_secondary"
+                        android:textColor="@color/accent_cool"
                         android:textSize="24sp" />
                     <TextView
                         android:id="@+id/pressureValueText"
@@ -321,7 +327,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="0.75"
                         android:text="@string/weather_label_ly_max"
-                        android:textColor="@color/text_secondary"
+                        android:textColor="@color/accent_cool"
                         android:textSize="24sp" />
                     <TextView
                         android:id="@+id/lyMaxValueText"
@@ -336,7 +342,7 @@
                         android:layout_weight="0.75"
                         android:layout_marginStart="8dp"
                         android:text="@string/weather_label_ly_min"
-                        android:textColor="@color/text_secondary"
+                        android:textColor="@color/accent_cool"
                         android:textSize="24sp" />
                     <TextView
                         android:id="@+id/lyMinValueText"
@@ -347,21 +353,23 @@
                         android:textSize="24sp" />
                 </LinearLayout>
             </LinearLayout>
-        </LinearLayout>
+            </LinearLayout>
+        </RelativeLayout>
 
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="12dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="8dp"
             android:background="@color/divider" />
 
         <!-- indoor govee sensors -->
         <TextView
+            android:id="@+id/sensorsTitleText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:letterSpacing="0.08"
-            android:text="INDOOR SENSORS"
+            android:text="SENSORS"
             android:textColor="@color/text_secondary"
             android:textSize="12sp" />
 
@@ -378,9 +386,8 @@
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/sensorRecyclerView"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
+            android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:layout_weight="1.4"
             android:clipToPadding="false"
             android:overScrollMode="never" />
 

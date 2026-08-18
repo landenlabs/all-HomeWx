@@ -17,13 +17,13 @@ import com.dlang.homewx.data.DailySnapshotStore
 import com.dlang.homewx.data.GoveeRepository
 import com.dlang.homewx.data.SensorHistoryStore
 import com.dlang.homewx.model.LightMode
+import com.dlang.homewx.news.NewsRepository
+import com.dlang.homewx.news.NewsSourceId
 import com.dlang.homewx.power.LightSensorMonitor
 import com.dlang.homewx.settings.AppSettings
 import com.dlang.homewx.state.AppState
-import com.dlang.homewx.weather.CurrentConditions
 import com.dlang.homewx.weather.DailyExtreme
 import com.dlang.homewx.weather.DailyExtremes
-import com.dlang.homewx.weather.HistoricalTempAverage
 import com.dlang.homewx.weather.HomeLocation
 import com.dlang.homewx.weather.WeatherDailyTracker
 import com.dlang.homewx.weather.WeatherForecast
@@ -52,16 +52,13 @@ class HomeWxMonitorService : LifecycleService() {
     private val sensorHistoryStore by lazy { SensorHistoryStore(applicationContext) }
     private val dailySnapshotStore by lazy { DailySnapshotStore(applicationContext) }
     private val weatherDailyTracker = WeatherDailyTracker()
+    private val newsRepository = NewsRepository()
     private val weatherRepository = WeatherRepository(
         location = HomeLocation.CURRENT,
         activeSource = { WeatherSourceConfig.getActiveSource(applicationContext) }
     )
     private var latestForecast: WeatherForecast? = null
     private var historicalAverageFetchedForDay: Long? = null
-    private var lastSnapshotDay: Long? = null
-    private var lastKnownCurrent: CurrentConditions? = null
-    private var lastKnownExtremes: DailyExtremes = DailyExtremes()
-    private var lastKnownHistoricalAverage: HistoricalTempAverage? = null
     private val sensorFailureCounts = mutableMapOf<String, Int>()
     private var sensorFailureCountsDay: Long? = null
 
@@ -105,7 +102,14 @@ class HomeWxMonitorService : LifecycleService() {
                             )
                         }
                     }
-                    AppState.uiState.update { it.copy(sensors = sensorsWithTrends, lastError = null) }
+                    AppState.uiState.update {
+                        it.copy(
+                            sensors = sensorsWithTrends,
+                            sensorsUpdatedAtMillis = System.currentTimeMillis(),
+                            lastError = null
+                        )
+                    }
+                    applyTempSensorOverrideToCurrentConditions()
                     refreshDailyExtremes()
                 } catch (e: Exception) {
                     AppState.uiState.update { it.copy(lastError = e.message ?: "Govee refresh failed") }
@@ -122,7 +126,6 @@ class HomeWxMonitorService : LifecycleService() {
         lifecycleScope.launch {
             while (true) {
                 try {
-                    saveDailySnapshotOnRollover()
                     val current = weatherRepository.getCurrentConditions()
                     val forecast = weatherRepository.getForecast()
                     latestForecast = forecast
@@ -138,15 +141,25 @@ class HomeWxMonitorService : LifecycleService() {
                             weatherError = null
                         )
                     }
+                    applyTempSensorOverrideToCurrentConditions()
                     refreshDailyExtremes()
                     refreshHistoricalAverageIfNewDay()
-                    lastKnownCurrent = current
-                    lastKnownExtremes = AppState.uiState.value.dailyExtremes
-                    lastKnownHistoricalAverage = AppState.uiState.value.historicalTempAverage
+                    saveTodaySnapshot()
                 } catch (e: Exception) {
                     AppState.uiState.update { it.copy(weatherError = e.message ?: "Weather refresh failed") }
                 }
                 delay(AppSettings.getWeatherSampleIntervalMinutes(applicationContext) * 60_000L)
+            }
+        }
+
+        lifecycleScope.launch {
+            while (true) {
+                // Each source is fetched independently so one feed failing doesn't blank out the other.
+                val items = NewsSourceId.values().associateWith { source ->
+                    runCatching { newsRepository.fetchFeed(source) }.getOrElse { emptyList() }
+                }
+                AppState.uiState.update { it.copy(newsItemsBySource = items) }
+                delay(NEWS_POLL_INTERVAL_MS)
             }
         }
     }
@@ -161,20 +174,43 @@ class HomeWxMonitorService : LifecycleService() {
         super.onDestroy()
     }
 
+    /** When the sensor override is on, the selected sensor's own temp/humidity replace the weather provider's in the live display. */
+    private fun applyTempSensorOverrideToCurrentConditions() {
+        val overrideSensorId = AppSettings.getTempSensorOverrideSensorId(applicationContext)
+            .takeIf { AppSettings.isTempSensorOverrideEnabled(applicationContext) }
+            ?: return
+        val sensor = AppState.uiState.value.sensors.firstOrNull { it.id == overrideSensorId } ?: return
+        AppState.uiState.update { state ->
+            val current = state.currentWeather ?: return@update state
+            state.copy(
+                currentWeather = current.copy(
+                    temperatureF = sensor.tempF ?: current.temperatureF,
+                    humidityPct = sensor.humidityPct ?: current.humidityPct
+                )
+            )
+        }
+    }
+
     private suspend fun refreshDailyExtremes() {
         val nowMillis = System.currentTimeMillis()
         val overrideSensorId = AppSettings.getTempSensorOverrideSensorId(applicationContext)
             .takeIf { AppSettings.isTempSensorOverrideEnabled(applicationContext) }
 
+        val todayTempPoints = latestForecast?.hourly.orEmpty()
+            .filter { isSameDay(it.timeMillis, nowMillis) }
+            .mapNotNull { entry -> entry.temperatureF?.let { entry.timeMillis to it } }
+
         val (tempHigh, tempLow) = if (overrideSensorId != null) {
-            withContext(Dispatchers.IO) {
-                val (high, low) = sensorHistoryStore.getTodayTempExtremes(overrideSensorId, startOfDay(nowMillis))
-                high?.let { DailyExtreme(it.value, it.atMillis) } to low?.let { DailyExtreme(it.value, it.atMillis) }
+            // Seed from the sensor's own readings so far today, then let the
+            // forecast's remaining hours push the extremes further if needed.
+            val (sensorHigh, sensorLow) = withContext(Dispatchers.IO) {
+                sensorHistoryStore.getTodayTempExtremes(overrideSensorId, startOfDay(nowMillis))
             }
+            val sensorHighExtreme = sensorHigh?.let { DailyExtreme(it.value, it.atMillis) }
+            val sensorLowExtreme = sensorLow?.let { DailyExtreme(it.value, it.atMillis) }
+            bestExtreme(sensorHighExtreme, todayTempPoints, pickHigh = true) to
+                bestExtreme(sensorLowExtreme, todayTempPoints, pickHigh = false)
         } else {
-            val todayTempPoints = latestForecast?.hourly.orEmpty()
-                .filter { isSameDay(it.timeMillis, nowMillis) }
-                .mapNotNull { entry -> entry.temperatureF?.let { entry.timeMillis to it } }
             val (trackerHigh, trackerLow) = weatherDailyTracker.tempExtremes()
             bestExtreme(trackerHigh, todayTempPoints, pickHigh = true) to
                 bestExtreme(trackerLow, todayTempPoints, pickHigh = false)
@@ -193,45 +229,44 @@ class HomeWxMonitorService : LifecycleService() {
     }
 
     /**
-     * When the calendar day changes, freezes yesterday's last-known conditions into a permanent
-     * snapshot row (using whatever was cached from the most recent successful poll before the
-     * rollover - within one poll interval of true midnight, not necessarily exact).
+     * Upserts today's row on every successful poll with the latest known conditions/extremes,
+     * rather than trying to detect the midnight transition and write once - that approach only
+     * worked if the service happened to stay alive continuously across midnight, which isn't
+     * guaranteed (OEM battery management, app restarts, etc.). This way, today's row is always
+     * current, and once the calendar rolls over, it simply stops being touched and stands as
+     * the permanent frozen record for that day.
      */
-    private suspend fun saveDailySnapshotOnRollover() {
-        val today = startOfDay(System.currentTimeMillis())
-        val previousDay = lastSnapshotDay
-        val current = lastKnownCurrent
-        if (previousDay != null && previousDay != today && current != null) {
-            val extremes = lastKnownExtremes
-            val historicalAverage = lastKnownHistoricalAverage
-            withContext(Dispatchers.IO) {
-                dailySnapshotStore.saveSnapshot(
-                    DailySnapshot(
-                        dayStartMillis = previousDay,
-                        conditionText = current.conditionText,
-                        iconKey = current.iconKey,
-                        tempF = current.temperatureF,
-                        feelsLikeF = current.feelsLikeF,
-                        humidityPct = current.humidityPct,
-                        windSpeedMph = current.windSpeedMph,
-                        windDirectionDeg = current.windDirectionDeg,
-                        precipitationIn = current.precipitationIn,
-                        pressureInHg = current.pressureInHg,
-                        tempHighF = extremes.tempHighF?.value,
-                        tempHighAtMillis = extremes.tempHighF?.atMillis,
-                        tempLowF = extremes.tempLowF?.value,
-                        tempLowAtMillis = extremes.tempLowF?.atMillis,
-                        windHighMph = extremes.windHighMph?.value,
-                        windHighAtMillis = extremes.windHighMph?.atMillis,
-                        windLowMph = extremes.windLowMph?.value,
-                        windLowAtMillis = extremes.windLowMph?.atMillis,
-                        lyAvgHighF = historicalAverage?.avgHighF,
-                        lyAvgLowF = historicalAverage?.avgLowF
-                    )
+    private suspend fun saveTodaySnapshot() {
+        val state = AppState.uiState.value
+        val current = state.currentWeather ?: return
+        val extremes = state.dailyExtremes
+        val historicalAverage = state.historicalTempAverage
+        withContext(Dispatchers.IO) {
+            dailySnapshotStore.saveSnapshot(
+                DailySnapshot(
+                    dayStartMillis = startOfDay(System.currentTimeMillis()),
+                    conditionText = current.conditionText,
+                    iconKey = current.iconKey,
+                    tempF = current.temperatureF,
+                    feelsLikeF = current.feelsLikeF,
+                    humidityPct = current.humidityPct,
+                    windSpeedMph = current.windSpeedMph,
+                    windDirectionDeg = current.windDirectionDeg,
+                    precipitationIn = current.precipitationIn,
+                    pressureInHg = current.pressureInHg,
+                    tempHighF = extremes.tempHighF?.value,
+                    tempHighAtMillis = extremes.tempHighF?.atMillis,
+                    tempLowF = extremes.tempLowF?.value,
+                    tempLowAtMillis = extremes.tempLowF?.atMillis,
+                    windHighMph = extremes.windHighMph?.value,
+                    windHighAtMillis = extremes.windHighMph?.atMillis,
+                    windLowMph = extremes.windLowMph?.value,
+                    windLowAtMillis = extremes.windLowMph?.atMillis,
+                    lyAvgHighF = historicalAverage?.avgHighF,
+                    lyAvgLowF = historicalAverage?.avgLowF
                 )
-            }
+            )
         }
-        lastSnapshotDay = today
     }
 
     /** Historical daily averages don't change intra-day - only worth a network call once per calendar day. */

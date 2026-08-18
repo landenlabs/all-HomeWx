@@ -1,5 +1,7 @@
 package com.dlang.homewx.model
 
+import com.dlang.homewx.news.NewsItem
+import com.dlang.homewx.news.NewsSourceId
 import com.dlang.homewx.weather.CurrentConditions
 import com.dlang.homewx.weather.DailyExtremes
 import com.dlang.homewx.weather.HistoricalTempAverage
@@ -23,6 +25,7 @@ enum class LightMode { ACTIVE, QUIET }
 
 data class UiState(
     val sensors: List<SensorReading> = emptyList(),
+    val sensorsUpdatedAtMillis: Long? = null,
     val lightMode: LightMode = LightMode.ACTIVE,
     val currentWeather: CurrentConditions? = null,
     val weatherForecast: WeatherForecast? = null,
@@ -31,5 +34,6 @@ data class UiState(
     val dailyExtremes: DailyExtremes = DailyExtremes(),
     val historicalTempAverage: HistoricalTempAverage? = null,
     val weatherError: String? = null,
-    val lastError: String? = null
+    val lastError: String? = null,
+    val newsItemsBySource: Map<NewsSourceId, List<NewsItem>> = emptyMap()
 )

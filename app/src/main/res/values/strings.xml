@@ -18,4 +18,18 @@
     <string name="weather_label_pressure">Pres</string>
     <string name="weather_label_ly_max">LY Max</string>
     <string name="weather_label_ly_min">LY Min</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_weather">WEATHER</string>
+    <string name="settings_weather_source_label">Weather source</string>
+    <string name="settings_weather_interval_label">Refresh interval (minutes)</string>
+    <string name="settings_section_background">WEATHER PANEL BACKGROUND</string>
+    <string name="settings_background_darken_label">Darken background image</string>
+    <string name="settings_section_daily_extremes">DAILY HIGH / LOW</string>
+    <string name="settings_temp_override_switch">Use sensor instead of weather provider</string>
+    <string name="settings_temp_override_sensor_label">Sensor</string>
+    <string name="settings_section_sensors">SENSORS</string>
+    <string name="settings_no_sensors">No indoor sensors yet</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_saved">Settings saved</string>
 </resources>

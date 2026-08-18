@@ -1,6 +1,7 @@
 package com.dlang.homewx
 
 import android.app.AlertDialog
+import android.content.Intent
 import android.os.Bundle
 import android.text.Spannable
 import android.text.SpannableString
@@ -8,20 +9,26 @@ import android.text.style.RelativeSizeSpan
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.dlang.homewx.data.DailySnapshot
 import com.dlang.homewx.data.DailySnapshotStore
 import com.dlang.homewx.data.SensorHistoryStore
 import com.dlang.homewx.databinding.ActivityMainBinding
-import com.dlang.homewx.model.LightMode
 import com.dlang.homewx.model.SensorReading
 import com.dlang.homewx.model.UiState
 import com.dlang.homewx.power.ScreenPowerController
 import com.dlang.homewx.service.HomeWxMonitorService
+import com.dlang.homewx.settings.AppSettings
+import com.dlang.homewx.settings.SettingsActivity
 import com.dlang.homewx.state.AppState
 import com.dlang.homewx.ui.SensorAdapter
+import com.dlang.homewx.ui.weatherBackgroundRes
 import com.dlang.homewx.ui.weatherIconRes
 import com.dlang.homewx.weather.DailyExtreme
 import com.dlang.homewx.weather.HomeLocation
@@ -46,14 +53,13 @@ class MainActivity : AppCompatActivity() {
     private val sensorHistoryStore by lazy { SensorHistoryStore(applicationContext) }
     private val dailySnapshotStore by lazy { DailySnapshotStore(applicationContext) }
 
-    private val clockFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
-    private val dateFormat = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault())
     private val forecastDayFormat = SimpleDateFormat("EEE MMM d", Locale.getDefault())
     private val weatherDateTimeFormat = SimpleDateFormat("dd MMM, EEE hh:mm a", Locale.getDefault())
     private val hourOnlyFormat = SimpleDateFormat("h a", Locale.getDefault())
     private val historicalDayFormat = SimpleDateFormat("dd MMM, EEE", Locale.getDefault())
 
     private var latestForecast: WeatherForecast? = null
+    private var sensorsUpdatedAtMillis: Long? = null
     /** 0 = today (live), negative = that many days in the past (a frozen [DailySnapshot]). */
     private var viewingDayOffset = 0
 
@@ -84,15 +90,53 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // targetSdk 35+ enforces edge-to-edge, so content draws behind the status/nav
+        // bars unless we pad for it ourselves; android:fitsSystemWindows is ignored.
+        // topPanel/bottomPanel each span the full screen height in landscape, so
+        // both their top (status bar) and bottom (nav bar) edges need padding.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        applySystemBarInsetPadding(binding.topPanel)
+        applySystemBarInsetPadding(binding.bottomPanel)
+
         screenPowerController = ScreenPowerController(this)
         binding.sensorRecyclerView.layoutManager = LinearLayoutManager(this)
         binding.sensorRecyclerView.adapter = sensorAdapter
         binding.weatherRow.setOnTouchListener { _, event -> weatherGestureDetector.onTouchEvent(event) }
+        binding.settingsButton.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
 
         HomeWxMonitorService.start(this)
 
         observeState()
         startClock()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        binding.weatherBackgroundScrim.alpha = AppSettings.getBackgroundDarkenPercent(this) / 100f
+        sensorAdapter.submit(visibleSensors(AppState.uiState.value.sensors))
+    }
+
+    private fun visibleSensors(sensors: List<SensorReading>): List<SensorReading> {
+        val hiddenIds = AppSettings.getHiddenSensorIds(this)
+        return sensors.filter { it.id !in hiddenIds }
+    }
+
+    /**
+     * Pads [view] by the system bars on whichever of its edges actually touch the
+     * screen edge. In portrait, topPanel only touches the top (status bar) and
+     * bottomPanel only the bottom (nav bar); in landscape both panels span the
+     * full height, so both their top and bottom edges need padding.
+     */
+    private fun applySystemBarInsetPadding(view: View) {
+        val baseLeft = view.paddingLeft
+        val baseTop = view.paddingTop
+        val baseRight = view.paddingRight
+        val baseBottom = view.paddingBottom
+        ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(baseLeft + bars.left, baseTop + bars.top, baseRight + bars.right, baseBottom + bars.bottom)
+            insets
+        }
     }
 
     // Not gated to STARTED: the light-triggered "wake the screen" action must
@@ -102,8 +146,9 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             AppState.uiState.collect { state ->
                 screenPowerController.apply(state.lightMode)
-                sensorAdapter.submit(state.sensors)
-                binding.modeChip.text = if (state.lightMode == LightMode.ACTIVE) "☀ Active" else "🌙 Quiet"
+                sensorAdapter.submit(visibleSensors(state.sensors))
+                sensorsUpdatedAtMillis = state.sensorsUpdatedAtMillis
+                updateSensorsTitle()
                 latestForecast = state.weatherForecast
 
                 if (viewingDayOffset == 0) {
@@ -126,6 +171,7 @@ class MainActivity : AppCompatActivity() {
 
         if (conditions != null) {
             binding.weatherIcon.setImageResource(weatherIconRes(conditions.iconKey))
+            binding.weatherBackgroundImage.setImageResource(weatherBackgroundRes(conditions.iconKey, conditions.windSpeedMph))
             binding.conditionValueText.text = conditions.conditionText
             binding.humidityValueText.text = conditions.humidityPct?.roundToInt()?.let { "$it%" } ?: "--"
             binding.windSpeedValueText.text = conditions.windSpeedMph?.roundToInt()?.let { "$it mph" } ?: "--"
@@ -147,6 +193,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun bindSnapshotWeather(snapshot: DailySnapshot) {
         binding.weatherIcon.setImageResource(weatherIconRes(snapshot.iconKey ?: "wx_sun_44d"))
+        binding.weatherBackgroundImage.setImageResource(weatherBackgroundRes(snapshot.iconKey ?: "wx_sun_44d", snapshot.windSpeedMph))
         binding.currentTempText.text = snapshot.tempF?.roundToInt()?.let { "$it°F" } ?: "--"
         binding.tempTrendText.text = ""
         binding.conditionValueText.text = snapshot.conditionText ?: "--"
@@ -154,7 +201,7 @@ class MainActivity : AppCompatActivity() {
         binding.windSpeedValueText.text = snapshot.windSpeedMph?.roundToInt()?.let { "$it mph" } ?: "--"
         binding.windDirectionValueText.text = formatWindDirection(snapshot.windDirectionDeg)
         binding.precipitationValueText.text = snapshot.precipitationIn?.let { "%.2f in".format(it) } ?: "--"
-        binding.pressureValueText.text = snapshot.pressureInHg?.let { "%.2f inHg".format(it) } ?: "--"
+        binding.pressureValueText.text = snapshot.pressureInHg?.let { "%.2f in".format(it) } ?: "--"
         binding.tempHighValueText.text = formatExtreme(toExtreme(snapshot.tempHighF, snapshot.tempHighAtMillis), "°F")
         binding.tempLowValueText.text = formatExtreme(toExtreme(snapshot.tempLowF, snapshot.tempLowAtMillis), "°F")
         binding.windHighValueText.text = formatExtreme(toExtreme(snapshot.windHighMph, snapshot.windHighAtMillis), " mph")
@@ -188,6 +235,7 @@ class MainActivity : AppCompatActivity() {
             val snapshot = withContext(Dispatchers.IO) { dailySnapshotStore.getSnapshot(dayMillis) }
             if (snapshot == null) {
                 // Nothing saved that far back yet - bounce back to the nearest day that has data.
+                Toast.makeText(this@MainActivity, "No saved data for that day yet", Toast.LENGTH_SHORT).show()
                 viewingDayOffset += 1
                 return@launch
             }
@@ -210,8 +258,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun formatPressure(pressureInHg: Double?, trend6hInHg: Double?): CharSequence {
-        val pressure = pressureInHg?.let { "%.2f inHg".format(it) } ?: "--"
-        val trend = trend6hInHg?.let { " (%+.2f/6h)".format(it) }.orEmpty()
+        val pressure = pressureInHg?.let { "%.2f in".format(it) } ?: "--"
+        val trend = trend6hInHg?.let { " (%+.2f)".format(it) }.orEmpty()
         return shrinkParenthetical("$pressure$trend")
     }
 
@@ -267,15 +315,24 @@ class MainActivity : AppCompatActivity() {
     private fun startClock() {
         lifecycleScope.launch {
             while (true) {
-                val now = Date()
-                binding.clockText.text = clockFormat.format(now)
-                binding.dateText.text = dateFormat.format(now)
                 if (viewingDayOffset == 0) {
-                    binding.weatherDateTimeText.text = weatherDateTimeFormat.format(now)
+                    binding.weatherDateTimeText.text = weatherDateTimeFormat.format(Date())
                 }
+                updateSensorsTitle()
                 delay(30_000L)
             }
         }
+    }
+
+    private fun updateSensorsTitle() {
+        val updatedAt = sensorsUpdatedAtMillis
+        val suffix = if (updatedAt == null) {
+            ""
+        } else {
+            val elapsedMinutes = (System.currentTimeMillis() - updatedAt) / 60_000L
+            if (elapsedMinutes < 1) " (just now)" else " ($elapsedMinutes min ago)"
+        }
+        binding.sensorsTitleText.text = "SENSORS$suffix"
     }
 
     companion object {

@@ -13,9 +13,12 @@ object AppSettings {
     private const val KEY_WEATHER_SAMPLE_INTERVAL_MINUTES = "weather_sample_interval_minutes"
     private const val KEY_TEMP_SENSOR_OVERRIDE_ENABLED = "temp_sensor_override_enabled"
     private const val KEY_TEMP_SENSOR_OVERRIDE_SENSOR_ID = "temp_sensor_override_sensor_id"
+    private const val KEY_BACKGROUND_DARKEN_PERCENT = "background_darken_percent"
+    private const val KEY_HIDDEN_SENSOR_IDS = "hidden_sensor_ids"
 
     const val DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES = 30
     const val MIN_WEATHER_SAMPLE_INTERVAL_MINUTES = 1
+    const val DEFAULT_BACKGROUND_DARKEN_PERCENT = 50
 
     fun getWeatherSampleIntervalMinutes(context: Context): Int {
         val stored = prefs(context).getInt(KEY_WEATHER_SAMPLE_INTERVAL_MINUTES, DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES)
@@ -37,6 +40,20 @@ object AppSettings {
             putBoolean(KEY_TEMP_SENSOR_OVERRIDE_ENABLED, enabled)
             putString(KEY_TEMP_SENSOR_OVERRIDE_SENSOR_ID, sensorId)
         }
+    }
+
+    fun getBackgroundDarkenPercent(context: Context): Int =
+        prefs(context).getInt(KEY_BACKGROUND_DARKEN_PERCENT, DEFAULT_BACKGROUND_DARKEN_PERCENT).coerceIn(0, 100)
+
+    fun setBackgroundDarkenPercent(context: Context, percent: Int) {
+        prefs(context).edit { putInt(KEY_BACKGROUND_DARKEN_PERCENT, percent.coerceIn(0, 100)) }
+    }
+
+    fun getHiddenSensorIds(context: Context): Set<String> =
+        prefs(context).getStringSet(KEY_HIDDEN_SENSOR_IDS, emptySet()).orEmpty()
+
+    fun setHiddenSensorIds(context: Context, ids: Set<String>) {
+        prefs(context).edit { putStringSet(KEY_HIDDEN_SENSOR_IDS, ids) }
     }
 
     private fun prefs(context: Context) =
