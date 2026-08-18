@@ -4,6 +4,7 @@
     <string name="monitor_service_notification_title">HomeWx is watching your home</string>
     <string name="monitor_service_notification_text">Weather and sensor updates running in the background</string>
     <string name="weather_placeholder">Loading weather…</string>
+    <string name="strip_chart_no_data">Not enough history yet</string>
     <string name="no_sensors_placeholder">No Govee sensors found yet</string>
     <string name="weather_label_condition">Cond</string>
     <string name="weather_label_temp_high">Temp ↑</string>

@@ -1,0 +1,23 @@
+<resources>
+    <!-- Used as GridLayout cells in weatherDetailsGrid - column widths size to content,
+         so no explicit weight; paddingEnd gives label/value and column gutters. -->
+    <style name="WeatherLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/accent_cool</item>
+        <item name="android:textSize">24sp</item>
+        <item name="android:paddingTop">2dp</item>
+        <item name="android:paddingBottom">2dp</item>
+        <item name="android:paddingEnd">8dp</item>
+    </style>
+
+    <style name="WeatherValue">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">24sp</item>
+        <item name="android:paddingTop">2dp</item>
+        <item name="android:paddingBottom">2dp</item>
+        <item name="android:paddingEnd">16dp</item>
+    </style>
+</resources>

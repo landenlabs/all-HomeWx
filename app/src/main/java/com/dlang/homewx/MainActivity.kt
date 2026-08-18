@@ -11,6 +11,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -36,6 +37,11 @@ import com.dlang.homewx.weather.DailyExtreme
 import com.dlang.homewx.weather.HomeLocation
 import com.dlang.homewx.weather.WeatherForecast
 import com.dlang.homewx.weather.startOfDay
+import com.github.mikephil.charting.components.XAxis
+import com.github.mikephil.charting.data.Entry
+import com.github.mikephil.charting.data.LineData
+import com.github.mikephil.charting.data.LineDataSet
+import com.github.mikephil.charting.formatter.ValueFormatter
 import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -66,6 +72,8 @@ class MainActivity : AppCompatActivity() {
 
     private var latestForecast: WeatherForecast? = null
     private var sensorsUpdatedAtMillis: Long? = null
+    /** Room id whose strip chart is currently showing, or null when the news panel is showing instead. */
+    private var activeSensorHistoryId: String? = null
     /** 0 = today (live), negative = that many days in the past (a frozen [DailySnapshot]). */
     private var viewingDayOffset = 0
 
@@ -98,18 +106,19 @@ class MainActivity : AppCompatActivity() {
 
         // targetSdk 35+ enforces edge-to-edge, so content draws behind the status/nav
         // bars unless we pad for it ourselves; android:fitsSystemWindows is ignored.
-        // topPanel/bottomPanel each span the full screen height in landscape, so
-        // both their top (status bar) and bottom (nav bar) edges need padding.
+        // ConstraintLayout resolves "parent" anchors/guideline percentages against the
+        // padded content area, so padding the root keeps every panel clear of the
+        // status/nav bars without needing to special-case per-panel containers.
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        applySystemBarInsetPadding(binding.topPanel)
-        applySystemBarInsetPadding(binding.bottomPanel)
+        applySystemBarInsetPadding(binding.root)
 
         screenPowerController = ScreenPowerController(this)
         binding.sensorRecyclerView.layoutManager = LinearLayoutManager(this)
         binding.sensorRecyclerView.adapter = sensorAdapter
-        binding.weatherRow.setOnTouchListener { _, event -> weatherGestureDetector.onTouchEvent(event) }
+        binding.weatherBackgroundImage.setOnTouchListener { _, event -> weatherGestureDetector.onTouchEvent(event) }
         binding.settingsButton.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
         setUpNewsTabs()
+        setUpStripChart()
 
         HomeWxMonitorService.start(this)
 
@@ -149,12 +158,7 @@ class MainActivity : AppCompatActivity() {
         return sensors.filter { it.id !in hiddenIds }
     }
 
-    /**
-     * Pads [view] by the system bars on whichever of its edges actually touch the
-     * screen edge. In portrait, topPanel only touches the top (status bar) and
-     * bottomPanel only the bottom (nav bar); in landscape both panels span the
-     * full height, so both their top and bottom edges need padding.
-     */
+    /** Pads [view] by the system bars on all four sides, added on top of its existing padding. */
     private fun applySystemBarInsetPadding(view: View) {
         val baseLeft = view.paddingLeft
         val baseTop = view.paddingTop
@@ -309,8 +313,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSensorHistory(reading: SensorReading) {
-        binding.newsPanel.visibility = View.GONE
-        binding.stripChartPanel.visibility = View.VISIBLE
+        if (activeSensorHistoryId == reading.id) {
+            // Tapping the same row again closes the chart and returns to the news panel.
+            activeSensorHistoryId = null
+            binding.stripChartGroup.visibility = View.GONE
+            binding.newsGroup.visibility = View.VISIBLE
+            return
+        }
+        activeSensorHistoryId = reading.id
+        binding.newsGroup.visibility = View.GONE
+        binding.stripChartGroup.visibility = View.VISIBLE
         binding.stripChartTitleText.text = "${reading.roomName} — temperature"
         lifecycleScope.launch {
             val sinceMillis = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(48)
@@ -318,8 +330,60 @@ class MainActivity : AppCompatActivity() {
                 sensorHistoryStore.getHistorySince(reading.id, sinceMillis)
                     .mapNotNull { point -> point.tempF?.let { point.timestampMillis to it } }
             }
-            binding.stripChartView.setData(points)
+            // The reading tapped may no longer be the active one if the user already
+            // switched to a different sensor (or closed the chart) before this returned.
+            if (activeSensorHistoryId == reading.id) {
+                renderStripChart(points)
+            }
         }
+    }
+
+    private fun setUpStripChart() {
+        val chart = binding.stripChartView
+        val axisTextColor = ContextCompat.getColor(this, R.color.text_secondary)
+        val gridLineColor = ContextCompat.getColor(this, R.color.divider)
+
+        chart.description.isEnabled = false
+        chart.legend.isEnabled = false
+        chart.setNoDataText(getString(R.string.strip_chart_no_data))
+        chart.setNoDataTextColor(axisTextColor)
+        chart.setTouchEnabled(true)
+        chart.setPinchZoom(true)
+
+        chart.axisRight.isEnabled = false
+        chart.axisLeft.apply {
+            textColor = axisTextColor
+            this.gridColor = gridLineColor
+            valueFormatter = object : ValueFormatter() {
+                override fun getFormattedValue(value: Float): String = "${value.toInt()}°"
+            }
+        }
+        chart.xAxis.apply {
+            position = XAxis.XAxisPosition.BOTTOM
+            textColor = axisTextColor
+            this.gridColor = gridLineColor
+            valueFormatter = object : ValueFormatter() {
+                override fun getFormattedValue(value: Float): String =
+                    hourOnlyFormat.format(Date(value.toLong() * 1000L))
+            }
+        }
+    }
+
+    private fun renderStripChart(points: List<Pair<Long, Double>>) {
+        if (points.size < 2) {
+            binding.stripChartView.clear()
+            return
+        }
+        val entries = points.map { (timeMillis, tempF) -> Entry(timeMillis / 1000f, tempF.toFloat()) }
+        val dataSet = LineDataSet(entries, null).apply {
+            color = ContextCompat.getColor(this@MainActivity, R.color.accent_warm)
+            lineWidth = 2f
+            setDrawCircles(false)
+            setDrawValues(false)
+            mode = LineDataSet.Mode.LINEAR
+        }
+        binding.stripChartView.data = LineData(dataSet)
+        binding.stripChartView.invalidate()
     }
 
     private fun showForecastDialog() {
