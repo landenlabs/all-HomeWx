@@ -1,6 +1,7 @@
 package com.dlang.homewx.settings
 
 import android.os.Bundle
+import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.CheckBox
 import android.widget.SeekBar
@@ -11,7 +12,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
 import com.dlang.homewx.R
 import com.dlang.homewx.databinding.ActivitySettingsBinding
 import com.dlang.homewx.model.SensorReading
@@ -31,7 +31,7 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        applyStatusBarInsetPadding()
+        applySystemBarInsetPadding(binding.root)
 
         binding.backButton.setOnClickListener { finish() }
 
@@ -39,6 +39,7 @@ class SettingsActivity : AppCompatActivity() {
         setUpSensorSpinner()
         setUpSensorVisibilityCheckBoxes()
         setUpBackgroundDarkenSlider()
+        setUpLightThresholdSlider()
         bindCurrentValues()
 
         binding.tempOverrideSwitch.setOnCheckedChangeListener { _, checked ->
@@ -48,11 +49,15 @@ class SettingsActivity : AppCompatActivity() {
         binding.saveButton.setOnClickListener { saveSettings() }
     }
 
-    private fun applyStatusBarInsetPadding() {
-        val basePaddingTop = binding.settingsHeaderRow.paddingTop
-        ViewCompat.setOnApplyWindowInsetsListener(binding.settingsHeaderRow) { view, insets ->
-            val statusBarTop = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
-            view.updatePadding(top = basePaddingTop + statusBarTop)
+    /** Pads [view] by the system bars on all four sides, added on top of its existing padding. */
+    private fun applySystemBarInsetPadding(view: View) {
+        val baseLeft = view.paddingLeft
+        val baseTop = view.paddingTop
+        val baseRight = view.paddingRight
+        val baseBottom = view.paddingBottom
+        ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(baseLeft + bars.left, baseTop + bars.top, baseRight + bars.right, baseBottom + bars.bottom)
             insets
         }
     }
@@ -122,6 +127,20 @@ class SettingsActivity : AppCompatActivity() {
         })
     }
 
+    private fun setUpLightThresholdSlider() {
+        binding.lightThresholdSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                binding.lightThresholdValueText.text = "${progressToLux(progress)} lux"
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+        })
+    }
+
+    /** Slider progress (0-95) maps to a lux threshold (5-100); the floor keeps the derived dark threshold at or above 0. */
+    private fun progressToLux(progress: Int): Int = progress + AppSettings.MIN_LIGHT_THRESHOLD_LUX.toInt()
+
     private fun bindCurrentValues() {
         binding.weatherIntervalEditText.setText(
             AppSettings.getWeatherSampleIntervalMinutes(this).toString()
@@ -130,6 +149,10 @@ class SettingsActivity : AppCompatActivity() {
         val darkenPercent = AppSettings.getBackgroundDarkenPercent(this)
         binding.backgroundDarkenSlider.progress = darkenPercent
         binding.backgroundDarkenValueText.text = "$darkenPercent%"
+
+        val lightThresholdLux = AppSettings.getLightThresholdLux(this).toInt()
+        binding.lightThresholdSlider.progress = lightThresholdLux - AppSettings.MIN_LIGHT_THRESHOLD_LUX.toInt()
+        binding.lightThresholdValueText.text = "$lightThresholdLux lux"
 
         val overrideEnabled = AppSettings.isTempSensorOverrideEnabled(this)
         binding.tempOverrideSwitch.isChecked = overrideEnabled
@@ -145,6 +168,7 @@ class SettingsActivity : AppCompatActivity() {
             ?: AppSettings.DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES
         AppSettings.setWeatherSampleIntervalMinutes(this, minutes)
         AppSettings.setBackgroundDarkenPercent(this, binding.backgroundDarkenSlider.progress)
+        AppSettings.setLightThresholdLux(this, progressToLux(binding.lightThresholdSlider.progress).toFloat())
 
         val selectedSource = WeatherSourceId.values()[binding.weatherSourceSpinner.selectedItemPosition]
         WeatherSourceConfig.setActiveSource(this, selectedSource)

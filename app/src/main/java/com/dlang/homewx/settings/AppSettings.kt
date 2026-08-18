@@ -15,10 +15,14 @@ object AppSettings {
     private const val KEY_TEMP_SENSOR_OVERRIDE_SENSOR_ID = "temp_sensor_override_sensor_id"
     private const val KEY_BACKGROUND_DARKEN_PERCENT = "background_darken_percent"
     private const val KEY_HIDDEN_SENSOR_IDS = "hidden_sensor_ids"
+    private const val KEY_LIGHT_THRESHOLD_LUX = "light_threshold_lux"
 
     const val DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES = 30
     const val MIN_WEATHER_SAMPLE_INTERVAL_MINUTES = 1
     const val DEFAULT_BACKGROUND_DARKEN_PERCENT = 50
+    const val DEFAULT_LIGHT_THRESHOLD_LUX = 8f
+    const val MIN_LIGHT_THRESHOLD_LUX = 5f
+    const val MAX_LIGHT_THRESHOLD_LUX = 100f
 
     fun getWeatherSampleIntervalMinutes(context: Context): Int {
         val stored = prefs(context).getInt(KEY_WEATHER_SAMPLE_INTERVAL_MINUTES, DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES)
@@ -47,6 +51,14 @@ object AppSettings {
 
     fun setBackgroundDarkenPercent(context: Context, percent: Int) {
         prefs(context).edit { putInt(KEY_BACKGROUND_DARKEN_PERCENT, percent.coerceIn(0, 100)) }
+    }
+
+    fun getLightThresholdLux(context: Context): Float =
+        prefs(context).getFloat(KEY_LIGHT_THRESHOLD_LUX, DEFAULT_LIGHT_THRESHOLD_LUX)
+            .coerceIn(MIN_LIGHT_THRESHOLD_LUX, MAX_LIGHT_THRESHOLD_LUX)
+
+    fun setLightThresholdLux(context: Context, lux: Float) {
+        prefs(context).edit { putFloat(KEY_LIGHT_THRESHOLD_LUX, lux.coerceIn(MIN_LIGHT_THRESHOLD_LUX, MAX_LIGHT_THRESHOLD_LUX)) }
     }
 
     fun getHiddenSensorIds(context: Context): Set<String> =

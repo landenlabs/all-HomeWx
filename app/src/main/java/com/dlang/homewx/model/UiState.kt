@@ -27,6 +27,7 @@ data class UiState(
     val sensors: List<SensorReading> = emptyList(),
     val sensorsUpdatedAtMillis: Long? = null,
     val lightMode: LightMode = LightMode.ACTIVE,
+    val currentLux: Float? = null,
     val currentWeather: CurrentConditions? = null,
     val weatherForecast: WeatherForecast? = null,
     val tempTrendNextHourF: Double? = null,

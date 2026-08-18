@@ -55,4 +55,5 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
+    implementation("com.squareup.picasso:picasso:2.71828")
 }

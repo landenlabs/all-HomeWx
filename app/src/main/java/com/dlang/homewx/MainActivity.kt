@@ -9,6 +9,7 @@ import android.text.style.RelativeSizeSpan
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
+import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -22,8 +23,10 @@ import com.dlang.homewx.data.DailySnapshotStore
 import com.dlang.homewx.data.SensorHistoryStore
 import com.dlang.homewx.data.WeatherMetricsHistoryStore
 import com.dlang.homewx.databinding.ActivityMainBinding
+import com.dlang.homewx.model.LightMode
 import com.dlang.homewx.model.SensorReading
 import com.dlang.homewx.model.UiState
+import com.dlang.homewx.news.NewsItem
 import com.dlang.homewx.news.NewsSourceId
 import com.dlang.homewx.power.ScreenPowerController
 import com.dlang.homewx.service.HomeWxMonitorService
@@ -35,8 +38,10 @@ import com.dlang.homewx.ui.SensorAdapter
 import com.dlang.homewx.ui.weatherBackgroundRes
 import com.dlang.homewx.ui.weatherIconRes
 import com.dlang.homewx.weather.DailyExtreme
+import com.dlang.homewx.weather.DailyForecastEntry
 import com.dlang.homewx.weather.HomeLocation
 import com.dlang.homewx.weather.WeatherForecast
+import com.dlang.homewx.weather.isSameDay
 import com.dlang.homewx.weather.startOfDay
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
@@ -46,6 +51,7 @@ import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
 import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -61,7 +67,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var screenPowerController: ScreenPowerController
     private val sensorAdapter = SensorAdapter(onSensorClick = ::showSensorHistory)
-    private val newsAdapter = NewsAdapter()
+    private val newsAdapter = NewsAdapter(onItemClick = ::showNewsArticle)
     private val sensorHistoryStore by lazy { SensorHistoryStore(applicationContext) }
     private val weatherMetricsHistoryStore by lazy { WeatherMetricsHistoryStore(applicationContext) }
     private val dailySnapshotStore by lazy { DailySnapshotStore(applicationContext) }
@@ -78,8 +84,14 @@ class MainActivity : AppCompatActivity() {
     private var currentInfoPanel = InfoPanelView.NEWS
     /** Room id whose strip chart is currently showing, only meaningful while currentInfoPanel == SENSOR_CHART. */
     private var activeSensorHistoryId: String? = null
-    /** 0 = today (live), negative = that many days in the past (a frozen [DailySnapshot]). */
+    /**
+     * 0 = today (live), negative = that many days in the past (a frozen [DailySnapshot]),
+     * positive = that many days into the forecast (a [DailyForecastEntry]).
+     */
     private var viewingDayOffset = 0
+    /** True while a tap-to-wake override is forcing the screen ACTIVE despite the light sensor saying QUIET. */
+    private var wakeOverrideActive = false
+    private var wakeOverrideJob: Job? = null
 
     private val weatherGestureDetector by lazy {
         GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
@@ -122,9 +134,11 @@ class MainActivity : AppCompatActivity() {
         binding.weatherBackgroundImage.setOnTouchListener { _, event -> weatherGestureDetector.onTouchEvent(event) }
         binding.settingsButton.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
         binding.weatherGraphsButton.setOnClickListener { toggleWeatherGraphs() }
+        binding.articleBackButton.setOnClickListener { closeArticle() }
         setUpNewsTabs()
         setUpStripChart()
         setUpWeatherGraphs()
+        setUpArticleWebView()
 
         HomeWxMonitorService.start(this)
 
@@ -136,6 +150,25 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         binding.weatherBackgroundScrim.alpha = AppSettings.getBackgroundDarkenPercent(this) / 100f
         sensorAdapter.submit(visibleSensors(AppState.uiState.value.sensors))
+    }
+
+    /** A tap anywhere on screen while QUIET wakes the display and holds it ACTIVE for a few minutes. */
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        if (AppState.uiState.value.lightMode == LightMode.QUIET) {
+            startWakeOverride()
+        }
+    }
+
+    private fun startWakeOverride() {
+        wakeOverrideActive = true
+        screenPowerController.apply(LightMode.ACTIVE)
+        wakeOverrideJob?.cancel()
+        wakeOverrideJob = lifecycleScope.launch {
+            delay(WAKE_OVERRIDE_DURATION_MS)
+            wakeOverrideActive = false
+            screenPowerController.apply(AppState.uiState.value.lightMode)
+        }
     }
 
     private fun setUpNewsTabs() {
@@ -157,6 +190,29 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshNewsList() {
         newsAdapter.submit(AppState.uiState.value.newsItemsBySource[selectedNewsSource].orEmpty())
+    }
+
+    private fun setUpArticleWebView() {
+        binding.articleWebView.settings.javaScriptEnabled = true
+        // News sites' JS frameworks commonly assume localStorage/sessionStorage is available
+        // and error out ("Something went wrong") when it's not - WebView disables it by default.
+        binding.articleWebView.settings.domStorageEnabled = true
+        // Without a client, the WebView hands off navigation to an external browser app
+        // instead of keeping the tapped story inside this same panel.
+        binding.articleWebView.webViewClient = WebViewClient()
+    }
+
+    private fun showNewsArticle(item: NewsItem) {
+        activeSensorHistoryId = null
+        showInfoPanel(InfoPanelView.ARTICLE)
+        binding.articleTitleText.text = item.title
+        binding.articleWebView.loadUrl(item.link)
+    }
+
+    private fun closeArticle() {
+        binding.articleWebView.stopLoading()
+        binding.articleWebView.loadUrl("about:blank")
+        showInfoPanel(InfoPanelView.NEWS)
     }
 
     private fun visibleSensors(sensors: List<SensorReading>): List<SensorReading> {
@@ -183,7 +239,10 @@ class MainActivity : AppCompatActivity() {
     private fun observeState() {
         lifecycleScope.launch {
             AppState.uiState.collect { state ->
-                screenPowerController.apply(state.lightMode)
+                if (!wakeOverrideActive) {
+                    screenPowerController.apply(state.lightMode)
+                }
+                binding.currentLuxText.text = state.currentLux?.let { "${it.roundToInt()} lux" } ?: "-- lux"
                 sensorAdapter.submit(visibleSensors(state.sensors))
                 sensorsUpdatedAtMillis = state.sensorsUpdatedAtMillis
                 updateSensorsTitle()
@@ -249,8 +308,33 @@ class MainActivity : AppCompatActivity() {
         binding.lyMinValueText.text = snapshot.lyAvgLowF?.roundToInt()?.let { "$it°F" } ?: "--"
     }
 
+    /** Only the weather provider's own forecast fields are used here - no sensor override, unlike [bindLiveWeather]. */
+    private fun bindForecastWeather(entry: DailyForecastEntry) {
+        binding.weatherIcon.setImageResource(weatherIconRes(entry.iconKey))
+        binding.weatherBackgroundImage.setImageResource(weatherBackgroundRes(entry.iconKey, windSpeedMph = null))
+        binding.currentTempText.text = entry.highF?.roundToInt()?.let { "$it°F" } ?: "--"
+        binding.tempTrendText.text = entry.lowF?.roundToInt()?.let { "Low $it°F" } ?: ""
+        binding.conditionValueText.text = entry.conditionText
+        binding.humidityValueText.text = "--"
+        binding.windSpeedValueText.text = "--"
+        binding.windDirectionValueText.text = "--"
+        binding.precipitationValueText.text = entry.precipitationChancePct?.let { "$it% chance" } ?: "--"
+        binding.pressureValueText.text = "--"
+        binding.tempHighValueText.text = entry.highF?.roundToInt()?.let { "$it°F" } ?: "--"
+        binding.tempLowValueText.text = entry.lowF?.roundToInt()?.let { "$it°F" } ?: "--"
+        binding.windHighValueText.text = "--"
+        binding.windLowValueText.text = "--"
+        binding.lyMaxValueText.text = "--"
+        binding.lyMinValueText.text = "--"
+    }
+
     private fun toExtreme(value: Double?, atMillis: Long?): DailyExtreme? =
         if (value != null && atMillis != null) DailyExtreme(value, atMillis) else null
+
+    private fun forecastEntryForOffset(offsetDays: Int): DailyForecastEntry? {
+        val targetDayMillis = startOfDay(System.currentTimeMillis()) + offsetDays * DAY_MILLIS
+        return latestForecast?.daily?.firstOrNull { isSameDay(it.dateMillis, targetDayMillis) }
+    }
 
     private fun goToOlderDay() {
         viewingDayOffset -= 1
@@ -258,8 +342,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun goToNewerDay() {
-        if (viewingDayOffset == 0) return
-        viewingDayOffset += 1
+        val nextOffset = viewingDayOffset + 1
+        if (nextOffset > 0 && forecastEntryForOffset(nextOffset) == null) {
+            Toast.makeText(this, "No forecast data available", Toast.LENGTH_SHORT).show()
+            return
+        }
+        viewingDayOffset = nextOffset
         loadViewedDay()
     }
 
@@ -270,6 +358,17 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val dayMillis = startOfDay(System.currentTimeMillis()) + viewingDayOffset * DAY_MILLIS
+        if (viewingDayOffset > 0) {
+            val entry = forecastEntryForOffset(viewingDayOffset)
+            if (entry == null) {
+                Toast.makeText(this, "No forecast data available", Toast.LENGTH_SHORT).show()
+                viewingDayOffset -= 1
+                return
+            }
+            bindForecastWeather(entry)
+            binding.weatherDateTimeText.text = "${historicalDayFormat.format(Date(dayMillis))} (forecast)"
+            return
+        }
         lifecycleScope.launch {
             val snapshot = withContext(Dispatchers.IO) { dailySnapshotStore.getSnapshot(dayMillis) }
             if (snapshot == null) {
@@ -323,6 +422,7 @@ class MainActivity : AppCompatActivity() {
         binding.newsGroup.visibility = if (panel == InfoPanelView.NEWS) View.VISIBLE else View.GONE
         binding.stripChartGroup.visibility = if (panel == InfoPanelView.SENSOR_CHART) View.VISIBLE else View.GONE
         binding.weatherGraphsPanel.visibility = if (panel == InfoPanelView.WEATHER_GRAPHS) View.VISIBLE else View.GONE
+        binding.articleGroup.visibility = if (panel == InfoPanelView.ARTICLE) View.VISIBLE else View.GONE
     }
 
     private fun showSensorHistory(reading: SensorReading) {
@@ -494,8 +594,9 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val SWIPE_THRESHOLD_PX = 80
         private const val DAY_MILLIS = 24 * 60 * 60 * 1000L
+        private const val WAKE_OVERRIDE_DURATION_MS = 5 * 60 * 1000L
     }
 }
 
 /** Which of the three mutually-exclusive views is showing in the bottom info panel. */
-private enum class InfoPanelView { NEWS, SENSOR_CHART, WEATHER_GRAPHS }
+private enum class InfoPanelView { NEWS, SENSOR_CHART, WEATHER_GRAPHS, ARTICLE }

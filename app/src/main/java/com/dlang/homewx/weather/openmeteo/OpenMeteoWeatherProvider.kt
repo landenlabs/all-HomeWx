@@ -143,7 +143,9 @@ class OpenMeteoWeatherProvider : WeatherProvider {
                 highF = highs?.optDoubleOrNull(i),
                 lowF = lows?.optDoubleOrNull(i),
                 precipitationChancePct = precipChance?.optIntOrNull(i),
-                conditionText = weatherCodeToText(codes?.optInt(i, -1) ?: -1)
+                conditionText = weatherCodeToText(codes?.optInt(i, -1) ?: -1),
+                // A whole-day forecast has no day/night distinction of its own - use the day icon variant.
+                iconKey = weatherCodeToIconKey(codes?.optInt(i, -1) ?: -1, isDay = true)
             )
         }
     }

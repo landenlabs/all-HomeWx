@@ -5,8 +5,9 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.dlang.homewx.databinding.ItemNewsBinding
 import com.dlang.homewx.news.NewsItem
+import com.squareup.picasso.Picasso
 
-class NewsAdapter : RecyclerView.Adapter<NewsAdapter.ViewHolder>() {
+class NewsAdapter(private val onItemClick: (NewsItem) -> Unit) : RecyclerView.Adapter<NewsAdapter.ViewHolder>() {
 
     private var items: List<NewsItem> = emptyList()
 
@@ -20,20 +21,27 @@ class NewsAdapter : RecyclerView.Adapter<NewsAdapter.ViewHolder>() {
         return ViewHolder(binding)
     }
 
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) = holder.bind(items[position])
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) = holder.bind(items[position], onItemClick)
+
+    override fun onViewRecycled(holder: ViewHolder) = holder.unbind()
 
     override fun getItemCount(): Int = items.size
 
     class ViewHolder(private val binding: ItemNewsBinding) : RecyclerView.ViewHolder(binding.root) {
-        fun bind(item: NewsItem) {
+        fun bind(item: NewsItem, onItemClick: (NewsItem) -> Unit) {
             binding.newsTitleText.text = item.title
             binding.newsDescriptionText.text = item.description
             if (item.imageUrl != null) {
-                NewsImageLoader.load(item.imageUrl, binding.newsThumbnail)
+                Picasso.get().load(item.imageUrl).into(binding.newsThumbnail)
             } else {
-                binding.newsThumbnail.tag = null
+                Picasso.get().cancelRequest(binding.newsThumbnail)
                 binding.newsThumbnail.setImageDrawable(null)
             }
+            binding.root.setOnClickListener { onItemClick(item) }
+        }
+
+        fun unbind() {
+            Picasso.get().cancelRequest(binding.newsThumbnail)
         }
     }
 }

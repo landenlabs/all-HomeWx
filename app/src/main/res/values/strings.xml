@@ -33,6 +33,8 @@
     <string name="settings_section_daily_extremes">DAILY HIGH / LOW</string>
     <string name="settings_temp_override_switch">Use sensor instead of weather provider</string>
     <string name="settings_temp_override_sensor_label">Sensor</string>
+    <string name="settings_section_light_sensor">LIGHT SENSOR</string>
+    <string name="settings_light_threshold_label">Active/quiet threshold</string>
     <string name="settings_section_sensors">SENSORS</string>
     <string name="settings_no_sensors">No indoor sensors yet</string>
     <string name="settings_save">Save</string>
