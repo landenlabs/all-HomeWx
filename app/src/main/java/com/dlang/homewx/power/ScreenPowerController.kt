@@ -4,6 +4,7 @@ import android.app.Activity
 import android.os.Build
 import android.view.WindowManager
 import com.dlang.homewx.model.LightMode
+import com.dlang.homewx.settings.AppSettings
 
 /**
  * Applies a [LightMode] to the activity's window. QUIET drops brightness to a
@@ -22,7 +23,7 @@ class ScreenPowerController(private val activity: Activity) {
         when (mode) {
             LightMode.ACTIVE -> {
                 window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                setBrightness(1.0f)
+                setBrightness(AppSettings.getScreenBrightnessPercent(activity) / 100f)
                 wakeScreen()
             }
             LightMode.QUIET -> {
@@ -30,6 +31,15 @@ class ScreenPowerController(private val activity: Activity) {
                 setBrightness(MIN_BRIGHTNESS)
             }
         }
+    }
+
+    /** Re-applies the current mode's brightness - picks up a brightness setting change made
+     *  while this activity was paused (e.g. in the Settings screen), which [apply] alone
+     *  would otherwise skip since the mode itself hasn't changed. */
+    fun refresh() {
+        val mode = appliedMode ?: return
+        appliedMode = null
+        apply(mode)
     }
 
     private fun setBrightness(value: Float) {

@@ -39,6 +39,7 @@ class SettingsActivity : AppCompatActivity() {
         setUpWeatherSourceSpinner()
         setUpSensorSpinner()
         setUpSensorVisibilityCheckBoxes()
+        setUpScreenBrightnessSlider()
         setUpBackgroundDarkenSlider()
         setUpLightThresholdSlider()
         bindCurrentValues()
@@ -117,6 +118,17 @@ class SettingsActivity : AppCompatActivity() {
         sensorVisibilityCheckBoxes.forEach { container.addView(it) }
     }
 
+    private fun setUpScreenBrightnessSlider() {
+        binding.screenBrightnessSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                binding.screenBrightnessValueText.text = "${progressToBrightnessPercent(progress)}%"
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+        })
+    }
+
     private fun setUpBackgroundDarkenSlider() {
         binding.backgroundDarkenSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
@@ -142,10 +154,17 @@ class SettingsActivity : AppCompatActivity() {
     /** Slider progress (0-95) maps to a lux threshold (5-100); the floor keeps the derived dark threshold at or above 0. */
     private fun progressToLux(progress: Int): Int = progress + AppSettings.MIN_LIGHT_THRESHOLD_LUX.toInt()
 
+    /** Slider progress (0-90) maps to a brightness percent (10-100); the floor keeps the screen from going unreadably dim. */
+    private fun progressToBrightnessPercent(progress: Int): Int = progress + AppSettings.MIN_SCREEN_BRIGHTNESS_PERCENT
+
     private fun bindCurrentValues() {
         binding.weatherIntervalEditText.setText(
             AppSettings.getWeatherSampleIntervalMinutes(this).toString()
         )
+
+        val brightnessPercent = AppSettings.getScreenBrightnessPercent(this)
+        binding.screenBrightnessSlider.progress = brightnessPercent - AppSettings.MIN_SCREEN_BRIGHTNESS_PERCENT
+        binding.screenBrightnessValueText.text = "$brightnessPercent%"
 
         val darkenPercent = AppSettings.getBackgroundDarkenPercent(this)
         binding.backgroundDarkenSlider.progress = darkenPercent
@@ -174,6 +193,7 @@ class SettingsActivity : AppCompatActivity() {
         val minutes = binding.weatherIntervalEditText.text.toString().toIntOrNull()
             ?: AppSettings.DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES
         AppSettings.setWeatherSampleIntervalMinutes(this, minutes)
+        AppSettings.setScreenBrightnessPercent(this, progressToBrightnessPercent(binding.screenBrightnessSlider.progress))
         AppSettings.setBackgroundDarkenPercent(this, binding.backgroundDarkenSlider.progress)
         AppSettings.setLightThresholdLux(this, progressToLux(binding.lightThresholdSlider.progress).toFloat())
 

@@ -48,63 +48,68 @@
             android:paddingEnd="24dp"
             android:paddingBottom="24dp">
 
+            <!-- WEATHER -->
             <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                style="@style/settings_section_header"
                 android:layout_marginTop="8dp"
-                android:letterSpacing="0.08"
-                android:text="@string/settings_section_weather"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
+                android:text="@string/settings_section_weather" />
 
-            <TextView
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                android:text="@string/settings_weather_source_label"
-                android:textColor="@color/text_primary"
-                android:textSize="16sp" />
+                android:orientation="horizontal"
+                android:baselineAligned="false">
 
-            <Spinner
-                android:id="@+id/weatherSourceSpinner"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp" />
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
 
+                    <TextView
+                        style="@style/settings_label"
+                        android:text="@string/settings_weather_source_label" />
+
+                    <Spinner
+                        android:id="@+id/weatherSourceSpinner"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_weight="1"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        style="@style/settings_label"
+                        android:layout_width="wrap_content"
+                        android:text="@string/settings_weather_interval_label" />
+
+                    <EditText
+                        android:id="@+id/weatherIntervalEditText"
+                        android:layout_width="120dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:autofillHints=""
+                        android:inputType="number"
+                        android:maxLength="3"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp"
+                        tools:text="30" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <View style="@style/settings_divider" />
+
+            <!-- DISPLAY: the three slider controls, grouped together -->
             <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:text="@string/settings_weather_interval_label"
-                android:textColor="@color/text_primary"
-                android:textSize="16sp" />
-
-            <EditText
-                android:id="@+id/weatherIntervalEditText"
-                android:layout_width="120dp"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:autofillHints=""
-                android:inputType="number"
-                android:maxLength="3"
-                android:textColor="@color/text_primary"
-                android:textSize="16sp"
-                tools:text="30" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="24dp"
-                android:layout_marginBottom="16dp"
-                android:background="@color/divider" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:letterSpacing="0.08"
-                android:text="@string/settings_section_background"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
+                style="@style/settings_section_header"
+                android:text="@string/settings_section_display" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -114,139 +119,42 @@
                 android:gravity="center_vertical">
 
                 <TextView
+                    style="@style/settings_label"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/settings_background_darken_label"
-                    android:textColor="@color/text_primary"
-                    android:textSize="16sp" />
+                    android:text="@string/settings_screen_brightness_label" />
 
                 <TextView
-                    android:id="@+id/backgroundDarkenValueText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:id="@+id/screenBrightnessValueText"
+                    style="@style/settings_value_text"
                     android:layout_marginStart="8dp"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="16sp"
-                    tools:text="50%" />
+                    tools:text="100%" />
             </LinearLayout>
 
             <SeekBar
-                android:id="@+id/backgroundDarkenSlider"
+                android:id="@+id/screenBrightnessSlider"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:max="100" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="24dp"
-                android:layout_marginBottom="16dp"
-                android:background="@color/divider" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:letterSpacing="0.08"
-                android:text="@string/settings_section_daily_extremes"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
+                android:max="90" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="20dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical">
 
                 <TextView
+                    style="@style/settings_label"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/settings_temp_override_switch"
-                    android:textColor="@color/text_primary"
-                    android:textSize="16sp" />
-
-                <Switch
-                    android:id="@+id/tempOverrideSwitch"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
-            </LinearLayout>
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="@string/settings_temp_override_sensor_label"
-                android:textColor="@color/text_primary"
-                android:textSize="16sp" />
-
-            <Spinner
-                android:id="@+id/tempOverrideSensorSpinner"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="24dp"
-                android:layout_marginBottom="16dp"
-                android:background="@color/divider" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:letterSpacing="0.08"
-                android:text="@string/settings_section_sensors"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
-
-            <LinearLayout
-                android:id="@+id/sensorVisibilityContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="vertical" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="24dp"
-                android:layout_marginBottom="16dp"
-                android:background="@color/divider" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:letterSpacing="0.08"
-                android:text="@string/settings_section_light_sensor"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/settings_light_threshold_label"
-                    android:textColor="@color/text_primary"
-                    android:textSize="16sp" />
+                    android:text="@string/settings_light_threshold_label" />
 
                 <TextView
                     android:id="@+id/lightThresholdValueText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    style="@style/settings_value_text"
                     android:layout_marginStart="8dp"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="16sp"
                     tools:text="8 lux" />
             </LinearLayout>
 
@@ -257,20 +165,103 @@
                 android:layout_marginTop="4dp"
                 android:max="95" />
 
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="24dp"
-                android:layout_marginBottom="16dp"
-                android:background="@color/divider" />
-
-            <TextView
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:letterSpacing="0.08"
-                android:text="@string/settings_section_webview_logging"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
+                android:layout_marginTop="20dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    style="@style/settings_label"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:text="@string/settings_background_darken_label" />
+
+                <TextView
+                    android:id="@+id/backgroundDarkenValueText"
+                    style="@style/settings_value_text"
+                    android:layout_marginStart="8dp"
+                    tools:text="50%" />
+            </LinearLayout>
+
+            <SeekBar
+                android:id="@+id/backgroundDarkenSlider"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:max="100" />
+
+            <View style="@style/settings_divider" />
+
+            <!-- DAILY HIGH / LOW -->
+            <TextView
+                style="@style/settings_section_header"
+                android:text="@string/settings_section_daily_extremes" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:orientation="horizontal"
+                android:baselineAligned="false">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        style="@style/settings_label"
+                        android:text="@string/settings_temp_override_switch" />
+
+                    <Switch
+                        android:id="@+id/tempOverrideSwitch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="16dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        style="@style/settings_label"
+                        android:text="@string/settings_temp_override_sensor_label" />
+
+                    <Spinner
+                        android:id="@+id/tempOverrideSensorSpinner"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <View style="@style/settings_divider" />
+
+            <!-- SENSORS -->
+            <TextView
+                style="@style/settings_section_header"
+                android:text="@string/settings_section_sensors" />
+
+            <LinearLayout
+                android:id="@+id/sensorVisibilityContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="vertical" />
+
+            <View style="@style/settings_divider" />
+
+            <!-- ARTICLE VIEWER -->
+            <TextView
+                style="@style/settings_section_header"
+                android:text="@string/settings_section_webview_logging" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -280,12 +271,10 @@
                 android:gravity="center_vertical">
 
                 <TextView
+                    style="@style/settings_label"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/settings_webview_logging_switch"
-                    android:textColor="@color/text_primary"
-                    android:textSize="16sp" />
+                    android:text="@string/settings_webview_logging_switch" />
 
                 <Switch
                     android:id="@+id/webviewLoggingSwitch"

@@ -11,7 +11,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -25,16 +24,17 @@ import com.dlang.homewx.databinding.ActivityMainBinding
 import com.dlang.homewx.model.LightMode
 import com.dlang.homewx.model.SensorReading
 import com.dlang.homewx.model.UiState
-import com.dlang.homewx.news.LoggingWebViewClient
 import com.dlang.homewx.news.NewsItem
-import com.dlang.homewx.news.NewsSourceId
 import com.dlang.homewx.power.ScreenPowerController
 import com.dlang.homewx.service.HomeWxMonitorService
 import com.dlang.homewx.settings.AppSettings
 import com.dlang.homewx.settings.SettingsActivity
 import com.dlang.homewx.state.AppState
-import com.dlang.homewx.ui.NewsAdapter
+import com.dlang.homewx.ui.ArticlePanel
+import com.dlang.homewx.ui.NewsPanel
 import com.dlang.homewx.ui.SensorAdapter
+import com.dlang.homewx.ui.SensorChartPanel
+import com.dlang.homewx.ui.WeatherGraphsPanel
 import com.dlang.homewx.ui.weatherBackgroundRes
 import com.dlang.homewx.ui.weatherIconRes
 import com.dlang.homewx.weather.DailyExtreme
@@ -43,13 +43,6 @@ import com.dlang.homewx.weather.HomeLocation
 import com.dlang.homewx.weather.WeatherForecast
 import com.dlang.homewx.weather.isSameDay
 import com.dlang.homewx.weather.startOfDay
-import com.github.mikephil.charting.charts.LineChart
-import com.github.mikephil.charting.components.XAxis
-import com.github.mikephil.charting.data.Entry
-import com.github.mikephil.charting.data.LineData
-import com.github.mikephil.charting.data.LineDataSet
-import com.github.mikephil.charting.formatter.ValueFormatter
-import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -67,12 +60,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var screenPowerController: ScreenPowerController
     private val sensorAdapter = SensorAdapter(onSensorClick = ::showSensorHistory)
-    private val newsAdapter = NewsAdapter(onItemClick = ::showNewsArticle)
+    private lateinit var newsPanel: NewsPanel
+    private lateinit var sensorChartPanel: SensorChartPanel
+    private lateinit var weatherGraphsPanel: WeatherGraphsPanel
+    private lateinit var articlePanel: ArticlePanel
     private val sensorHistoryStore by lazy { SensorHistoryStore(applicationContext) }
     private val weatherMetricsHistoryStore by lazy { WeatherMetricsHistoryStore(applicationContext) }
     private val dailySnapshotStore by lazy { DailySnapshotStore(applicationContext) }
-
-    private var selectedNewsSource = NewsSourceId.values().first()
 
     private val forecastDayFormat = SimpleDateFormat("EEE MMM d", Locale.getDefault())
     private val weatherDateTimeFormat = SimpleDateFormat("dd MMM, EEE hh:mm a", Locale.getDefault())
@@ -134,11 +128,12 @@ class MainActivity : AppCompatActivity() {
         binding.weatherBackgroundImage.setOnTouchListener { _, event -> weatherGestureDetector.onTouchEvent(event) }
         binding.settingsButton.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
         binding.weatherGraphsButton.setOnClickListener { toggleWeatherGraphs() }
-        binding.articleBackButton.setOnClickListener { closeArticle() }
-        setUpNewsTabs()
-        setUpStripChart()
-        setUpWeatherGraphs()
-        setUpArticleWebView()
+
+        newsPanel = NewsPanel(binding.infoPanelContainer, onArticleClick = ::showNewsArticle)
+        sensorChartPanel = SensorChartPanel(binding.infoPanelContainer)
+        weatherGraphsPanel = WeatherGraphsPanel(binding.infoPanelContainer)
+        articlePanel = ArticlePanel(binding.infoPanelContainer, onBack = ::closeArticle)
+        showInfoPanel(InfoPanelView.NEWS)
 
         HomeWxMonitorService.start(this)
 
@@ -149,6 +144,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         binding.weatherBackgroundScrim.alpha = AppSettings.getBackgroundDarkenPercent(this) / 100f
+        screenPowerController.refresh()
         sensorAdapter.submit(visibleSensors(AppState.uiState.value.sensors))
     }
 
@@ -171,47 +167,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun setUpNewsTabs() {
-        binding.newsRecyclerView.layoutManager = LinearLayoutManager(this)
-        binding.newsRecyclerView.adapter = newsAdapter
-
-        binding.newsTabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
-            override fun onTabSelected(tab: TabLayout.Tab) {
-                selectedNewsSource = tab.tag as NewsSourceId
-                refreshNewsList()
-            }
-            override fun onTabUnselected(tab: TabLayout.Tab) = Unit
-            override fun onTabReselected(tab: TabLayout.Tab) = Unit
-        })
-        NewsSourceId.values().forEach { source ->
-            binding.newsTabLayout.addTab(binding.newsTabLayout.newTab().setText(source.label).apply { tag = source })
-        }
-    }
-
-    private fun refreshNewsList() {
-        newsAdapter.submit(AppState.uiState.value.newsItemsBySource[selectedNewsSource].orEmpty())
-    }
-
-    private fun setUpArticleWebView() {
-        binding.articleWebView.settings.javaScriptEnabled = true
-        // News sites' JS frameworks commonly assume localStorage/sessionStorage is available
-        // and error out ("Something went wrong") when it's not - WebView disables it by default.
-        binding.articleWebView.settings.domStorageEnabled = true
-        // Without a client, the WebView hands off navigation to an external browser app
-        // instead of keeping the tapped story inside this same panel.
-        binding.articleWebView.webViewClient = LoggingWebViewClient(this)
-    }
-
     private fun showNewsArticle(item: NewsItem) {
         activeSensorHistoryId = null
         showInfoPanel(InfoPanelView.ARTICLE)
-        binding.articleTitleText.text = item.title
-        binding.articleWebView.loadUrl(item.link)
+        articlePanel.load(item)
     }
 
     private fun closeArticle() {
-        binding.articleWebView.stopLoading()
-        binding.articleWebView.loadUrl("about:blank")
+        articlePanel.close()
         showInfoPanel(InfoPanelView.NEWS)
     }
 
@@ -246,7 +209,7 @@ class MainActivity : AppCompatActivity() {
                 sensorAdapter.submit(visibleSensors(state.sensors))
                 sensorsUpdatedAtMillis = state.sensorsUpdatedAtMillis
                 updateSensorsTitle()
-                refreshNewsList()
+                newsPanel.onStateUpdated(state.newsItemsBySource)
                 latestForecast = state.weatherForecast
 
                 if (viewingDayOffset == 0) {
@@ -419,10 +382,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun showInfoPanel(panel: InfoPanelView) {
         currentInfoPanel = panel
-        binding.newsGroup.visibility = if (panel == InfoPanelView.NEWS) View.VISIBLE else View.GONE
-        binding.stripChartGroup.visibility = if (panel == InfoPanelView.SENSOR_CHART) View.VISIBLE else View.GONE
-        binding.weatherGraphsPanel.visibility = if (panel == InfoPanelView.WEATHER_GRAPHS) View.VISIBLE else View.GONE
-        binding.articleGroup.visibility = if (panel == InfoPanelView.ARTICLE) View.VISIBLE else View.GONE
+        newsPanel.root.visibility = if (panel == InfoPanelView.NEWS) View.VISIBLE else View.GONE
+        sensorChartPanel.root.visibility = if (panel == InfoPanelView.SENSOR_CHART) View.VISIBLE else View.GONE
+        weatherGraphsPanel.root.visibility = if (panel == InfoPanelView.WEATHER_GRAPHS) View.VISIBLE else View.GONE
+        articlePanel.root.visibility = if (panel == InfoPanelView.ARTICLE) View.VISIBLE else View.GONE
     }
 
     private fun showSensorHistory(reading: SensorReading) {
@@ -434,7 +397,7 @@ class MainActivity : AppCompatActivity() {
         }
         activeSensorHistoryId = reading.id
         showInfoPanel(InfoPanelView.SENSOR_CHART)
-        binding.stripChartTitleText.text = "${reading.roomName} — temperature"
+        sensorChartPanel.setTitle("${reading.roomName} — temperature")
         lifecycleScope.launch {
             val sinceMillis = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(48)
             val points = withContext(Dispatchers.IO) {
@@ -444,7 +407,7 @@ class MainActivity : AppCompatActivity() {
             // The reading tapped may no longer be the active one if the user already
             // switched to a different sensor (or closed the chart) before this returned.
             if (activeSensorHistoryId == reading.id) {
-                renderLineChart(binding.stripChartView, points, R.color.accent_warm)
+                sensorChartPanel.render(points)
             }
         }
     }
@@ -464,89 +427,8 @@ class MainActivity : AppCompatActivity() {
             val sinceMillis = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(48)
             val points = withContext(Dispatchers.IO) { weatherMetricsHistoryStore.getHistorySince(sinceMillis) }
             if (currentInfoPanel != InfoPanelView.WEATHER_GRAPHS) return@launch
-            renderLineChart(
-                binding.windSpeedChartView,
-                points.mapNotNull { p -> p.windSpeedMph?.let { p.timestampMillis to it } },
-                R.color.accent_cool
-            )
-            renderLineChart(
-                binding.precipitationChartView,
-                points.mapNotNull { p -> p.precipitationIn?.let { p.timestampMillis to it } },
-                R.color.accent_cool
-            )
-            renderLineChart(
-                binding.pressureChartView,
-                points.mapNotNull { p -> p.pressureInHg?.let { p.timestampMillis to it } },
-                R.color.accent_cool
-            )
+            weatherGraphsPanel.render(points)
         }
-    }
-
-    private fun setUpStripChart() {
-        configureLineChart(binding.stripChartView, description = null)
-        binding.stripChartView.axisLeft.valueFormatter = object : ValueFormatter() {
-            override fun getFormattedValue(value: Float): String = "${value.toInt()}°"
-        }
-    }
-
-    private fun setUpWeatherGraphs() {
-        configureLineChart(binding.windSpeedChartView, getString(R.string.weather_graph_wind_speed))
-        configureLineChart(binding.precipitationChartView, getString(R.string.weather_graph_precipitation))
-        configureLineChart(binding.pressureChartView, getString(R.string.weather_graph_pressure))
-    }
-
-    /** Shared axis/touch setup for every [LineChart] in the info panel (sensor history + weather graphs). */
-    private fun configureLineChart(chart: LineChart, description: String?) {
-        val axisTextColor = ContextCompat.getColor(this, R.color.text_secondary)
-        val gridLineColor = ContextCompat.getColor(this, R.color.divider)
-
-        chart.legend.isEnabled = false
-        chart.setNoDataText(getString(R.string.strip_chart_no_data))
-        chart.setNoDataTextColor(axisTextColor)
-        chart.setTouchEnabled(true)
-        chart.setPinchZoom(true)
-        if (description != null) {
-            chart.description.apply {
-                isEnabled = true
-                text = description
-                textColor = axisTextColor
-                textSize = 12f
-            }
-        } else {
-            chart.description.isEnabled = false
-        }
-
-        chart.axisRight.isEnabled = false
-        chart.axisLeft.apply {
-            textColor = axisTextColor
-            this.gridColor = gridLineColor
-        }
-        chart.xAxis.apply {
-            position = XAxis.XAxisPosition.BOTTOM
-            textColor = axisTextColor
-            this.gridColor = gridLineColor
-            valueFormatter = object : ValueFormatter() {
-                override fun getFormattedValue(value: Float): String =
-                    hourOnlyFormat.format(Date(value.toLong() * 1000L))
-            }
-        }
-    }
-
-    private fun renderLineChart(chart: LineChart, points: List<Pair<Long, Double>>, colorRes: Int) {
-        if (points.size < 2) {
-            chart.clear()
-            return
-        }
-        val entries = points.map { (timeMillis, value) -> Entry(timeMillis / 1000f, value.toFloat()) }
-        val dataSet = LineDataSet(entries, null).apply {
-            color = ContextCompat.getColor(this@MainActivity, colorRes)
-            lineWidth = 2f
-            setDrawCircles(false)
-            setDrawValues(false)
-            mode = LineDataSet.Mode.LINEAR
-        }
-        chart.data = LineData(dataSet)
-        chart.invalidate()
     }
 
     private fun showForecastDialog() {

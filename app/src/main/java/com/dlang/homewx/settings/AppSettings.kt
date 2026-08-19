@@ -17,6 +17,7 @@ object AppSettings {
     private const val KEY_HIDDEN_SENSOR_IDS = "hidden_sensor_ids"
     private const val KEY_LIGHT_THRESHOLD_LUX = "light_threshold_lux"
     private const val KEY_WEBVIEW_REQUEST_LOGGING_ENABLED = "webview_request_logging_enabled"
+    private const val KEY_SCREEN_BRIGHTNESS_PERCENT = "screen_brightness_percent"
 
     const val DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES = 30
     const val MIN_WEATHER_SAMPLE_INTERVAL_MINUTES = 1
@@ -24,6 +25,8 @@ object AppSettings {
     const val DEFAULT_LIGHT_THRESHOLD_LUX = 8f
     const val MIN_LIGHT_THRESHOLD_LUX = 5f
     const val MAX_LIGHT_THRESHOLD_LUX = 100f
+    const val DEFAULT_SCREEN_BRIGHTNESS_PERCENT = 100
+    const val MIN_SCREEN_BRIGHTNESS_PERCENT = 10
 
     fun getWeatherSampleIntervalMinutes(context: Context): Int {
         val stored = prefs(context).getInt(KEY_WEATHER_SAMPLE_INTERVAL_MINUTES, DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES)
@@ -60,6 +63,14 @@ object AppSettings {
 
     fun setLightThresholdLux(context: Context, lux: Float) {
         prefs(context).edit { putFloat(KEY_LIGHT_THRESHOLD_LUX, lux.coerceIn(MIN_LIGHT_THRESHOLD_LUX, MAX_LIGHT_THRESHOLD_LUX)) }
+    }
+
+    fun getScreenBrightnessPercent(context: Context): Int =
+        prefs(context).getInt(KEY_SCREEN_BRIGHTNESS_PERCENT, DEFAULT_SCREEN_BRIGHTNESS_PERCENT)
+            .coerceIn(MIN_SCREEN_BRIGHTNESS_PERCENT, 100)
+
+    fun setScreenBrightnessPercent(context: Context, percent: Int) {
+        prefs(context).edit { putInt(KEY_SCREEN_BRIGHTNESS_PERCENT, percent.coerceIn(MIN_SCREEN_BRIGHTNESS_PERCENT, 100)) }
     }
 
     fun isWebViewRequestLoggingEnabled(context: Context): Boolean =

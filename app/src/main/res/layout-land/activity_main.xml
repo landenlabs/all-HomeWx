@@ -273,147 +273,16 @@
         app:layout_constraintStart_toEndOf="@id/middleGuideline"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <com.google.android.material.tabs.TabLayout
-        android:id="@+id/newsTabLayout"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:background="@color/bg_panel_bottom"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/centerDivider"
-        app:layout_constraintTop_toTopOf="parent"
-        app:tabIndicatorColor="@color/accent_cool"
-        app:tabSelectedTextColor="@color/text_primary"
-        app:tabTextColor="@color/text_secondary" />
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/newsRecyclerView"
+    <!-- Holds whichever feature panel (news / sensor chart / weather graphs / article) is
+         currently showing - each inflates its own layout into this container at runtime,
+         see NewsPanel/SensorChartPanel/WeatherGraphsPanel/ArticlePanel. -->
+    <FrameLayout
+        android:id="@+id/infoPanelContainer"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:clipToPadding="false"
-        android:overScrollMode="never"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/centerDivider"
-        app:layout_constraintTop_toBottomOf="@id/newsTabLayout" />
-
-    <androidx.constraintlayout.widget.Group
-        android:id="@+id/newsGroup"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        app:constraint_referenced_ids="newsTabLayout,newsRecyclerView" />
-
-    <TextView
-        android:id="@+id/stripChartTitleText"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="16dp"
-        android:textColor="@color/text_primary"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/centerDivider"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:text="Sun room - temperature" />
-
-    <com.github.mikephil.charting.charts.LineChart
-        android:id="@+id/stripChartView"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_margin="16dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/centerDivider"
-        app:layout_constraintTop_toBottomOf="@id/stripChartTitleText" />
-
-    <androidx.constraintlayout.widget.Group
-        android:id="@+id/stripChartGroup"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:visibility="gone"
-        app:constraint_referenced_ids="stripChartTitleText,stripChartView" />
-
-    <!-- 3 charts sharing equal height, spanning the full width of the info panel -->
-    <LinearLayout
-        android:id="@+id/weatherGraphsPanel"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:orientation="vertical"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/centerDivider"
-        app:layout_constraintTop_toTopOf="parent">
-
-        <com.github.mikephil.charting.charts.LineChart
-            android:id="@+id/windSpeedChartView"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_margin="8dp" />
-
-        <com.github.mikephil.charting.charts.LineChart
-            android:id="@+id/precipitationChartView"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_margin="8dp" />
-
-        <com.github.mikephil.charting.charts.LineChart
-            android:id="@+id/pressureChartView"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_margin="8dp" />
-    </LinearLayout>
-
-    <!-- Full-story viewer: back arrow + headline row, then the article WebView below it. -->
-    <TextView
-        android:id="@+id/articleBackButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:padding="8dp"
-        android:text="←"
-        android:textColor="@color/text_primary"
-        android:textSize="24sp"
         app:layout_constraintStart_toEndOf="@id/centerDivider"
         app:layout_constraintTop_toTopOf="parent" />
-
-    <TextView
-        android:id="@+id/articleTitleText"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="4dp"
-        android:layout_marginEnd="16dp"
-        android:ellipsize="end"
-        android:maxLines="2"
-        android:textColor="@color/text_primary"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        app:layout_constraintBottom_toBottomOf="@id/articleBackButton"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/articleBackButton"
-        app:layout_constraintTop_toTopOf="@id/articleBackButton"
-        tools:text="Sample headline for the article being viewed" />
-
-    <WebView
-        android:id="@+id/articleWebView"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/centerDivider"
-        app:layout_constraintTop_toBottomOf="@id/articleBackButton" />
-
-    <androidx.constraintlayout.widget.Group
-        android:id="@+id/articleGroup"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:visibility="gone"
-        app:constraint_referenced_ids="articleBackButton,articleTitleText,articleWebView" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
