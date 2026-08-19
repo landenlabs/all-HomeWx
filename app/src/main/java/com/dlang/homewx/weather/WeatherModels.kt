@@ -33,6 +33,7 @@ data class DailyForecastEntry(
     val dateMillis: Long,
     val highF: Double?,
     val lowF: Double?,
+    val windMaxMph: Double?,
     val precipitationChancePct: Int?,
     val conditionText: String,
     /** Drawable resource name (no extension) in res/drawable-nodpi, e.g. "wx_sun_30d". */

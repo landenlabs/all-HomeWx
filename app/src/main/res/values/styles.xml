@@ -53,4 +53,14 @@
         <item name="android:layout_marginBottom">16dp</item>
         <item name="android:background">@color/divider</item>
     </style>
+
+    <!-- One of the 4 stacked value rows (high/wind/precip/low) in a forecast day card. -->
+    <style name="forecast_card_value">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:paddingTop">1dp</item>
+        <item name="android:paddingBottom">1dp</item>
+    </style>
 </resources>

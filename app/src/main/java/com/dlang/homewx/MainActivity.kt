@@ -91,6 +91,10 @@ class MainActivity : AppCompatActivity() {
     /** True while a tap-to-wake override is forcing the screen ACTIVE despite the light sensor saying QUIET. */
     private var wakeOverrideActive = false
     private var wakeOverrideJob: Job? = null
+    /** Tracks the previous tick's light mode so a QUIET->ACTIVE transition can be detected in [observeState]. */
+    private var lastLightMode: LightMode? = null
+    /** Running while auto-cycling tabs after a light-triggered wake; cancelled on any user tab tap. */
+    private var autoCycleJob: Job? = null
 
     private val weatherGestureDetector by lazy {
         GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
@@ -218,12 +222,14 @@ class MainActivity : AppCompatActivity() {
                 if (!wakeOverrideActive) {
                     screenPowerController.apply(state.lightMode)
                 }
+                handleLightModeTransition(state.lightMode)
                 binding.currentLuxText.text = state.currentLux?.let { "${it.roundToInt()} lux" } ?: "-- lux"
                 sensorAdapter.submit(visibleSensors(state.sensors))
                 sensorsUpdatedAtMillis = state.sensorsUpdatedAtMillis
                 updateSensorsTitle()
                 newsPanel.onStateUpdated(state.newsItemsBySource)
                 latestForecast = state.weatherForecast
+                refreshOpenPanelIfNeeded()
 
                 if (viewingDayOffset == 0) {
                     bindLiveWeather(state)
@@ -233,6 +239,51 @@ class MainActivity : AppCompatActivity() {
                 binding.sensorErrorText.text = error?.let { "Sensor error: $it" }
                 binding.sensorErrorText.visibility = if (error != null) View.VISIBLE else View.GONE
             }
+        }
+    }
+
+    /**
+     * Forces the info panel to News and starts the 5-minute tab auto-cycle whenever the room
+     * light wakes the tablet from QUIET; stops the cycle on the way back to QUIET so a later
+     * wake always starts a fresh rotation instead of resuming a stale one.
+     */
+    private fun handleLightModeTransition(newMode: LightMode) {
+        val previousMode = lastLightMode
+        lastLightMode = newMode
+        if (previousMode == LightMode.QUIET && newMode == LightMode.ACTIVE) {
+            selectTab(InfoPanelView.NEWS, isUserAction = false)
+            startAutoCycle()
+        } else if (newMode == LightMode.QUIET) {
+            stopAutoCycle()
+        }
+    }
+
+    private fun startAutoCycle() {
+        autoCycleJob?.cancel()
+        autoCycleJob = lifecycleScope.launch {
+            var index = 0
+            while (true) {
+                delay(AUTO_CYCLE_INTERVAL_MS)
+                index = (index + 1) % AUTO_CYCLE_TABS.size
+                selectTab(AUTO_CYCLE_TABS[index], isUserAction = false)
+            }
+        }
+    }
+
+    private fun stopAutoCycle() {
+        autoCycleJob?.cancel()
+        autoCycleJob = null
+    }
+
+    /** Re-renders whichever chart-based panel is currently open, so its data doesn't go
+     *  stale while left visible. News/Forecast already self-refresh via [observeState] above. */
+    private fun refreshOpenPanelIfNeeded() {
+        when (currentInfoPanel) {
+            InfoPanelView.WEATHER_GRAPHS -> refreshWeatherGraphs()
+            InfoPanelView.SENSOR_GRAPHS -> refreshSensorGraphs()
+            InfoPanelView.SENSOR_CHART -> activeSensorHistoryId?.let { refreshSensorChart(it) }
+            InfoPanelView.FORECAST -> forecastPanel.render(latestForecast?.daily.orEmpty())
+            else -> Unit
         }
     }
 
@@ -298,7 +349,7 @@ class MainActivity : AppCompatActivity() {
         binding.pressureValueText.text = "--"
         binding.tempHighValueText.text = entry.highF?.roundToInt()?.let { "$it°F" } ?: "--"
         binding.tempLowValueText.text = entry.lowF?.roundToInt()?.let { "$it°F" } ?: "--"
-        binding.windHighValueText.text = "--"
+        binding.windHighValueText.text = entry.windMaxMph?.roundToInt()?.let { "$it mph" } ?: "--"
         binding.windLowValueText.text = "--"
         binding.lyMaxValueText.text = "--"
         binding.lyMinValueText.text = "--"
@@ -419,13 +470,16 @@ class MainActivity : AppCompatActivity() {
             ColorStateList.valueOf(if (panel == InfoPanelView.SENSOR_GRAPHS) selectedColor else unselectedColor)
     }
 
-    /** Handles a tap on one of the info-panel tab bar icons - always switches to that panel. */
-    private fun selectTab(panel: InfoPanelView) {
+    /** Switches the info panel to [panel]. [isUserAction] is false when the switch comes from
+     *  the auto-cycle timer rather than an actual tap, so it doesn't cancel its own cycle. */
+    private fun selectTab(panel: InfoPanelView, isUserAction: Boolean = true) {
+        if (isUserAction) stopAutoCycle()
         activeSensorHistoryId = null
         showInfoPanel(panel)
         when (panel) {
             InfoPanelView.WEATHER_GRAPHS -> refreshWeatherGraphs()
             InfoPanelView.SENSOR_GRAPHS -> refreshSensorGraphs()
+            InfoPanelView.FORECAST -> forecastPanel.render(latestForecast?.daily.orEmpty())
             else -> Unit
         }
     }
@@ -440,15 +494,19 @@ class MainActivity : AppCompatActivity() {
         activeSensorHistoryId = reading.id
         showInfoPanel(InfoPanelView.SENSOR_CHART)
         sensorChartPanel.setTitle("${reading.roomName} — temperature")
+        refreshSensorChart(reading.id)
+    }
+
+    private fun refreshSensorChart(sensorId: String) {
         lifecycleScope.launch {
             val sinceMillis = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(48)
             val points = withContext(Dispatchers.IO) {
-                sensorHistoryStore.getHistorySince(reading.id, sinceMillis)
+                sensorHistoryStore.getHistorySince(sensorId, sinceMillis)
                     .mapNotNull { point -> point.tempF?.let { point.timestampMillis to it } }
             }
-            // The reading tapped may no longer be the active one if the user already
-            // switched to a different sensor (or closed the chart) before this returned.
-            if (activeSensorHistoryId == reading.id) {
+            // The sensor may no longer be the active one if the user already switched to a
+            // different sensor (or closed the chart) before this returned.
+            if (activeSensorHistoryId == sensorId) {
                 sensorChartPanel.render(points)
             }
         }
@@ -527,6 +585,10 @@ class MainActivity : AppCompatActivity() {
         private const val SWIPE_THRESHOLD_PX = 80
         private const val DAY_MILLIS = 24 * 60 * 60 * 1000L
         private const val WAKE_OVERRIDE_DURATION_MS = 5 * 60 * 1000L
+        private const val AUTO_CYCLE_INTERVAL_MS = 5 * 60 * 1000L
+        private val AUTO_CYCLE_TABS = listOf(
+            InfoPanelView.NEWS, InfoPanelView.WEATHER_GRAPHS, InfoPanelView.FORECAST, InfoPanelView.SENSOR_GRAPHS
+        )
     }
 }
 

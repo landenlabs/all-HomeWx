@@ -60,7 +60,7 @@ class OpenMeteoWeatherProvider : WeatherProvider {
         val json = fetch(
             location,
             hourly = "temperature_2m,wind_speed_10m,precipitation_probability,surface_pressure,weather_code",
-            daily = "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code",
+            daily = "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code,wind_speed_10m_max",
             forecastDays = forecastDays
         )
 
@@ -134,6 +134,7 @@ class OpenMeteoWeatherProvider : WeatherProvider {
         val times = daily.optJSONArray("time") ?: return emptyList()
         val highs = daily.optJSONArray("temperature_2m_max")
         val lows = daily.optJSONArray("temperature_2m_min")
+        val windMax = daily.optJSONArray("wind_speed_10m_max")
         val precipChance = daily.optJSONArray("precipitation_probability_max")
         val codes = daily.optJSONArray("weather_code")
 
@@ -142,6 +143,7 @@ class OpenMeteoWeatherProvider : WeatherProvider {
                 dateMillis = parseTimeMillis(times.getString(i), dayTimeFormat),
                 highF = highs?.optDoubleOrNull(i),
                 lowF = lows?.optDoubleOrNull(i),
+                windMaxMph = windMax?.optDoubleOrNull(i),
                 precipitationChancePct = precipChance?.optIntOrNull(i),
                 conditionText = weatherCodeToText(codes?.optInt(i, -1) ?: -1),
                 // A whole-day forecast has no day/night distinction of its own - use the day icon variant.
