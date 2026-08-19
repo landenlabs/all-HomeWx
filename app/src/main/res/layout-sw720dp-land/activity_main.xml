@@ -148,9 +148,9 @@
         app:layout_constraintTop_toBottomOf="@id/currentTempText"
         tools:text="+2°F" />
 
-    <!-- condition/humidity/wind/precip/pressure table: label,value per row (2 columns -
-         narrower than the sw720dp-land tablet layout, so this smaller-screen variant
-         stacks each label/value pair into its own row instead of pairing two per row).
+    <!-- condition/humidity/wind/precip/pressure table: label,value,label,value per row
+         (4 columns - wide 10"+ tablets like the Tab S3 only; narrower landscape screens
+         use the 2-column layout-land variant instead).
          Column widths size to content and center as a whole within weatherBackgroundImage. -->
     <GridLayout
         android:id="@+id/weatherDetailsGrid"
