@@ -57,7 +57,8 @@ class HomeWxMonitorService : LifecycleService() {
     private val newsRepository = NewsRepository()
     private val weatherRepository = WeatherRepository(
         location = HomeLocation.CURRENT,
-        activeSource = { WeatherSourceConfig.getActiveSource(applicationContext) }
+        activeSource = { WeatherSourceConfig.getActiveSource(applicationContext) },
+        forecastDays = { AppSettings.getForecastDays(applicationContext) }
     )
     private var latestForecast: WeatherForecast? = null
     private var historicalAverageFetchedForDay: Long? = null

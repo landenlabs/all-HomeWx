@@ -56,12 +56,12 @@ class OpenMeteoWeatherProvider : WeatherProvider {
         )
     }
 
-    override fun getForecast(location: GeoLocation): WeatherForecast {
+    override fun getForecast(location: GeoLocation, forecastDays: Int): WeatherForecast {
         val json = fetch(
             location,
             hourly = "temperature_2m,wind_speed_10m,precipitation_probability,surface_pressure,weather_code",
             daily = "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code",
-            forecastDays = FORECAST_DAYS
+            forecastDays = forecastDays
         )
 
         val hourly = json.optJSONObject("hourly")?.let { parseHourly(it) }.orEmpty()
@@ -186,7 +186,6 @@ class OpenMeteoWeatherProvider : WeatherProvider {
     companion object {
         private const val BASE_URL = "https://api.open-meteo.com/v1/forecast"
         private const val ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
-        private const val FORECAST_DAYS = 3
         private const val HPA_TO_INHG = 0.0295299830714
 
         /** Open-Meteo always returns pressure in hPa - no unit param for it - so convert here. */

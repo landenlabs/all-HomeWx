@@ -23,10 +23,12 @@ object LineChartSetup {
         chart.setTouchEnabled(true)
         chart.setPinchZoom(true)
         if (description != null) {
+            // The description doubles as this chart's "which data source is this" label,
+            // so it gets its own accent color rather than the neutral axis text color.
             chart.description.apply {
                 isEnabled = true
                 text = description
-                textColor = axisTextColor
+                textColor = ContextCompat.getColor(context, R.color.accent_cool)
                 textSize = 12f
             }
         } else {
@@ -46,14 +48,15 @@ object LineChartSetup {
         }
     }
 
-    fun render(chart: LineChart, context: Context, points: List<Pair<Long, Double>>, colorRes: Int) {
+    /** Every line graph in the app shares the same line color by design. */
+    fun render(chart: LineChart, context: Context, points: List<Pair<Long, Double>>) {
         if (points.size < 2) {
             chart.clear()
             return
         }
         val entries = points.map { (timeMillis, value) -> Entry(timeMillis / 1000f, value.toFloat()) }
         val dataSet = LineDataSet(entries, null).apply {
-            color = ContextCompat.getColor(context, colorRes)
+            color = ContextCompat.getColor(context, R.color.accent_warm)
             lineWidth = 2f
             setDrawCircles(false)
             setDrawValues(false)

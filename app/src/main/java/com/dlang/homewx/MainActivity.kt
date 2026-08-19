@@ -2,6 +2,7 @@ package com.dlang.homewx
 
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.os.Bundle
 import android.text.Spannable
 import android.text.SpannableString
@@ -31,9 +32,11 @@ import com.dlang.homewx.settings.AppSettings
 import com.dlang.homewx.settings.SettingsActivity
 import com.dlang.homewx.state.AppState
 import com.dlang.homewx.ui.ArticlePanel
+import com.dlang.homewx.ui.ForecastPanel
 import com.dlang.homewx.ui.NewsPanel
 import com.dlang.homewx.ui.SensorAdapter
 import com.dlang.homewx.ui.SensorChartPanel
+import com.dlang.homewx.ui.SensorGraphsPanel
 import com.dlang.homewx.ui.WeatherGraphsPanel
 import com.dlang.homewx.ui.weatherBackgroundRes
 import com.dlang.homewx.ui.weatherIconRes
@@ -64,6 +67,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sensorChartPanel: SensorChartPanel
     private lateinit var weatherGraphsPanel: WeatherGraphsPanel
     private lateinit var articlePanel: ArticlePanel
+    private lateinit var forecastPanel: ForecastPanel
+    private lateinit var sensorGraphsPanel: SensorGraphsPanel
     private val sensorHistoryStore by lazy { SensorHistoryStore(applicationContext) }
     private val weatherMetricsHistoryStore by lazy { WeatherMetricsHistoryStore(applicationContext) }
     private val dailySnapshotStore by lazy { DailySnapshotStore(applicationContext) }
@@ -101,7 +106,9 @@ class MainActivity : AppCompatActivity() {
                 val deltaX = e2.x - startX
                 val deltaY = e2.y - e1.y
                 if (abs(deltaX) > abs(deltaY) && abs(deltaX) > SWIPE_THRESHOLD_PX) {
-                    if (deltaX < 0) goToOlderDay() else goToNewerDay()
+                    // Past is to the left, future to the right: swiping left reveals what's
+                    // further right (the future), swiping right reveals what's further left (the past).
+                    if (deltaX < 0) goToNewerDay() else goToOlderDay()
                     return true
                 }
                 return false
@@ -127,12 +134,18 @@ class MainActivity : AppCompatActivity() {
         binding.sensorRecyclerView.adapter = sensorAdapter
         binding.weatherBackgroundImage.setOnTouchListener { _, event -> weatherGestureDetector.onTouchEvent(event) }
         binding.settingsButton.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
-        binding.weatherGraphsButton.setOnClickListener { toggleWeatherGraphs() }
 
         newsPanel = NewsPanel(binding.infoPanelContainer, onArticleClick = ::showNewsArticle)
         sensorChartPanel = SensorChartPanel(binding.infoPanelContainer)
         weatherGraphsPanel = WeatherGraphsPanel(binding.infoPanelContainer)
         articlePanel = ArticlePanel(binding.infoPanelContainer, onBack = ::closeArticle)
+        forecastPanel = ForecastPanel(binding.infoPanelContainer)
+        sensorGraphsPanel = SensorGraphsPanel(binding.infoPanelContainer)
+
+        binding.infoPanelTabBar.graphTabButton.setOnClickListener { selectTab(InfoPanelView.WEATHER_GRAPHS) }
+        binding.infoPanelTabBar.newsTabButton.setOnClickListener { selectTab(InfoPanelView.NEWS) }
+        binding.infoPanelTabBar.forecastTabButton.setOnClickListener { selectTab(InfoPanelView.FORECAST) }
+        binding.infoPanelTabBar.sensorGraphsTabButton.setOnClickListener { selectTab(InfoPanelView.SENSOR_GRAPHS) }
         showInfoPanel(InfoPanelView.NEWS)
 
         HomeWxMonitorService.start(this)
@@ -386,6 +399,35 @@ class MainActivity : AppCompatActivity() {
         sensorChartPanel.root.visibility = if (panel == InfoPanelView.SENSOR_CHART) View.VISIBLE else View.GONE
         weatherGraphsPanel.root.visibility = if (panel == InfoPanelView.WEATHER_GRAPHS) View.VISIBLE else View.GONE
         articlePanel.root.visibility = if (panel == InfoPanelView.ARTICLE) View.VISIBLE else View.GONE
+        forecastPanel.root.visibility = if (panel == InfoPanelView.FORECAST) View.VISIBLE else View.GONE
+        sensorGraphsPanel.root.visibility = if (panel == InfoPanelView.SENSOR_GRAPHS) View.VISIBLE else View.GONE
+        updateTabSelection(panel)
+    }
+
+    /** Tints whichever of the four tab bar icons matches [panel]; SENSOR_CHART/ARTICLE aren't
+     *  tabs, so none of the four show selected while either of those is showing. */
+    private fun updateTabSelection(panel: InfoPanelView) {
+        val selectedColor = getColor(R.color.accent_cool)
+        val unselectedColor = getColor(R.color.text_secondary)
+        binding.infoPanelTabBar.graphTabButton.imageTintList =
+            ColorStateList.valueOf(if (panel == InfoPanelView.WEATHER_GRAPHS) selectedColor else unselectedColor)
+        binding.infoPanelTabBar.newsTabButton.imageTintList =
+            ColorStateList.valueOf(if (panel == InfoPanelView.NEWS) selectedColor else unselectedColor)
+        binding.infoPanelTabBar.forecastTabButton.imageTintList =
+            ColorStateList.valueOf(if (panel == InfoPanelView.FORECAST) selectedColor else unselectedColor)
+        binding.infoPanelTabBar.sensorGraphsTabButton.imageTintList =
+            ColorStateList.valueOf(if (panel == InfoPanelView.SENSOR_GRAPHS) selectedColor else unselectedColor)
+    }
+
+    /** Handles a tap on one of the info-panel tab bar icons - always switches to that panel. */
+    private fun selectTab(panel: InfoPanelView) {
+        activeSensorHistoryId = null
+        showInfoPanel(panel)
+        when (panel) {
+            InfoPanelView.WEATHER_GRAPHS -> refreshWeatherGraphs()
+            InfoPanelView.SENSOR_GRAPHS -> refreshSensorGraphs()
+            else -> Unit
+        }
     }
 
     private fun showSensorHistory(reading: SensorReading) {
@@ -412,22 +454,30 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun toggleWeatherGraphs() {
-        if (currentInfoPanel == InfoPanelView.WEATHER_GRAPHS) {
-            showInfoPanel(InfoPanelView.NEWS)
-            return
-        }
-        activeSensorHistoryId = null
-        showInfoPanel(InfoPanelView.WEATHER_GRAPHS)
-        refreshWeatherGraphs()
-    }
-
     private fun refreshWeatherGraphs() {
         lifecycleScope.launch {
             val sinceMillis = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(48)
             val points = withContext(Dispatchers.IO) { weatherMetricsHistoryStore.getHistorySince(sinceMillis) }
             if (currentInfoPanel != InfoPanelView.WEATHER_GRAPHS) return@launch
             weatherGraphsPanel.render(points)
+        }
+    }
+
+    /** One temperature chart per sensor currently shown in the SENSORS list (i.e. not hidden
+     *  via settings) - mirrors [visibleSensors]'s filtering so the graphs match the list. */
+    private fun refreshSensorGraphs() {
+        val sensors = visibleSensors(AppState.uiState.value.sensors)
+        sensorGraphsPanel.setSensors(sensors)
+        lifecycleScope.launch {
+            val sinceMillis = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(48)
+            sensors.forEach { sensor ->
+                val points = withContext(Dispatchers.IO) {
+                    sensorHistoryStore.getHistorySince(sensor.id, sinceMillis)
+                        .mapNotNull { point -> point.tempF?.let { point.timestampMillis to it } }
+                }
+                if (currentInfoPanel != InfoPanelView.SENSOR_GRAPHS) return@launch
+                sensorGraphsPanel.render(sensor.id, points)
+            }
         }
     }
 
@@ -480,5 +530,7 @@ class MainActivity : AppCompatActivity() {
     }
 }
 
-/** Which of the three mutually-exclusive views is showing in the bottom info panel. */
-private enum class InfoPanelView { NEWS, SENSOR_CHART, WEATHER_GRAPHS, ARTICLE }
+/** Which of the mutually-exclusive views is showing in the info panel. NEWS/WEATHER_GRAPHS/
+ *  FORECAST/SENSOR_GRAPHS are the four tab bar destinations; SENSOR_CHART/ARTICLE are reached
+ *  other ways (tapping a sensor row / a news item) and leave the tab bar showing nothing selected. */
+private enum class InfoPanelView { NEWS, SENSOR_CHART, WEATHER_GRAPHS, ARTICLE, FORECAST, SENSOR_GRAPHS }

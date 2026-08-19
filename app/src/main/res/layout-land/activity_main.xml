@@ -44,30 +44,16 @@
         app:layout_constraintTop_toTopOf="parent"
         tools:text="16 Aug, Sun 10:54 PM" />
 
-    <ImageButton
-        android:id="@+id/weatherGraphsButton"
-        android:layout_width="28dp"
-        android:layout_height="28dp"
-        android:layout_marginStart="24dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/weather_graphs_title"
-        android:padding="2dp"
-        android:src="@drawable/ic_graph"
-        app:layout_constraintBottom_toBottomOf="@id/weatherDateTimeText"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@id/weatherDateTimeText"
-        app:tint="@color/text_secondary" />
-
     <TextView
         android:id="@+id/currentLuxText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
+        android:layout_marginStart="24dp"
         android:textColor="@color/text_secondary"
         android:textSize="14sp"
-        app:layout_constraintBottom_toBottomOf="@id/weatherGraphsButton"
-        app:layout_constraintStart_toEndOf="@id/weatherGraphsButton"
-        app:layout_constraintTop_toTopOf="@id/weatherGraphsButton"
+        app:layout_constraintBottom_toBottomOf="@id/weatherDateTimeText"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/weatherDateTimeText"
         tools:text="8 lux" />
 
     <ImageButton
@@ -273,9 +259,20 @@
         app:layout_constraintStart_toEndOf="@id/middleGuideline"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Holds whichever feature panel (news / sensor chart / weather graphs / article) is
-         currently showing - each inflates its own layout into this container at runtime,
-         see NewsPanel/SensorChartPanel/WeatherGraphsPanel/ArticlePanel. -->
+    <!-- Selects which panel shows below it in infoPanelContainer - shared across all
+         activity_main variants, see res/layout/info_panel_tabbar.xml. -->
+    <include
+        android:id="@+id/infoPanelTabBar"
+        layout="@layout/info_panel_tabbar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/centerDivider"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Holds whichever feature panel (news / sensor chart / weather graphs / article /
+         forecast) is currently showing - each inflates its own layout into this container
+         at runtime, see NewsPanel/SensorChartPanel/WeatherGraphsPanel/ArticlePanel/ForecastPanel. -->
     <FrameLayout
         android:id="@+id/infoPanelContainer"
         android:layout_width="0dp"
@@ -283,6 +280,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/centerDivider"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/infoPanelTabBar" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

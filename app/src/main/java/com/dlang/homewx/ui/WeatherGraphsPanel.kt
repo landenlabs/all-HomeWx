@@ -34,20 +34,17 @@ class WeatherGraphsPanel(container: ViewGroup) {
         LineChartSetup.render(
             binding.windSpeedChartView,
             context,
-            points.mapNotNull { p -> p.windSpeedMph?.let { p.timestampMillis to it } },
-            R.color.accent_cool
+            points.mapNotNull { p -> p.windSpeedMph?.let { p.timestampMillis to it } }
         )
         LineChartSetup.render(
             binding.precipitationChartView,
             context,
-            points.mapNotNull { p -> p.precipitationIn?.let { p.timestampMillis to it } },
-            R.color.accent_cool
+            points.mapNotNull { p -> p.precipitationIn?.let { p.timestampMillis to it } }
         )
         LineChartSetup.render(
             binding.pressureChartView,
             context,
-            points.mapNotNull { p -> p.pressureInHg?.let { p.timestampMillis to it } },
-            R.color.accent_cool
+            points.mapNotNull { p -> p.pressureInHg?.let { p.timestampMillis to it } }
         )
     }
 }

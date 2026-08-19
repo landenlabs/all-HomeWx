@@ -161,6 +161,9 @@ class SettingsActivity : AppCompatActivity() {
         binding.weatherIntervalEditText.setText(
             AppSettings.getWeatherSampleIntervalMinutes(this).toString()
         )
+        binding.forecastDaysEditText.setText(
+            AppSettings.getForecastDays(this).toString()
+        )
 
         val brightnessPercent = AppSettings.getScreenBrightnessPercent(this)
         binding.screenBrightnessSlider.progress = brightnessPercent - AppSettings.MIN_SCREEN_BRIGHTNESS_PERCENT
@@ -193,6 +196,9 @@ class SettingsActivity : AppCompatActivity() {
         val minutes = binding.weatherIntervalEditText.text.toString().toIntOrNull()
             ?: AppSettings.DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES
         AppSettings.setWeatherSampleIntervalMinutes(this, minutes)
+        val forecastDays = binding.forecastDaysEditText.text.toString().toIntOrNull()
+            ?: AppSettings.DEFAULT_FORECAST_DAYS
+        AppSettings.setForecastDays(this, forecastDays)
         AppSettings.setScreenBrightnessPercent(this, progressToBrightnessPercent(binding.screenBrightnessSlider.progress))
         AppSettings.setBackgroundDarkenPercent(this, binding.backgroundDarkenSlider.progress)
         AppSettings.setLightThresholdLux(this, progressToLux(binding.lightThresholdSlider.progress).toFloat())

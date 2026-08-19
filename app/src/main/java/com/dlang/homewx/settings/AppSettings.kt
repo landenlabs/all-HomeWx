@@ -18,6 +18,7 @@ object AppSettings {
     private const val KEY_LIGHT_THRESHOLD_LUX = "light_threshold_lux"
     private const val KEY_WEBVIEW_REQUEST_LOGGING_ENABLED = "webview_request_logging_enabled"
     private const val KEY_SCREEN_BRIGHTNESS_PERCENT = "screen_brightness_percent"
+    private const val KEY_FORECAST_DAYS = "forecast_days"
 
     const val DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES = 30
     const val MIN_WEATHER_SAMPLE_INTERVAL_MINUTES = 1
@@ -27,6 +28,9 @@ object AppSettings {
     const val MAX_LIGHT_THRESHOLD_LUX = 100f
     const val DEFAULT_SCREEN_BRIGHTNESS_PERCENT = 100
     const val MIN_SCREEN_BRIGHTNESS_PERCENT = 10
+    const val DEFAULT_FORECAST_DAYS = 7
+    const val MIN_FORECAST_DAYS = 1
+    const val MAX_FORECAST_DAYS = 16 // Open-Meteo's own forecast_days ceiling
 
     fun getWeatherSampleIntervalMinutes(context: Context): Int {
         val stored = prefs(context).getInt(KEY_WEATHER_SAMPLE_INTERVAL_MINUTES, DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES)
@@ -35,6 +39,13 @@ object AppSettings {
 
     fun setWeatherSampleIntervalMinutes(context: Context, minutes: Int) {
         prefs(context).edit { putInt(KEY_WEATHER_SAMPLE_INTERVAL_MINUTES, minutes.coerceAtLeast(MIN_WEATHER_SAMPLE_INTERVAL_MINUTES)) }
+    }
+
+    fun getForecastDays(context: Context): Int =
+        prefs(context).getInt(KEY_FORECAST_DAYS, DEFAULT_FORECAST_DAYS).coerceIn(MIN_FORECAST_DAYS, MAX_FORECAST_DAYS)
+
+    fun setForecastDays(context: Context, days: Int) {
+        prefs(context).edit { putInt(KEY_FORECAST_DAYS, days.coerceIn(MIN_FORECAST_DAYS, MAX_FORECAST_DAYS)) }
     }
 
     fun isTempSensorOverrideEnabled(context: Context): Boolean =

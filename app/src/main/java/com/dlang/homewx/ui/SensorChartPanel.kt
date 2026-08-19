@@ -3,7 +3,6 @@ package com.dlang.homewx.ui
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import com.dlang.homewx.R
 import com.dlang.homewx.databinding.PanelSensorChartBinding
 import com.github.mikephil.charting.formatter.ValueFormatter
 import java.text.SimpleDateFormat
@@ -39,6 +38,6 @@ class SensorChartPanel(container: ViewGroup) {
     }
 
     fun render(points: List<Pair<Long, Double>>) {
-        LineChartSetup.render(binding.stripChartView, context, points, R.color.accent_warm)
+        LineChartSetup.render(binding.stripChartView, context, points)
     }
 }

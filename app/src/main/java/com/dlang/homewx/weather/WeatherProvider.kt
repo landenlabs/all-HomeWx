@@ -7,7 +7,7 @@ package com.dlang.homewx.weather
  */
 interface WeatherProvider {
     fun getCurrentConditions(location: GeoLocation): CurrentConditions
-    fun getForecast(location: GeoLocation): WeatherForecast
+    fun getForecast(location: GeoLocation, forecastDays: Int): WeatherForecast
 
     /** Null if this source has no historical archive (e.g. a future private source might not). */
     fun getHistoricalDailyAverage(location: GeoLocation, startMillis: Long, endMillis: Long): HistoricalTempAverage?
