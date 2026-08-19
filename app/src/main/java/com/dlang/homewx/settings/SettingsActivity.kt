@@ -121,12 +121,24 @@ class SettingsActivity : AppCompatActivity() {
     private fun setUpScreenBrightnessSlider() {
         binding.screenBrightnessSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
-                binding.screenBrightnessValueText.text = "${progressToBrightnessPercent(progress)}%"
+                val percent = progressToBrightnessPercent(progress)
+                binding.screenBrightnessValueText.text = "$percent%"
+                // Live-preview on this screen's own window - the actual MainActivity window
+                // only picks up the saved value once you leave (ScreenPowerController.refresh()
+                // in MainActivity.onResume()), so without this the slider looks like it does
+                // nothing until you back out.
+                previewBrightness(percent)
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
             override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
         })
+    }
+
+    private fun previewBrightness(percent: Int) {
+        val params = window.attributes
+        params.screenBrightness = percent / 100f
+        window.attributes = params
     }
 
     private fun setUpBackgroundDarkenSlider() {
@@ -168,6 +180,7 @@ class SettingsActivity : AppCompatActivity() {
         val brightnessPercent = AppSettings.getScreenBrightnessPercent(this)
         binding.screenBrightnessSlider.progress = brightnessPercent - AppSettings.MIN_SCREEN_BRIGHTNESS_PERCENT
         binding.screenBrightnessValueText.text = "$brightnessPercent%"
+        previewBrightness(brightnessPercent)
 
         val darkenPercent = AppSettings.getBackgroundDarkenPercent(this)
         binding.backgroundDarkenSlider.progress = darkenPercent

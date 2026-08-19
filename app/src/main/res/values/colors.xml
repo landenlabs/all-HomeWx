@@ -7,4 +7,9 @@
     <color name="accent_warm">#FDB813</color>
     <color name="accent_cool">#8AB4F8</color>
     <color name="divider">#1E2A38</color>
+
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="blue2">#3F9EFF</color>
+    <color name="icon_white">@color/white</color>
 </resources>
