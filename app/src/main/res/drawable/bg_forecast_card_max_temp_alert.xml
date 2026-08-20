@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Same as bg_forecast_card.xml, but with a yellow border - used when a forecast card holds
+     the highest temperature of the whole set. Precip alert border (bg_forecast_card_precip_alert)
+     takes priority over this one when both apply. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/bg_panel_top" />
+    <corners android:radius="10dp" />
+    <stroke
+        android:width="2dp"
+        android:color="@color/accent_warm" />
+</shape>

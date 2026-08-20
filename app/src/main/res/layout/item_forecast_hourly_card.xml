@@ -10,7 +10,7 @@
     android:padding="10dp">
 
     <TextView
-        android:id="@+id/forecastCardDateText"
+        android:id="@+id/hourlyCardTimeText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="6dp"
@@ -18,7 +18,7 @@
         android:textColor="@color/accent_cool"
         android:textSize="14sp"
         android:textStyle="bold"
-        tools:text="Mon Aug 24" />
+        tools:text="3 PM" />
 
     <!-- Icon is match_parent height so it fills whatever height the value stack ends up at. -->
     <LinearLayout
@@ -27,7 +27,7 @@
         android:orientation="horizontal">
 
         <ImageView
-            android:id="@+id/forecastCardIcon"
+            android:id="@+id/hourlyCardIcon"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
             android:adjustViewBounds="true"
@@ -44,12 +44,12 @@
             android:orientation="vertical">
 
             <TextView
-                android:id="@+id/forecastCardHighText"
+                android:id="@+id/hourlyCardTempText"
                 style="@style/forecast_card_value"
                 tools:text="78°F" />
 
             <TextView
-                android:id="@+id/forecastCardWindText"
+                android:id="@+id/hourlyCardWindText"
                 style="@style/forecast_card_value"
                 tools:text="12 mph" />
 
@@ -60,13 +60,13 @@
                 android:orientation="horizontal">
 
                 <TextView
-                    android:id="@+id/forecastCardPrecipText"
+                    android:id="@+id/hourlyCardPrecipText"
                     style="@style/forecast_card_value"
                     android:layout_width="wrap_content"
                     tools:text="20%" />
 
                 <ImageView
-                    android:id="@+id/forecastCardPrecipIcon"
+                    android:id="@+id/hourlyCardPrecipIcon"
                     android:layout_width="wrap_content"
                     android:layout_height="16dp"
                     android:layout_marginStart="4dp"
@@ -76,11 +76,6 @@
                     android:src="@drawable/wx_drop_1"
                     android:visibility="gone" />
             </LinearLayout>
-
-            <TextView
-                android:id="@+id/forecastCardLowText"
-                style="@style/forecast_card_value"
-                tools:text="61°F" />
         </LinearLayout>
     </LinearLayout>
 

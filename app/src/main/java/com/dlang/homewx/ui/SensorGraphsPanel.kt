@@ -13,7 +13,7 @@ import java.util.Date
 import java.util.Locale
 
 /** One temperature history chart per currently-visible sensor, sharing equal height like
- *  [WeatherGraphsPanel]. Inflates itself into [container]. */
+ *  [ForecastGraphsPanel]'s Past range. Inflates itself into [container]. */
 class SensorGraphsPanel(container: ViewGroup) {
 
     private val context = container.context

@@ -59,7 +59,7 @@ class OpenMeteoWeatherProvider : WeatherProvider {
     override fun getForecast(location: GeoLocation, forecastDays: Int): WeatherForecast {
         val json = fetch(
             location,
-            hourly = "temperature_2m,wind_speed_10m,precipitation_probability,surface_pressure,weather_code",
+            hourly = "temperature_2m,wind_speed_10m,precipitation_probability,surface_pressure,weather_code,is_day",
             daily = "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code,wind_speed_10m_max",
             forecastDays = forecastDays
         )
@@ -117,15 +117,19 @@ class OpenMeteoWeatherProvider : WeatherProvider {
         val precipChance = hourly.optJSONArray("precipitation_probability")
         val pressures = hourly.optJSONArray("surface_pressure")
         val codes = hourly.optJSONArray("weather_code")
+        val isDayFlags = hourly.optJSONArray("is_day")
 
         return (0 until times.length()).map { i ->
+            val code = codes?.optInt(i, -1) ?: -1
+            val isDay = (isDayFlags?.optIntOrNull(i) ?: 1) == 1
             HourlyForecastEntry(
                 timeMillis = parseTimeMillis(times.getString(i), hourTimeFormat),
                 temperatureF = temps?.optDoubleOrNull(i),
                 windSpeedMph = windSpeeds?.optDoubleOrNull(i),
                 precipitationChancePct = precipChance?.optIntOrNull(i),
                 pressureInHg = pressures?.optDoubleOrNull(i)?.let(::hPaToInHg),
-                conditionText = weatherCodeToText(codes?.optInt(i, -1) ?: -1)
+                conditionText = weatherCodeToText(code),
+                iconKey = weatherCodeToIconKey(code, isDay)
             )
         }
     }

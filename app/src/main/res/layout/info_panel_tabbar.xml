@@ -10,18 +10,6 @@
     android:orientation="horizontal">
 
     <ImageButton
-        android:id="@+id/graphTabButton"
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/weather_graphs_title"
-        android:padding="12dp"
-        android:scaleType="centerInside"
-        android:src="@drawable/ic_graph"
-        app:tint="@color/text_secondary" />
-
-    <ImageButton
         android:id="@+id/newsTabButton"
         android:layout_width="0dp"
         android:layout_height="match_parent"

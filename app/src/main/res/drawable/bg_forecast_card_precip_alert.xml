@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Same as bg_forecast_card.xml, but with a blue border - used when a forecast card's
+     precipitation chance exceeds the "likely rain" threshold. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/bg_panel_top" />
+    <corners android:radius="10dp" />
+    <stroke
+        android:width="2dp"
+        android:color="@color/accent_cool" />
+</shape>

@@ -270,7 +270,7 @@
 
     <!-- Holds whichever feature panel (news / sensor chart / weather graphs / article /
          forecast) is currently showing - each inflates its own layout into this container
-         at runtime, see NewsPanel/SensorChartPanel/WeatherGraphsPanel/ArticlePanel/ForecastPanel. -->
+         at runtime, see NewsPanel/SensorChartPanel/ArticlePanel/ForecastPanel. -->
     <FrameLayout
         android:id="@+id/infoPanelContainer"
         android:layout_width="0dp"

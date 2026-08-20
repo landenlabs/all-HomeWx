@@ -37,7 +37,6 @@ import com.dlang.homewx.ui.NewsPanel
 import com.dlang.homewx.ui.SensorAdapter
 import com.dlang.homewx.ui.SensorChartPanel
 import com.dlang.homewx.ui.SensorGraphsPanel
-import com.dlang.homewx.ui.WeatherGraphsPanel
 import com.dlang.homewx.ui.weatherBackgroundRes
 import com.dlang.homewx.ui.weatherIconRes
 import com.dlang.homewx.weather.DailyExtreme
@@ -65,7 +64,6 @@ class MainActivity : AppCompatActivity() {
     private val sensorAdapter = SensorAdapter(onSensorClick = ::showSensorHistory)
     private lateinit var newsPanel: NewsPanel
     private lateinit var sensorChartPanel: SensorChartPanel
-    private lateinit var weatherGraphsPanel: WeatherGraphsPanel
     private lateinit var articlePanel: ArticlePanel
     private lateinit var forecastPanel: ForecastPanel
     private lateinit var sensorGraphsPanel: SensorGraphsPanel
@@ -141,12 +139,10 @@ class MainActivity : AppCompatActivity() {
 
         newsPanel = NewsPanel(binding.infoPanelContainer, onArticleClick = ::showNewsArticle)
         sensorChartPanel = SensorChartPanel(binding.infoPanelContainer)
-        weatherGraphsPanel = WeatherGraphsPanel(binding.infoPanelContainer)
         articlePanel = ArticlePanel(binding.infoPanelContainer, onBack = ::closeArticle)
         forecastPanel = ForecastPanel(binding.infoPanelContainer)
         sensorGraphsPanel = SensorGraphsPanel(binding.infoPanelContainer)
 
-        binding.infoPanelTabBar.graphTabButton.setOnClickListener { selectTab(InfoPanelView.WEATHER_GRAPHS) }
         binding.infoPanelTabBar.newsTabButton.setOnClickListener { selectTab(InfoPanelView.NEWS) }
         binding.infoPanelTabBar.forecastTabButton.setOnClickListener { selectTab(InfoPanelView.FORECAST) }
         binding.infoPanelTabBar.sensorGraphsTabButton.setOnClickListener { selectTab(InfoPanelView.SENSOR_GRAPHS) }
@@ -279,10 +275,9 @@ class MainActivity : AppCompatActivity() {
      *  stale while left visible. News/Forecast already self-refresh via [observeState] above. */
     private fun refreshOpenPanelIfNeeded() {
         when (currentInfoPanel) {
-            InfoPanelView.WEATHER_GRAPHS -> refreshWeatherGraphs()
             InfoPanelView.SENSOR_GRAPHS -> refreshSensorGraphs()
             InfoPanelView.SENSOR_CHART -> activeSensorHistoryId?.let { refreshSensorChart(it) }
-            InfoPanelView.FORECAST -> forecastPanel.render(latestForecast?.daily.orEmpty())
+            InfoPanelView.FORECAST -> refreshForecastPanel()
             else -> Unit
         }
     }
@@ -448,20 +443,17 @@ class MainActivity : AppCompatActivity() {
         currentInfoPanel = panel
         newsPanel.root.visibility = if (panel == InfoPanelView.NEWS) View.VISIBLE else View.GONE
         sensorChartPanel.root.visibility = if (panel == InfoPanelView.SENSOR_CHART) View.VISIBLE else View.GONE
-        weatherGraphsPanel.root.visibility = if (panel == InfoPanelView.WEATHER_GRAPHS) View.VISIBLE else View.GONE
         articlePanel.root.visibility = if (panel == InfoPanelView.ARTICLE) View.VISIBLE else View.GONE
         forecastPanel.root.visibility = if (panel == InfoPanelView.FORECAST) View.VISIBLE else View.GONE
         sensorGraphsPanel.root.visibility = if (panel == InfoPanelView.SENSOR_GRAPHS) View.VISIBLE else View.GONE
         updateTabSelection(panel)
     }
 
-    /** Tints whichever of the four tab bar icons matches [panel]; SENSOR_CHART/ARTICLE aren't
-     *  tabs, so none of the four show selected while either of those is showing. */
+    /** Tints whichever of the three tab bar icons matches [panel]; SENSOR_CHART/ARTICLE aren't
+     *  tabs, so none of the three show selected while either of those is showing. */
     private fun updateTabSelection(panel: InfoPanelView) {
         val selectedColor = getColor(R.color.accent_cool)
         val unselectedColor = getColor(R.color.text_secondary)
-        binding.infoPanelTabBar.graphTabButton.imageTintList =
-            ColorStateList.valueOf(if (panel == InfoPanelView.WEATHER_GRAPHS) selectedColor else unselectedColor)
         binding.infoPanelTabBar.newsTabButton.imageTintList =
             ColorStateList.valueOf(if (panel == InfoPanelView.NEWS) selectedColor else unselectedColor)
         binding.infoPanelTabBar.forecastTabButton.imageTintList =
@@ -477,9 +469,8 @@ class MainActivity : AppCompatActivity() {
         activeSensorHistoryId = null
         showInfoPanel(panel)
         when (panel) {
-            InfoPanelView.WEATHER_GRAPHS -> refreshWeatherGraphs()
             InfoPanelView.SENSOR_GRAPHS -> refreshSensorGraphs()
-            InfoPanelView.FORECAST -> forecastPanel.render(latestForecast?.daily.orEmpty())
+            InfoPanelView.FORECAST -> refreshForecastPanel()
             else -> Unit
         }
     }
@@ -512,12 +503,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun refreshWeatherGraphs() {
+    /** Forecast panel's "Past" range shows the same recorded weather-metrics history the old
+     *  top-level graphs tab used to - fetched here regardless of which of its 3 sub-tabs is
+     *  currently showing, same as [latestForecast] already is. */
+    private fun refreshForecastPanel() {
+        val forecast = latestForecast ?: return
         lifecycleScope.launch {
             val sinceMillis = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(48)
-            val points = withContext(Dispatchers.IO) { weatherMetricsHistoryStore.getHistorySince(sinceMillis) }
-            if (currentInfoPanel != InfoPanelView.WEATHER_GRAPHS) return@launch
-            weatherGraphsPanel.render(points)
+            val pastPoints = withContext(Dispatchers.IO) { weatherMetricsHistoryStore.getHistorySince(sinceMillis) }
+            if (currentInfoPanel != InfoPanelView.FORECAST) return@launch
+            forecastPanel.render(forecast, pastPoints)
         }
     }
 
@@ -587,12 +582,12 @@ class MainActivity : AppCompatActivity() {
         private const val WAKE_OVERRIDE_DURATION_MS = 5 * 60 * 1000L
         private const val AUTO_CYCLE_INTERVAL_MS = 5 * 60 * 1000L
         private val AUTO_CYCLE_TABS = listOf(
-            InfoPanelView.NEWS, InfoPanelView.WEATHER_GRAPHS, InfoPanelView.FORECAST, InfoPanelView.SENSOR_GRAPHS
+            InfoPanelView.NEWS, InfoPanelView.FORECAST, InfoPanelView.SENSOR_GRAPHS
         )
     }
 }
 
-/** Which of the mutually-exclusive views is showing in the info panel. NEWS/WEATHER_GRAPHS/
- *  FORECAST/SENSOR_GRAPHS are the four tab bar destinations; SENSOR_CHART/ARTICLE are reached
- *  other ways (tapping a sensor row / a news item) and leave the tab bar showing nothing selected. */
-private enum class InfoPanelView { NEWS, SENSOR_CHART, WEATHER_GRAPHS, ARTICLE, FORECAST, SENSOR_GRAPHS }
+/** Which of the mutually-exclusive views is showing in the info panel. NEWS/FORECAST/
+ *  SENSOR_GRAPHS are the three tab bar destinations; SENSOR_CHART/ARTICLE are reached other
+ *  ways (tapping a sensor row / a news item) and leave the tab bar showing nothing selected. */
+private enum class InfoPanelView { NEWS, SENSOR_CHART, ARTICLE, FORECAST, SENSOR_GRAPHS }

@@ -26,7 +26,9 @@ data class HourlyForecastEntry(
     val windSpeedMph: Double?,
     val precipitationChancePct: Int?,
     val pressureInHg: Double?,
-    val conditionText: String
+    val conditionText: String,
+    /** Drawable resource name (no extension) in res/drawable-nodpi, e.g. "wx_sun_30d". */
+    val iconKey: String
 )
 
 data class DailyForecastEntry(
