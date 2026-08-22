@@ -3,6 +3,7 @@ package com.dlang.homewx.ui
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import com.dlang.homewx.R
 import com.dlang.homewx.databinding.PanelSensorChartBinding
 import com.github.mikephil.charting.formatter.ValueFormatter
 import java.text.SimpleDateFormat
@@ -31,6 +32,7 @@ class SensorChartPanel(container: ViewGroup) {
         binding.stripChartView.axisLeft.valueFormatter = object : ValueFormatter() {
             override fun getFormattedValue(value: Float): String = "${value.toInt()}°"
         }
+        LineChartSetup.setThresholdLines(binding.stripChartView, context, listOf(100f to R.color.white, 32f to R.color.blue2))
     }
 
     fun setTitle(title: String) {

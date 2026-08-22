@@ -4,6 +4,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import com.dlang.homewx.R
 import com.dlang.homewx.databinding.PanelSensorGraphsBinding
 import com.dlang.homewx.model.SensorReading
 import com.github.mikephil.charting.charts.LineChart
@@ -49,6 +50,7 @@ class SensorGraphsPanel(container: ViewGroup) {
             chart.axisLeft.valueFormatter = object : ValueFormatter() {
                 override fun getFormattedValue(value: Float): String = "${value.toInt()}°"
             }
+            LineChartSetup.setThresholdLines(chart, context, listOf(100f to R.color.white, 32f to R.color.blue2))
             chartContainer.addView(chart)
             chartsBySensorId[sensor.id] = chart
         }

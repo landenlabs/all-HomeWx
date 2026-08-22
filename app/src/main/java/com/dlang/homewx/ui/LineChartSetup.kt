@@ -66,6 +66,21 @@ object LineChartSetup {
         }
     }
 
+    /** Draws fixed horizontal threshold lines on the value (y) axis - e.g. wind speed's "high
+     *  wind" line, or temperature's freezing line. Replaces whatever horizontal limit lines the
+     *  chart had before, so pass an empty list to clear them. */
+    fun setThresholdLines(chart: LineChart, context: Context, thresholds: List<Pair<Float, Int>>) {
+        chart.axisLeft.removeAllLimitLines()
+        thresholds.forEach { (value, colorRes) ->
+            chart.axisLeft.addLimitLine(
+                LimitLine(value).apply {
+                    lineColor = ContextCompat.getColor(context, colorRes)
+                    lineWidth = 1.5f
+                }
+            )
+        }
+    }
+
     /** Adds an invisible limit line per (x, text) pair purely to get its text label drawn near
      *  the x-axis at that x-value - used instead of the axis's own auto-placed tick labels when
      *  we want labels at specific x-values (e.g. noon of each day) rather than wherever

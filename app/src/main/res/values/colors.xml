@@ -12,5 +12,6 @@
     <color name="white">#FFFFFF</color>
     <color name="black">#000000</color>
     <color name="blue2">#3F9EFF</color>
+    <color name="red">#FF3B30</color>
     <color name="icon_white">@color/white</color>
 </resources>

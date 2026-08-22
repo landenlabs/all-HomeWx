@@ -74,6 +74,15 @@ class ForecastGraphsPanel(container: ViewGroup) {
             binding.forecastPressureChartView.takeIf { range == ForecastRange.PAST }
         ).forEach { LineChartSetup.configure(it, context, description = null, xAxisValueFormatter) }
 
+        LineChartSetup.setThresholdLines(binding.forecastTempChartView, context, TEMPERATURE_THRESHOLDS)
+        LineChartSetup.setThresholdLines(binding.forecastWindChartView, context, WIND_THRESHOLDS)
+        // Precipitation chance is a percentage for Hourly/Daily but inches of rain for Past, so
+        // the percent thresholds only make sense on the former.
+        LineChartSetup.setThresholdLines(
+            binding.forecastPrecipChartView, context,
+            if (range == ForecastRange.PAST) emptyList() else PRECIPITATION_CHANCE_THRESHOLDS
+        )
+
         when (range) {
             ForecastRange.HOURLY -> {
                 val hours = forecast.hourly
@@ -284,5 +293,9 @@ class ForecastGraphsPanel(container: ViewGroup) {
         /** A noon label within this fraction of either edge of the visible x-range is dropped -
          *  not enough room to draw it without crowding the chart's border. */
         private const val EDGE_MARGIN_FRACTION = 0.05
+
+        private val TEMPERATURE_THRESHOLDS = listOf(100f to R.color.white, 32f to R.color.blue2)
+        private val WIND_THRESHOLDS = listOf(10f to R.color.white, 20f to R.color.red)
+        private val PRECIPITATION_CHANCE_THRESHOLDS = listOf(50f to R.color.white, 75f to R.color.blue2)
     }
 }
