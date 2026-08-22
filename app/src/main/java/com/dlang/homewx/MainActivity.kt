@@ -144,7 +144,7 @@ class MainActivity : AppCompatActivity() {
         articlePanel = ArticlePanel(binding.infoPanelContainer, onBack = ::closeArticle)
         forecastPanel = ForecastPanel(binding.infoPanelContainer)
         sensorGraphsPanel = SensorGraphsPanel(binding.infoPanelContainer)
-        radarPanel = RadarPanel(binding.infoPanelContainer)
+        radarPanel = RadarPanel(binding.infoPanelContainer, lifecycleScope)
 
         binding.infoPanelTabBar.newsTabButton.setOnClickListener { selectTab(InfoPanelView.NEWS) }
         binding.infoPanelTabBar.forecastTabButton.setOnClickListener { selectTab(InfoPanelView.FORECAST) }
@@ -451,6 +451,7 @@ class MainActivity : AppCompatActivity() {
         forecastPanel.root.visibility = if (panel == InfoPanelView.FORECAST) View.VISIBLE else View.GONE
         sensorGraphsPanel.root.visibility = if (panel == InfoPanelView.SENSOR_GRAPHS) View.VISIBLE else View.GONE
         radarPanel.root.visibility = if (panel == InfoPanelView.RADAR) View.VISIBLE else View.GONE
+        if (panel != InfoPanelView.RADAR) radarPanel.stopAnimation()
         updateTabSelection(panel)
     }
 

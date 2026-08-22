@@ -341,13 +341,13 @@
             </LinearLayout>
 
             <Button
-                android:id="@+id/saveButton"
-                android:layout_width="match_parent"
+                android:id="@+id/undoButton"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_gravity="start"
                 android:layout_marginStart="24dp"
-                android:layout_marginEnd="24dp"
                 android:layout_marginTop="32dp"
-                android:text="@string/settings_save" />
+                android:text="@string/settings_undo" />
 
         </LinearLayout>
     </ScrollView>

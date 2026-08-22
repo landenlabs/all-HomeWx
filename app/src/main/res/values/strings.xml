@@ -9,6 +9,8 @@
     <string name="tab_forecast_title">Forecast</string>
     <string name="tab_sensor_graphs_title">Sensor history graphs</string>
     <string name="tab_radar_title">Radar</string>
+    <string name="radar_play_animation">Play radar animation</string>
+    <string name="radar_pause_animation">Pause radar animation</string>
     <string name="weather_graph_wind_speed">Wind Speed (mph)</string>
     <string name="weather_graph_precipitation">Precipitation (in)</string>
     <string name="weather_graph_pressure">Pressure (inHg)</string>
@@ -59,6 +61,5 @@
     <string name="settings_section_webview_logging">ARTICLE VIEWER</string>
     <string name="settings_webview_logging_switch">Log WebView request domains</string>
     <string name="settings_webview_logging_path">Log file: %1$s</string>
-    <string name="settings_save">Save</string>
-    <string name="settings_saved">Settings saved</string>
+    <string name="settings_undo">Undo</string>
 </resources>

@@ -6,7 +6,6 @@ import android.widget.ArrayAdapter
 import android.widget.CheckBox
 import android.widget.SeekBar
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
@@ -48,7 +47,14 @@ class SettingsActivity : AppCompatActivity() {
             binding.tempOverrideSensorSpinner.isEnabled = checked && sensorIds.isNotEmpty()
         }
 
-        binding.saveButton.setOnClickListener { saveSettings() }
+        binding.undoButton.setOnClickListener { bindCurrentValues() }
+    }
+
+    /** Settings auto-save on close instead of requiring an explicit Save tap; onPause covers
+     *  the back button, home button, and app-switch-away alike. */
+    override fun onPause() {
+        super.onPause()
+        saveSettings()
     }
 
     /** Pads [view] by the system bars on all four sides, added on top of its existing padding. */
@@ -71,8 +77,6 @@ class SettingsActivity : AppCompatActivity() {
             android.R.layout.simple_spinner_dropdown_item,
             sources.map { it.name }
         )
-        val activeIndex = sources.indexOf(WeatherSourceConfig.getActiveSource(this)).coerceAtLeast(0)
-        binding.weatherSourceSpinner.setSelection(activeIndex)
         // Only one source exists today - nothing to switch between yet, but the
         // spinner already works once WeatherProviderFactory grows a second branch.
         binding.weatherSourceSpinner.isEnabled = sources.size > 1
@@ -169,7 +173,18 @@ class SettingsActivity : AppCompatActivity() {
     /** Slider progress (0-90) maps to a brightness percent (10-100); the floor keeps the screen from going unreadably dim. */
     private fun progressToBrightnessPercent(progress: Int): Int = progress + AppSettings.MIN_SCREEN_BRIGHTNESS_PERCENT
 
+    /** Reloads every control from the last-saved [AppSettings] values, discarding any unsaved
+     *  edits. Used both to populate the screen on open and to implement the Undo button. */
     private fun bindCurrentValues() {
+        val sources = WeatherSourceId.values().toList()
+        val activeIndex = sources.indexOf(WeatherSourceConfig.getActiveSource(this)).coerceAtLeast(0)
+        binding.weatherSourceSpinner.setSelection(activeIndex)
+
+        val hiddenIds = AppSettings.getHiddenSensorIds(this)
+        sensorVisibilityCheckBoxes.forEach { checkBox ->
+            checkBox.isChecked = (checkBox.tag as String) !in hiddenIds
+        }
+
         binding.weatherIntervalEditText.setText(
             AppSettings.getWeatherSampleIntervalMinutes(this).toString()
         )
@@ -230,8 +245,5 @@ class SettingsActivity : AppCompatActivity() {
         AppSettings.setHiddenSensorIds(this, hiddenIds)
 
         AppSettings.setWebViewRequestLoggingEnabled(this, binding.webviewLoggingSwitch.isChecked)
-
-        Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()
-        finish()
     }
 }
