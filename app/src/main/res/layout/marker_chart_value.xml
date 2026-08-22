@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Inflated by ChartValueMarkerView (a MPAndroidChart MarkerView) - shows the time/value under
+     the crosshair when a chart is tapped. See LineChartSetup.configure. -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/markerValueText"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@color/bg_panel_bottom"
+    android:paddingHorizontal="8dp"
+    android:paddingVertical="4dp"
+    android:textColor="@color/text_primary"
+    android:textSize="12sp"
+    tools:text="3 PM  72°" />

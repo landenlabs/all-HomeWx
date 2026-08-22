@@ -24,6 +24,10 @@ object LineChartSetup {
         chart.setNoDataTextColor(axisTextColor)
         chart.setTouchEnabled(true)
         chart.setPinchZoom(true)
+        // Tap (or drag) shows a crosshair with the time/value under it - see ChartValueMarkerView.
+        chart.setHighlightPerTapEnabled(true)
+        chart.setHighlightPerDragEnabled(true)
+        chart.marker = ChartValueMarkerView(context, chart)
         if (description != null) {
             // The description doubles as this chart's "which data source is this" label,
             // so it gets its own accent color rather than the neutral axis text color.
