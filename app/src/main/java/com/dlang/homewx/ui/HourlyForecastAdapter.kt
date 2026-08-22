@@ -29,15 +29,18 @@ private sealed class HourlyRow {
 /**
  * Hourly cards are grouped by calendar day, with a day-of-week/date divider card inserted
  * before each day's hours. Every card belonging to a day shares one of two alternating
- * backgrounds so the transition between days reads clearly while scrolling. Cards also flag a
- * >70% chance of rain with a blue border, and mark whichever card(s) hold the highest temp of
- * the whole set with yellow temp text plus a yellow border - both borders take priority over
- * the day tint, with precip taking priority over max-temp when both apply.
+ * backgrounds so the transition between days reads clearly while scrolling. On top of that tint,
+ * cards tied for the highest precipitation chance of the whole set (when that chance is >= 50%)
+ * get a blue border. Failing that, cards tied for the highest temp of the whole set get yellow
+ * temp text plus a yellow border. Failing that, cards tied for the lowest temp get purple temp
+ * text plus a purple border. Only the first matching condition's border is drawn.
  */
 class HourlyForecastAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private var rows: List<HourlyRow> = emptyList()
     private var maxTempRounded: Int? = null
+    private var minTempRounded: Int? = null
+    private var maxPrecipPct: Int? = null
     private val hourFormat = SimpleDateFormat("h a", Locale.getDefault())
     private val dayOfWeekFormat = SimpleDateFormat("EEEE", Locale.getDefault())
     private val dateFormat = SimpleDateFormat("MMM d", Locale.getDefault())
@@ -47,6 +50,8 @@ class HourlyForecastAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         if (newRows == rows) return
         rows = newRows
         maxTempRounded = newHours.mapNotNull { it.temperatureF?.roundToInt() }.maxOrNull()
+        minTempRounded = newHours.mapNotNull { it.temperatureF?.roundToInt() }.minOrNull()
+        maxPrecipPct = newHours.mapNotNull { it.precipitationChancePct }.maxOrNull()
         notifyDataSetChanged()
     }
 
@@ -85,7 +90,9 @@ class HourlyForecastAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         when (val row = rows[position]) {
             is HourlyRow.DayHeader -> (holder as DayHeaderViewHolder).bind(row)
-            is HourlyRow.Hour -> (holder as HourViewHolder).bind(row.entry, row.dayParity, maxTempRounded)
+            is HourlyRow.Hour -> (holder as HourViewHolder).bind(
+                row.entry, row.dayParity, maxTempRounded, minTempRounded, maxPrecipPct
+            )
         }
     }
 
@@ -110,7 +117,13 @@ class HourlyForecastAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         private val hourFormat: SimpleDateFormat
     ) : RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(entry: HourlyForecastEntry, dayParity: Int, maxTempRounded: Int?) {
+        fun bind(
+            entry: HourlyForecastEntry,
+            dayParity: Int,
+            maxTempRounded: Int?,
+            minTempRounded: Int?,
+            maxPrecipPct: Int?
+        ) {
             val context = binding.root.context
             binding.hourlyCardTimeText.text = hourFormat.format(Date(entry.timeMillis))
             binding.hourlyCardIcon.setImageResource(context.weatherIconRes(entry.iconKey))
@@ -118,8 +131,16 @@ class HourlyForecastAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             val tempRounded = entry.temperatureF?.roundToInt()
             binding.hourlyCardTempText.text = tempRounded?.let { "$it°F" } ?: "--"
             val isMaxTemp = tempRounded != null && tempRounded == maxTempRounded
+            val isMinTemp = tempRounded != null && tempRounded == minTempRounded
             binding.hourlyCardTempText.setTextColor(
-                ContextCompat.getColor(context, if (isMaxTemp) R.color.accent_warm else R.color.text_primary)
+                ContextCompat.getColor(
+                    context,
+                    when {
+                        isMaxTemp -> R.color.accent_warm
+                        isMinTemp -> R.color.accent_purple
+                        else -> R.color.text_primary
+                    }
+                )
             )
 
             binding.hourlyCardWindText.text = entry.windSpeedMph?.roundToInt()?.let { "$it mph" } ?: "--"
@@ -127,11 +148,14 @@ class HourlyForecastAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             val precipChance = entry.precipitationChancePct
             binding.hourlyCardPrecipText.text = precipChance?.let { "$it%" } ?: "--"
             binding.hourlyCardPrecipIcon.visibility = if (precipChance != null && precipChance > 0) View.VISIBLE else View.GONE
+            val isMaxPrecip = precipChance != null && maxPrecipPct != null &&
+                precipChance == maxPrecipPct && maxPrecipPct >= 50
 
             binding.root.setBackgroundResource(
                 when {
-                    precipChance != null && precipChance > 70 -> precipAlertBackgroundRes(dayParity)
+                    isMaxPrecip -> precipAlertBackgroundRes(dayParity)
                     isMaxTemp -> maxTempAlertBackgroundRes(dayParity)
+                    isMinTemp -> minTempAlertBackgroundRes(dayParity)
                     else -> dayBackgroundRes(dayParity)
                 }
             )
@@ -147,3 +171,6 @@ private fun precipAlertBackgroundRes(dayParity: Int): Int =
 
 private fun maxTempAlertBackgroundRes(dayParity: Int): Int =
     if (dayParity == 0) R.drawable.bg_forecast_card_max_temp_alert else R.drawable.bg_forecast_card_max_temp_alert_alt
+
+private fun minTempAlertBackgroundRes(dayParity: Int): Int =
+    if (dayParity == 0) R.drawable.bg_forecast_card_min_temp_alert else R.drawable.bg_forecast_card_min_temp_alert_alt

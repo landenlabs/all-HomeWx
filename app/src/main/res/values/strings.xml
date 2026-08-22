@@ -8,6 +8,7 @@
     <string name="tab_news_title">News</string>
     <string name="tab_forecast_title">Forecast</string>
     <string name="tab_sensor_graphs_title">Sensor history graphs</string>
+    <string name="tab_radar_title">Radar</string>
     <string name="weather_graph_wind_speed">Wind Speed (mph)</string>
     <string name="weather_graph_precipitation">Precipitation (in)</string>
     <string name="weather_graph_pressure">Pressure (inHg)</string>

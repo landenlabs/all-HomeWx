@@ -34,6 +34,7 @@ import com.dlang.homewx.state.AppState
 import com.dlang.homewx.ui.ArticlePanel
 import com.dlang.homewx.ui.ForecastPanel
 import com.dlang.homewx.ui.NewsPanel
+import com.dlang.homewx.ui.RadarPanel
 import com.dlang.homewx.ui.SensorAdapter
 import com.dlang.homewx.ui.SensorChartPanel
 import com.dlang.homewx.ui.SensorGraphsPanel
@@ -67,6 +68,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var articlePanel: ArticlePanel
     private lateinit var forecastPanel: ForecastPanel
     private lateinit var sensorGraphsPanel: SensorGraphsPanel
+    private lateinit var radarPanel: RadarPanel
     private val sensorHistoryStore by lazy { SensorHistoryStore(applicationContext) }
     private val weatherMetricsHistoryStore by lazy { WeatherMetricsHistoryStore(applicationContext) }
     private val dailySnapshotStore by lazy { DailySnapshotStore(applicationContext) }
@@ -142,10 +144,12 @@ class MainActivity : AppCompatActivity() {
         articlePanel = ArticlePanel(binding.infoPanelContainer, onBack = ::closeArticle)
         forecastPanel = ForecastPanel(binding.infoPanelContainer)
         sensorGraphsPanel = SensorGraphsPanel(binding.infoPanelContainer)
+        radarPanel = RadarPanel(binding.infoPanelContainer)
 
         binding.infoPanelTabBar.newsTabButton.setOnClickListener { selectTab(InfoPanelView.NEWS) }
         binding.infoPanelTabBar.forecastTabButton.setOnClickListener { selectTab(InfoPanelView.FORECAST) }
         binding.infoPanelTabBar.sensorGraphsTabButton.setOnClickListener { selectTab(InfoPanelView.SENSOR_GRAPHS) }
+        binding.infoPanelTabBar.radarTabButton.setOnClickListener { selectTab(InfoPanelView.RADAR) }
         showInfoPanel(InfoPanelView.NEWS)
 
         HomeWxMonitorService.start(this)
@@ -446,11 +450,12 @@ class MainActivity : AppCompatActivity() {
         articlePanel.root.visibility = if (panel == InfoPanelView.ARTICLE) View.VISIBLE else View.GONE
         forecastPanel.root.visibility = if (panel == InfoPanelView.FORECAST) View.VISIBLE else View.GONE
         sensorGraphsPanel.root.visibility = if (panel == InfoPanelView.SENSOR_GRAPHS) View.VISIBLE else View.GONE
+        radarPanel.root.visibility = if (panel == InfoPanelView.RADAR) View.VISIBLE else View.GONE
         updateTabSelection(panel)
     }
 
-    /** Tints whichever of the three tab bar icons matches [panel]; SENSOR_CHART/ARTICLE aren't
-     *  tabs, so none of the three show selected while either of those is showing. */
+    /** Tints whichever of the four tab bar icons matches [panel]; SENSOR_CHART/ARTICLE aren't
+     *  tabs, so none of the four show selected while either of those is showing. */
     private fun updateTabSelection(panel: InfoPanelView) {
         val selectedColor = getColor(R.color.accent_cool)
         val unselectedColor = getColor(R.color.text_secondary)
@@ -460,6 +465,8 @@ class MainActivity : AppCompatActivity() {
             ColorStateList.valueOf(if (panel == InfoPanelView.FORECAST) selectedColor else unselectedColor)
         binding.infoPanelTabBar.sensorGraphsTabButton.imageTintList =
             ColorStateList.valueOf(if (panel == InfoPanelView.SENSOR_GRAPHS) selectedColor else unselectedColor)
+        binding.infoPanelTabBar.radarTabButton.imageTintList =
+            ColorStateList.valueOf(if (panel == InfoPanelView.RADAR) selectedColor else unselectedColor)
     }
 
     /** Switches the info panel to [panel]. [isUserAction] is false when the switch comes from
@@ -471,6 +478,7 @@ class MainActivity : AppCompatActivity() {
         when (panel) {
             InfoPanelView.SENSOR_GRAPHS -> refreshSensorGraphs()
             InfoPanelView.FORECAST -> refreshForecastPanel()
+            InfoPanelView.RADAR -> radarPanel.refresh()
             else -> Unit
         }
     }
@@ -588,6 +596,6 @@ class MainActivity : AppCompatActivity() {
 }
 
 /** Which of the mutually-exclusive views is showing in the info panel. NEWS/FORECAST/
- *  SENSOR_GRAPHS are the three tab bar destinations; SENSOR_CHART/ARTICLE are reached other
+ *  SENSOR_GRAPHS/RADAR are the four tab bar destinations; SENSOR_CHART/ARTICLE are reached other
  *  ways (tapping a sensor row / a news item) and leave the tab bar showing nothing selected. */
-private enum class InfoPanelView { NEWS, SENSOR_CHART, ARTICLE, FORECAST, SENSOR_GRAPHS }
+private enum class InfoPanelView { NEWS, SENSOR_CHART, ARTICLE, FORECAST, SENSOR_GRAPHS, RADAR }

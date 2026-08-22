@@ -56,4 +56,5 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
     implementation("com.squareup.picasso:picasso:2.71828")
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
 }

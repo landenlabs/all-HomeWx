@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Same as bg_forecast_card.xml, but with a purple border - used when a forecast card holds
+     the lowest temperature of the whole set. Precip alert and max-temp alert borders take
+     priority over this one when more than one applies. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/bg_panel_top" />
+    <corners android:radius="10dp" />
+    <stroke
+        android:width="2dp"
+        android:color="@color/accent_purple" />
+</shape>
