@@ -11,6 +11,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import com.dlang.homewx.BuildConfig
 import com.dlang.homewx.R
 import com.dlang.homewx.databinding.ActivitySettingsBinding
 import com.dlang.homewx.model.SensorReading
@@ -34,6 +35,13 @@ class SettingsActivity : AppCompatActivity() {
         applySystemBarInsetPadding(binding.root)
 
         binding.backButton.setOnClickListener { finish() }
+
+        binding.versionInfoText.text = getString(
+            R.string.settings_version_info,
+            BuildConfig.VERSION_NAME,
+            BuildConfig.VERSION_CODE,
+            BuildConfig.BUILD_TIME
+        )
 
         setUpWeatherSourceSpinner()
         setUpSensorSpinner()

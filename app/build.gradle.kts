@@ -1,3 +1,6 @@
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.Properties
 
 plugins {
@@ -24,6 +27,9 @@ android {
 
         val goveeApiKey = localProperties.getProperty("GOVEE_API_KEY") ?: ""
         buildConfigField("String", "GOVEE_API_KEY", "\"$goveeApiKey\"")
+
+        val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date())
+        buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
     }
 
     buildTypes {

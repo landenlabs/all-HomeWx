@@ -35,6 +35,17 @@
             android:textStyle="bold" />
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/versionInfoText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="12dp"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp"
+        tools:text="Version 6.04.20 (60420) · Built 2026-08-22 14:30" />
+
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"

@@ -1,6 +1,5 @@
 package com.dlang.homewx
 
-import android.app.AlertDialog
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.os.Bundle
@@ -42,7 +41,6 @@ import com.dlang.homewx.ui.weatherBackgroundRes
 import com.dlang.homewx.ui.weatherIconRes
 import com.dlang.homewx.weather.DailyExtreme
 import com.dlang.homewx.weather.DailyForecastEntry
-import com.dlang.homewx.weather.HomeLocation
 import com.dlang.homewx.weather.WeatherForecast
 import com.dlang.homewx.weather.isSameDay
 import com.dlang.homewx.weather.startOfDay
@@ -73,7 +71,6 @@ class MainActivity : AppCompatActivity() {
     private val weatherMetricsHistoryStore by lazy { WeatherMetricsHistoryStore(applicationContext) }
     private val dailySnapshotStore by lazy { DailySnapshotStore(applicationContext) }
 
-    private val forecastDayFormat = SimpleDateFormat("EEE MMM d", Locale.getDefault())
     private val weatherDateTimeFormat = SimpleDateFormat("dd MMM, EEE hh:mm a", Locale.getDefault())
     private val hourOnlyFormat = SimpleDateFormat("h a", Locale.getDefault())
     private val historicalDayFormat = SimpleDateFormat("dd MMM, EEE", Locale.getDefault())
@@ -99,11 +96,6 @@ class MainActivity : AppCompatActivity() {
     private val weatherGestureDetector by lazy {
         GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent): Boolean = true
-
-            override fun onSingleTapUp(e: MotionEvent): Boolean {
-                showForecastDialog()
-                return true
-            }
 
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
                 val startX = e1?.x ?: return false
@@ -541,25 +533,6 @@ class MainActivity : AppCompatActivity() {
                 sensorGraphsPanel.render(sensor.id, points)
             }
         }
-    }
-
-    private fun showForecastDialog() {
-        val forecast = latestForecast
-        val message = if (forecast == null || forecast.daily.isEmpty()) {
-            "Forecast not available yet."
-        } else {
-            forecast.daily.joinToString(separator = "\n") { day ->
-                val high = day.highF?.roundToInt()?.let { "$it°F" } ?: "--"
-                val low = day.lowF?.roundToInt()?.let { "$it°F" } ?: "--"
-                val rain = day.precipitationChancePct?.let { " ($it% rain)" }.orEmpty()
-                "${forecastDayFormat.format(Date(day.dateMillis))}: $high / $low — ${day.conditionText}$rain"
-            }
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Forecast for ${HomeLocation.CURRENT.label}")
-            .setMessage(message)
-            .setPositiveButton("Close", null)
-            .show()
     }
 
     private fun startClock() {

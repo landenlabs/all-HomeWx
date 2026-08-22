@@ -11,6 +11,8 @@
     <string name="tab_radar_title">Radar</string>
     <string name="radar_play_animation">Play radar animation</string>
     <string name="radar_pause_animation">Pause radar animation</string>
+    <string name="radar_loading_animation">Loading radar…</string>
+    <string name="radar_loading_animation_progress">Loading radar… %1$d%%</string>
     <string name="weather_graph_wind_speed">Wind Speed (mph)</string>
     <string name="weather_graph_precipitation">Precipitation (in)</string>
     <string name="weather_graph_pressure">Pressure (inHg)</string>
@@ -45,6 +47,7 @@
     <string name="wx_lbl_ly_min">LstYr min</string>
 
     <string name="settings_title">Settings</string>
+    <string name="settings_version_info">Version %1$s (%2$d) · Built %3$s</string>
     <string name="settings_section_weather">WEATHER</string>
     <string name="settings_weather_source_label">Weather source</string>
     <string name="settings_weather_interval_label">Refresh interval (minutes)</string>
