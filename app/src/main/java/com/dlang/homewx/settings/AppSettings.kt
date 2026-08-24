@@ -15,6 +15,7 @@ object AppSettings {
     private const val KEY_TEMP_SENSOR_OVERRIDE_SENSOR_ID = "temp_sensor_override_sensor_id"
     private const val KEY_BACKGROUND_DARKEN_PERCENT = "background_darken_percent"
     private const val KEY_HIDDEN_SENSOR_IDS = "hidden_sensor_ids"
+    private const val KEY_SENSOR_LABEL_PREFIX = "sensor_label_"
     private const val KEY_LIGHT_THRESHOLD_LUX = "light_threshold_lux"
     private const val KEY_WEBVIEW_REQUEST_LOGGING_ENABLED = "webview_request_logging_enabled"
     private const val KEY_SCREEN_BRIGHTNESS_PERCENT = "screen_brightness_percent"
@@ -96,6 +97,16 @@ object AppSettings {
 
     fun setHiddenSensorIds(context: Context, ids: Set<String>) {
         prefs(context).edit { putStringSet(KEY_HIDDEN_SENSOR_IDS, ids) }
+    }
+
+    /** Custom display name for a sensor, or null to fall back to its Govee device name. */
+    fun getSensorLabel(context: Context, sensorId: String): String? =
+        prefs(context).getString(KEY_SENSOR_LABEL_PREFIX + sensorId, null)?.takeIf { it.isNotBlank() }
+
+    fun setSensorLabel(context: Context, sensorId: String, label: String?) {
+        prefs(context).edit {
+            if (label.isNullOrBlank()) remove(KEY_SENSOR_LABEL_PREFIX + sensorId) else putString(KEY_SENSOR_LABEL_PREFIX + sensorId, label)
+        }
     }
 
     private fun prefs(context: Context) =

@@ -1,9 +1,12 @@
 package com.dlang.homewx.settings
 
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.CheckBox
+import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -25,6 +28,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var binding: ActivitySettingsBinding
     private var sensorIds: List<String> = emptyList()
     private var sensorVisibilityCheckBoxes: List<CheckBox> = emptyList()
+    private var sensorLabelEditTexts: List<EditText> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,7 +69,11 @@ class SettingsActivity : AppCompatActivity() {
         saveSettings()
     }
 
-    /** Pads [view] by the system bars on all four sides, added on top of its existing padding. */
+    /** Pads [view] by the system bars on all four sides, added on top of its existing padding.
+     *  Also pads the bottom by the IME inset when the keyboard is showing - with
+     *  decorFitsSystemWindows(false) the window never resizes on its own, so without this the
+     *  keyboard simply overlaps whatever EditText is focused instead of the ScrollView shrinking
+     *  to scroll it into view. */
     private fun applySystemBarInsetPadding(view: View) {
         val baseLeft = view.paddingLeft
         val baseTop = view.paddingTop
@@ -73,7 +81,8 @@ class SettingsActivity : AppCompatActivity() {
         val baseBottom = view.paddingBottom
         ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(baseLeft + bars.left, baseTop + bars.top, baseRight + bars.right, baseBottom + bars.bottom)
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            v.setPadding(baseLeft + bars.left, baseTop + bars.top, baseRight + bars.right, baseBottom + maxOf(bars.bottom, ime.bottom))
             insets
         }
     }
@@ -93,7 +102,11 @@ class SettingsActivity : AppCompatActivity() {
     private fun setUpSensorSpinner() {
         val sensors = AppState.uiState.value.sensors
         sensorIds = sensors.map { it.id }
-        val labels = if (sensors.isEmpty()) listOf("No indoor sensors yet") else sensors.map { it.roomName }
+        val labels = if (sensors.isEmpty()) {
+            listOf("No indoor sensors yet")
+        } else {
+            sensors.map { AppSettings.getSensorLabel(this, it.id) ?: it.roomName }
+        }
         binding.tempOverrideSensorSpinner.adapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_dropdown_item,
@@ -115,10 +128,12 @@ class SettingsActivity : AppCompatActivity() {
                 }
             )
             sensorVisibilityCheckBoxes = emptyList()
+            sensorLabelEditTexts = emptyList()
             return
         }
 
         val hiddenIds = AppSettings.getHiddenSensorIds(this)
+        val marginPx = (8 * resources.displayMetrics.density).toInt()
         sensorVisibilityCheckBoxes = sensors.map { sensor ->
             CheckBox(this).apply {
                 text = sensor.roomName
@@ -127,7 +142,32 @@ class SettingsActivity : AppCompatActivity() {
                 setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text_primary))
             }
         }
-        sensorVisibilityCheckBoxes.forEach { container.addView(it) }
+        sensorLabelEditTexts = sensors.map { sensor ->
+            EditText(this).apply {
+                tag = sensor.id
+                hint = getString(R.string.settings_sensor_label_hint)
+                setText(AppSettings.getSensorLabel(this@SettingsActivity, sensor.id))
+                inputType = android.text.InputType.TYPE_CLASS_TEXT
+                setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text_primary))
+                setHintTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text_secondary))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    marginStart = marginPx
+                }
+            }
+        }
+        sensorVisibilityCheckBoxes.zip(sensorLabelEditTexts).forEach { (checkBox, labelEditText) ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            }
+            row.addView(checkBox)
+            row.addView(labelEditText)
+            container.addView(row)
+        }
     }
 
     private fun setUpScreenBrightnessSlider() {
@@ -192,6 +232,9 @@ class SettingsActivity : AppCompatActivity() {
         sensorVisibilityCheckBoxes.forEach { checkBox ->
             checkBox.isChecked = (checkBox.tag as String) !in hiddenIds
         }
+        sensorLabelEditTexts.forEach { labelEditText ->
+            labelEditText.setText(AppSettings.getSensorLabel(this, labelEditText.tag as String))
+        }
 
         binding.weatherIntervalEditText.setText(
             AppSettings.getWeatherSampleIntervalMinutes(this).toString()
@@ -251,6 +294,10 @@ class SettingsActivity : AppCompatActivity() {
             .map { it.tag as String }
             .toSet()
         AppSettings.setHiddenSensorIds(this, hiddenIds)
+
+        sensorLabelEditTexts.forEach { labelEditText ->
+            AppSettings.setSensorLabel(this, labelEditText.tag as String, labelEditText.text.toString())
+        }
 
         AppSettings.setWebViewRequestLoggingEnabled(this, binding.webviewLoggingSwitch.isChecked)
     }

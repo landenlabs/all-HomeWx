@@ -7,6 +7,7 @@ import com.dlang.homewx.R
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.LimitLine
 import com.github.mikephil.charting.components.XAxis
+import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
@@ -120,6 +121,55 @@ object LineChartSetup {
             mode = LineDataSet.Mode.LINEAR
         }
         chart.data = LineData(dataSet)
+        chart.invalidate()
+    }
+
+    /** Enables the right y-axis with its own color/formatter - used only by the sensor graphs'
+     *  combined temp+humidity chart; every other chart in the app stays left-axis only. */
+    fun enableRightAxis(chart: LineChart, textColor: Int, valueFormatter: ValueFormatter) {
+        chart.axisRight.apply {
+            isEnabled = true
+            this.textColor = textColor
+            this.valueFormatter = valueFormatter
+            setDrawGridLines(false) // avoid doubling up on axisLeft's grid lines
+        }
+    }
+
+    /** Plots [leftSeries] against the left y-axis and [rightSeries] against the right y-axis on
+     *  the same chart - the sensor graphs' temperature (left) + humidity (right) combo. Requires
+     *  [enableRightAxis] to have been called on [chart] first. */
+    fun renderDualAxis(
+        chart: LineChart,
+        context: Context,
+        leftSeries: List<Pair<Long, Double>>,
+        leftColorRes: Int,
+        leftLabel: String,
+        rightSeries: List<Pair<Long, Double>>,
+        rightColorRes: Int,
+        rightLabel: String
+    ) {
+        fun toDataSet(points: List<Pair<Long, Double>>, colorRes: Int, label: String, axis: YAxis.AxisDependency): LineDataSet? {
+            if (points.size < 2) return null
+            val entries = points.map { (timeMillis, value) -> Entry(timeMillis / 1000f, value.toFloat()) }
+            return LineDataSet(entries, label).apply {
+                color = ContextCompat.getColor(context, colorRes)
+                lineWidth = 2f
+                setDrawCircles(false)
+                setDrawValues(false)
+                mode = LineDataSet.Mode.LINEAR
+                axisDependency = axis
+            }
+        }
+
+        val dataSets = listOfNotNull(
+            toDataSet(leftSeries, leftColorRes, leftLabel, YAxis.AxisDependency.LEFT),
+            toDataSet(rightSeries, rightColorRes, rightLabel, YAxis.AxisDependency.RIGHT)
+        )
+        if (dataSets.isEmpty()) {
+            chart.clear()
+            return
+        }
+        chart.data = LineData(dataSets)
         chart.invalidate()
     }
 

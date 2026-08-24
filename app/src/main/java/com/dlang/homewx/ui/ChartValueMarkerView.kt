@@ -5,6 +5,7 @@ import android.widget.TextView
 import com.dlang.homewx.R
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.MarkerView
+import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.highlight.Highlight
 import com.github.mikephil.charting.utils.MPPointF
@@ -19,7 +20,11 @@ class ChartValueMarkerView(context: Context, private val chart: LineChart) : Mar
 
     override fun refreshContent(e: Entry, highlight: Highlight) {
         val time = chart.xAxis.valueFormatter?.getFormattedValue(e.x)
-        val value = chart.axisLeft.valueFormatter?.getFormattedValue(e.y) ?: e.y.toString()
+        // On the dual-axis (temp+humidity) chart, the highlighted point may belong to either
+        // series - use its own axis's formatter so a humidity point shows "%" not "°".
+        val dataSet = chart.data?.getDataSetByIndex(highlight.dataSetIndex)
+        val axis = if (dataSet?.axisDependency == YAxis.AxisDependency.RIGHT) chart.axisRight else chart.axisLeft
+        val value = axis.valueFormatter?.getFormattedValue(e.y) ?: e.y.toString()
         textView.text = if (time.isNullOrEmpty()) value else "$time  $value"
         super.refreshContent(e, highlight)
     }

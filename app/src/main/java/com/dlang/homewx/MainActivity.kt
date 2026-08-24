@@ -189,7 +189,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun visibleSensors(sensors: List<SensorReading>): List<SensorReading> {
         val hiddenIds = AppSettings.getHiddenSensorIds(this)
-        return sensors.filter { it.id !in hiddenIds }
+        return sensors
+            .filter { it.id !in hiddenIds }
+            .map { sensor ->
+                val label = AppSettings.getSensorLabel(this, sensor.id)
+                if (label != null) sensor.copy(roomName = label) else sensor
+            }
     }
 
     /** Pads [view] by the system bars on all four sides, added on top of its existing padding. */
@@ -525,12 +530,13 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val sinceMillis = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(48)
             sensors.forEach { sensor ->
-                val points = withContext(Dispatchers.IO) {
+                val history = withContext(Dispatchers.IO) {
                     sensorHistoryStore.getHistorySince(sensor.id, sinceMillis)
-                        .mapNotNull { point -> point.tempF?.let { point.timestampMillis to it } }
                 }
+                val tempPoints = history.mapNotNull { point -> point.tempF?.let { point.timestampMillis to it } }
+                val humidityPoints = history.mapNotNull { point -> point.humidityPct?.let { point.timestampMillis to it } }
                 if (currentInfoPanel != InfoPanelView.SENSOR_GRAPHS) return@launch
-                sensorGraphsPanel.render(sensor.id, points)
+                sensorGraphsPanel.render(sensor.id, tempPoints, humidityPoints)
             }
         }
     }

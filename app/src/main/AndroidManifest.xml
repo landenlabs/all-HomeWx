@@ -34,7 +34,8 @@
         <activity
             android:name=".settings.SettingsActivity"
             android:exported="false"
-            android:theme="@style/Theme.HomeWx" />
+            android:theme="@style/Theme.HomeWx"
+            android:windowSoftInputMode="adjustResize" />
 
         <service
             android:name=".service.HomeWxMonitorService"
