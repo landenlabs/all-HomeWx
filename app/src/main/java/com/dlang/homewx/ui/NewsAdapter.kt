@@ -35,7 +35,13 @@ class NewsAdapter(private val onItemClick: (NewsItem) -> Unit) : RecyclerView.Ad
             binding.newsTitleText.text = item.title
             binding.newsDescriptionText.text = item.description
             if (item.imageUrl != null) {
-                Picasso.get().load(item.imageUrl).into(binding.newsThumbnail)
+                // Some RSS thumbnails come back at full photo resolution; resize during decode
+                // so Picasso never hands the canvas a bitmap too large to draw (crash otherwise).
+                val density = binding.newsThumbnail.resources.displayMetrics.density
+                Picasso.get().load(item.imageUrl)
+                    .resize((THUMBNAIL_WIDTH_DP * density).toInt(), (THUMBNAIL_HEIGHT_DP * density).toInt())
+                    .centerCrop()
+                    .into(binding.newsThumbnail)
             } else {
                 Picasso.get().cancelRequest(binding.newsThumbnail)
                 binding.newsThumbnail.setImageDrawable(null)
@@ -45,6 +51,12 @@ class NewsAdapter(private val onItemClick: (NewsItem) -> Unit) : RecyclerView.Ad
 
         fun unbind() {
             Picasso.get().cancelRequest(binding.newsThumbnail)
+        }
+
+        companion object {
+            // Must match item_news.xml newsThumbnail layout_width/layout_height.
+            private const val THUMBNAIL_WIDTH_DP = 110
+            private const val THUMBNAIL_HEIGHT_DP = 74
         }
     }
 }
