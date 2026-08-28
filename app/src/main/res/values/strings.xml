@@ -55,6 +55,9 @@
     <string name="settings_section_display">DISPLAY</string>
     <string name="settings_screen_brightness_label">Screen brightness</string>
     <string name="settings_background_darken_label">Darken background image</string>
+    <string name="settings_section_sensor_graphs">SENSOR GRAPHS</string>
+    <string name="settings_smoothing_window_label">Smoothing window (minutes)</string>
+    <string name="settings_flat_threshold_label">Flat-range threshold</string>
     <string name="settings_section_daily_extremes">DAILY HIGH / LOW</string>
     <string name="settings_temp_override_switch">Use sensor instead of weather provider</string>
     <string name="settings_temp_override_sensor_label">Sensor</string>

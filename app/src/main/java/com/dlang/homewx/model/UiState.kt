@@ -36,5 +36,6 @@ data class UiState(
     val historicalTempAverage: HistoricalTempAverage? = null,
     val weatherError: String? = null,
     val lastError: String? = null,
-    val newsItemsBySource: Map<NewsSourceId, List<NewsItem>> = emptyMap()
+    val newsItemsBySource: Map<NewsSourceId, List<NewsItem>> = emptyMap(),
+    val networkReachable: Boolean = true
 )

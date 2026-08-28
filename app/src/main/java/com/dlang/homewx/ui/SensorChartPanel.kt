@@ -3,43 +3,30 @@ package com.dlang.homewx.ui
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import com.dlang.homewx.R
+import android.widget.FrameLayout
 import com.dlang.homewx.databinding.PanelSensorChartBinding
-import com.github.mikephil.charting.formatter.ValueFormatter
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
-/** A single sensor's temperature history strip chart. Inflates itself into [container]. */
+/** A single [SensorHistoryChartView], shown when a sensor row is tapped on the weather panel.
+ *  Inflates itself into [container]. */
 class SensorChartPanel(container: ViewGroup) {
 
     private val context = container.context
     private val binding = PanelSensorChartBinding.inflate(LayoutInflater.from(context), container, false)
     val root: View get() = binding.root
 
-    private val hourOnlyFormat = SimpleDateFormat("h a", Locale.getDefault())
+    private val chartView = SensorHistoryChartView(context)
 
     init {
         container.addView(root)
-        LineChartSetup.configure(
-            binding.stripChartView,
-            context,
-            description = null,
-            xAxisValueFormatter = object : ValueFormatter() {
-                override fun getFormattedValue(value: Float): String = hourOnlyFormat.format(Date(value.toLong() * 1000L))
-            }
-        )
-        binding.stripChartView.axisLeft.valueFormatter = object : ValueFormatter() {
-            override fun getFormattedValue(value: Float): String = "${value.toInt()}°"
-        }
-        LineChartSetup.setThresholdLines(binding.stripChartView, context, listOf(100f to R.color.white, 32f to R.color.blue2))
+        chartView.view.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+        binding.root.addView(chartView.view)
     }
 
-    fun setTitle(title: String) {
-        binding.stripChartTitleText.text = title
+    fun setSensor(roomName: String, tempF: Double?, humidityPct: Double?) {
+        chartView.setRoomNameAndCurrentValues(roomName, tempF, humidityPct)
     }
 
-    fun render(points: List<Pair<Long, Double>>) {
-        LineChartSetup.render(binding.stripChartView, context, points)
+    fun render(tempPoints: List<Pair<Long, Double>>, humidityPoints: List<Pair<Long, Double>>) {
+        chartView.renderHistory(tempPoints, humidityPoints)
     }
 }

@@ -9,6 +9,10 @@
     <color name="accent_purple">#B388FF</color>
     <color name="divider">#1E2A38</color>
     <color name="accent_day_marker">#8BC34A</color>
+    <color name="sensor_row_selected">#338AB4F8</color>
+    <color name="weather_title_bg_current">#000000</color>
+    <color name="weather_title_bg_past">#440000</color>
+    <color name="weather_title_bg_forecast">#004400</color>
 
     <color name="white">#FFFFFF</color>
     <color name="black">#000000</color>

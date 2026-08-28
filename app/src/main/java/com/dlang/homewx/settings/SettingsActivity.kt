@@ -242,6 +242,12 @@ class SettingsActivity : AppCompatActivity() {
         binding.forecastDaysEditText.setText(
             AppSettings.getForecastDays(this).toString()
         )
+        binding.smoothingWindowEditText.setText(
+            AppSettings.getSmoothingWindowMinutes(this).toString()
+        )
+        binding.flatThresholdEditText.setText(
+            AppSettings.getFlatRangeThreshold(this).toString()
+        )
 
         val brightnessPercent = AppSettings.getScreenBrightnessPercent(this)
         binding.screenBrightnessSlider.progress = brightnessPercent - AppSettings.MIN_SCREEN_BRIGHTNESS_PERCENT
@@ -278,6 +284,12 @@ class SettingsActivity : AppCompatActivity() {
         val forecastDays = binding.forecastDaysEditText.text.toString().toIntOrNull()
             ?: AppSettings.DEFAULT_FORECAST_DAYS
         AppSettings.setForecastDays(this, forecastDays)
+        val smoothingWindowMinutes = binding.smoothingWindowEditText.text.toString().toIntOrNull()
+            ?: AppSettings.DEFAULT_SMOOTHING_WINDOW_MINUTES
+        AppSettings.setSmoothingWindowMinutes(this, smoothingWindowMinutes)
+        val flatThreshold = binding.flatThresholdEditText.text.toString().toFloatOrNull()
+            ?: AppSettings.DEFAULT_FLAT_RANGE_THRESHOLD
+        AppSettings.setFlatRangeThreshold(this, flatThreshold)
         AppSettings.setScreenBrightnessPercent(this, progressToBrightnessPercent(binding.screenBrightnessSlider.progress))
         AppSettings.setBackgroundDarkenPercent(this, binding.backgroundDarkenSlider.progress)
         AppSettings.setLightThresholdLux(this, progressToLux(binding.lightThresholdSlider.progress).toFloat())

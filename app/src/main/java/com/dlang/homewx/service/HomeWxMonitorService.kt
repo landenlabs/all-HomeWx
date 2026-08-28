@@ -6,6 +6,9 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
@@ -65,11 +68,24 @@ class HomeWxMonitorService : LifecycleService() {
     private val sensorFailureCounts = mutableMapOf<String, Int>()
     private var sensorFailureCountsDay: Long? = null
 
+    private val connectivityManager by lazy { getSystemService(ConnectivityManager::class.java) }
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            AppState.uiState.update { it.copy(networkReachable = true) }
+        }
+
+        override fun onLost(network: Network) {
+            AppState.uiState.update { it.copy(networkReachable = false) }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         startForeground(NOTIFICATION_ID, buildNotification())
 
         lightSensorMonitor.start()
+        AppState.uiState.update { it.copy(networkReachable = isNetworkCurrentlyReachable()) }
+        connectivityManager.registerDefaultNetworkCallback(networkCallback)
 
         lifecycleScope.launch {
             while (true) {
@@ -175,7 +191,14 @@ class HomeWxMonitorService : LifecycleService() {
 
     override fun onDestroy() {
         lightSensorMonitor.stop()
+        connectivityManager.unregisterNetworkCallback(networkCallback)
         super.onDestroy()
+    }
+
+    private fun isNetworkCurrentlyReachable(): Boolean {
+        val network = connectivityManager.activeNetwork ?: return false
+        return connectivityManager.getNetworkCapabilities(network)
+            ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
     }
 
     /** When the sensor override is on, the selected sensor's own temp/humidity replace the weather provider's in the live display. */

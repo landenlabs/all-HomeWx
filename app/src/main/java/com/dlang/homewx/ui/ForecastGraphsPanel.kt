@@ -160,20 +160,8 @@ class ForecastGraphsPanel(container: ViewGroup) {
     /** x-values (matching [LineChartSetup]'s seconds-since-epoch convention) where one calendar
      *  day's hours end and the next day's begin - skips the very first hour, which isn't a
      *  "change". */
-    private fun dayBoundaryXValues(hours: List<HourlyForecastEntry>): List<Float> {
-        val calendar = Calendar.getInstance()
-        val boundaries = mutableListOf<Float>()
-        var currentDayKey = -1
-        hours.forEachIndexed { index, entry ->
-            calendar.timeInMillis = entry.timeMillis
-            val dayKey = calendar.get(Calendar.YEAR) * 1000 + calendar.get(Calendar.DAY_OF_YEAR)
-            if (dayKey != currentDayKey) {
-                currentDayKey = dayKey
-                if (index > 0) boundaries.add(entry.timeMillis / 1000f)
-            }
-        }
-        return boundaries
-    }
+    private fun dayBoundaryXValues(hours: List<HourlyForecastEntry>): List<Float> =
+        LineChartSetup.dayBoundaryXValues(hours.map { it.timeMillis })
 
     /** One (x, "Mon") label per calendar day in [hours], positioned at that day's noon - only
      *  when noon actually falls within the covered data range, and skipped near the very start

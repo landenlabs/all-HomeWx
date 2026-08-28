@@ -12,9 +12,33 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
+import java.util.Calendar
 
 /** Shared axis/touch setup and data-binding for every [LineChart] in the info panel (sensor history + weather graphs). */
 object LineChartSetup {
+
+    /** Below this range (in the axis's own units), [applyMinimumAxisSpan] clamps the axis to at
+     *  least this span instead of MPAndroidChart's normal tight auto-scale. */
+    private const val MIN_AXIS_SPAN = 5.0
+
+    /** x-values (seconds-since-epoch, matching this object's [Entry] convention) where one
+     *  calendar day ends and the next begins, given a list of ascending millis timestamps -
+     *  skips the very first entry, which isn't a "change". Shared by [ForecastGraphsPanel] and
+     *  [SensorGraphsPanel] so both strip chart families draw day dividers the same way. */
+    fun dayBoundaryXValues(timestampsMillis: List<Long>): List<Float> {
+        val calendar = Calendar.getInstance()
+        val boundaries = mutableListOf<Float>()
+        var currentDayKey = -1
+        timestampsMillis.forEachIndexed { index, millis ->
+            calendar.timeInMillis = millis
+            val dayKey = calendar.get(Calendar.YEAR) * 1000 + calendar.get(Calendar.DAY_OF_YEAR)
+            if (dayKey != currentDayKey) {
+                currentDayKey = dayKey
+                if (index > 0) boundaries.add(millis / 1000f)
+            }
+        }
+        return boundaries
+    }
 
     fun configure(chart: LineChart, context: Context, description: String?, xAxisValueFormatter: ValueFormatter) {
         val axisTextColor = ContextCompat.getColor(context, R.color.text_secondary)
@@ -170,7 +194,32 @@ object LineChartSetup {
             return
         }
         chart.data = LineData(dataSets)
+        applyMinimumAxisSpan(chart.axisLeft, leftSeries.map { it.second })
+        applyMinimumAxisSpan(chart.axisRight, rightSeries.map { it.second })
         chart.invalidate()
+    }
+
+    /**
+     * MPAndroidChart auto-scales an axis tightly to its data's own min/max (plus a small ~10%
+     * padding), which is fine for a series with real range, but makes a genuinely near-flat
+     * series (e.g. indoor humidity holding steady within 2 percentage points) look dramatically
+     * noisy - ordinary +/-0.2 sample jitter gets stretched to fill the entire chart height. This
+     * clamps the axis to span at least [MIN_AXIS_SPAN] units, centered on the data, so a flat
+     * series reads as flat instead of zoomed-in-on-itself. Only kicks in below that floor -
+     * a series with a real, wider range still gets MPAndroidChart's normal auto-scaling.
+     */
+    private fun applyMinimumAxisSpan(axis: YAxis, values: List<Double>) {
+        if (values.size < 2) return
+        val dataMin = values.min()
+        val dataMax = values.max()
+        if (dataMax - dataMin >= MIN_AXIS_SPAN) {
+            axis.resetAxisMinimum()
+            axis.resetAxisMaximum()
+            return
+        }
+        val center = (dataMin + dataMax) / 2.0
+        axis.axisMinimum = (center - MIN_AXIS_SPAN / 2.0).toFloat()
+        axis.axisMaximum = (center + MIN_AXIS_SPAN / 2.0).toFloat()
     }
 
     /** Like [render], but for the one chart in the app that plots two related series

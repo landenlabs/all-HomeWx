@@ -20,6 +20,8 @@ object AppSettings {
     private const val KEY_WEBVIEW_REQUEST_LOGGING_ENABLED = "webview_request_logging_enabled"
     private const val KEY_SCREEN_BRIGHTNESS_PERCENT = "screen_brightness_percent"
     private const val KEY_FORECAST_DAYS = "forecast_days"
+    private const val KEY_SMOOTHING_WINDOW_MINUTES = "smoothing_window_minutes"
+    private const val KEY_FLAT_RANGE_THRESHOLD = "flat_range_threshold"
 
     const val DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES = 30
     const val MIN_WEATHER_SAMPLE_INTERVAL_MINUTES = 1
@@ -32,6 +34,12 @@ object AppSettings {
     const val DEFAULT_FORECAST_DAYS = 7
     const val MIN_FORECAST_DAYS = 1
     const val MAX_FORECAST_DAYS = 16 // Open-Meteo's own forecast_days ceiling
+    const val DEFAULT_SMOOTHING_WINDOW_MINUTES = 90
+    const val MIN_SMOOTHING_WINDOW_MINUTES = 5
+    const val MAX_SMOOTHING_WINDOW_MINUTES = 360
+    const val DEFAULT_FLAT_RANGE_THRESHOLD = 5.0f
+    const val MIN_FLAT_RANGE_THRESHOLD = 0.5f
+    const val MAX_FLAT_RANGE_THRESHOLD = 20.0f
 
     fun getWeatherSampleIntervalMinutes(context: Context): Int {
         val stored = prefs(context).getInt(KEY_WEATHER_SAMPLE_INTERVAL_MINUTES, DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES)
@@ -47,6 +55,25 @@ object AppSettings {
 
     fun setForecastDays(context: Context, days: Int) {
         prefs(context).edit { putInt(KEY_FORECAST_DAYS, days.coerceIn(MIN_FORECAST_DAYS, MAX_FORECAST_DAYS)) }
+    }
+
+    /** Sensor history chart smoothing: trailing time window, in minutes, that a rolling average is taken over. */
+    fun getSmoothingWindowMinutes(context: Context): Int =
+        prefs(context).getInt(KEY_SMOOTHING_WINDOW_MINUTES, DEFAULT_SMOOTHING_WINDOW_MINUTES)
+            .coerceIn(MIN_SMOOTHING_WINDOW_MINUTES, MAX_SMOOTHING_WINDOW_MINUTES)
+
+    fun setSmoothingWindowMinutes(context: Context, minutes: Int) {
+        prefs(context).edit { putInt(KEY_SMOOTHING_WINDOW_MINUTES, minutes.coerceIn(MIN_SMOOTHING_WINDOW_MINUTES, MAX_SMOOTHING_WINDOW_MINUTES)) }
+    }
+
+    /** Sensor history chart smoothing: a point only gets averaged when its own trailing window's
+     *  value range is below this - otherwise it's left raw so a real trend isn't smeared. */
+    fun getFlatRangeThreshold(context: Context): Float =
+        prefs(context).getFloat(KEY_FLAT_RANGE_THRESHOLD, DEFAULT_FLAT_RANGE_THRESHOLD)
+            .coerceIn(MIN_FLAT_RANGE_THRESHOLD, MAX_FLAT_RANGE_THRESHOLD)
+
+    fun setFlatRangeThreshold(context: Context, threshold: Float) {
+        prefs(context).edit { putFloat(KEY_FLAT_RANGE_THRESHOLD, threshold.coerceIn(MIN_FLAT_RANGE_THRESHOLD, MAX_FLAT_RANGE_THRESHOLD)) }
     }
 
     fun isTempSensorOverrideEnabled(context: Context): Boolean =

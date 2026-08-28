@@ -241,6 +241,69 @@
                         android:layout_marginTop="4dp"
                         android:max="100" />
 
+                    <View style="@style/settings_divider" />
+
+                    <!-- SENSOR GRAPHS: rolling-average smoothing tuning for the sensor history charts -->
+                    <TextView
+                        style="@style/settings_section_header"
+                        android:text="@string/settings_section_sensor_graphs" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:orientation="horizontal"
+                        android:baselineAligned="false">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                style="@style/settings_label"
+                                android:text="@string/settings_smoothing_window_label" />
+
+                            <EditText
+                                android:id="@+id/smoothingWindowEditText"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:autofillHints=""
+                                android:inputType="number"
+                                android:maxLength="3"
+                                android:textColor="@color/text_primary"
+                                android:textSize="16sp"
+                                tools:text="90" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_weight="1"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="16dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                style="@style/settings_label"
+                                android:layout_width="wrap_content"
+                                android:text="@string/settings_flat_threshold_label" />
+
+                            <EditText
+                                android:id="@+id/flatThresholdEditText"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:autofillHints=""
+                                android:inputType="numberDecimal"
+                                android:maxLength="5"
+                                android:textColor="@color/text_primary"
+                                android:textSize="16sp"
+                                tools:text="5.0" />
+                        </LinearLayout>
+                    </LinearLayout>
+
                 </LinearLayout>
 
                 <!-- RIGHT COLUMN: daily high/low, sensors, article viewer -->

@@ -1,28 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
+<!-- Single-sensor history chart shown when a sensor row is tapped on the weather panel;
+     SensorChartPanel builds its SensorHistoryChartView into this at runtime. -->
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical">
-
-    <TextView
-        android:id="@+id/stripChartTitleText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="16dp"
-        android:textColor="@color/accent_cool"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        tools:text="Sun room - temperature" />
-
-    <com.github.mikephil.charting.charts.LineChart
-        android:id="@+id/stripChartView"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:layout_margin="16dp" />
-
-</LinearLayout>
+    android:layout_height="match_parent" />

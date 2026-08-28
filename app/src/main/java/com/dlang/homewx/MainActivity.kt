@@ -78,8 +78,13 @@ class MainActivity : AppCompatActivity() {
     private var latestForecast: WeatherForecast? = null
     private var sensorsUpdatedAtMillis: Long? = null
     private var currentInfoPanel = InfoPanelView.NEWS
-    /** Room id whose strip chart is currently showing, only meaningful while currentInfoPanel == SENSOR_CHART. */
+    /** Room id whose strip chart is currently showing, only meaningful while currentInfoPanel == SENSOR_CHART.
+     *  Mirrored onto [sensorAdapter] so the tapped row stays highlighted while its chart is open. */
     private var activeSensorHistoryId: String? = null
+        set(value) {
+            field = value
+            sensorAdapter.selectedSensorId = value
+        }
     /**
      * 0 = today (live), negative = that many days in the past (a frozen [DailySnapshot]),
      * positive = that many days into the forecast (a [DailyForecastEntry]).
@@ -235,6 +240,10 @@ class MainActivity : AppCompatActivity() {
                 val error = state.lastError
                 binding.sensorErrorText.text = error?.let { "Sensor error: $it" }
                 binding.sensorErrorText.visibility = if (error != null) View.VISIBLE else View.GONE
+
+                binding.infoPanelTabBar.root.setBackgroundColor(
+                    getColor(if (state.networkReachable) R.color.bg_panel_bottom else R.color.red)
+                )
             }
         }
     }
@@ -378,6 +387,7 @@ class MainActivity : AppCompatActivity() {
         if (viewingDayOffset == 0) {
             bindLiveWeather(AppState.uiState.value)
             binding.weatherDateTimeText.text = weatherDateTimeFormat.format(Date())
+            binding.weatherDateTimeText.setBackgroundColor(getColor(R.color.weather_title_bg_current))
             return
         }
         val dayMillis = startOfDay(System.currentTimeMillis()) + viewingDayOffset * DAY_MILLIS
@@ -390,6 +400,7 @@ class MainActivity : AppCompatActivity() {
             }
             bindForecastWeather(entry)
             binding.weatherDateTimeText.text = "${historicalDayFormat.format(Date(dayMillis))} (forecast)"
+            binding.weatherDateTimeText.setBackgroundColor(getColor(R.color.weather_title_bg_forecast))
             return
         }
         lifecycleScope.launch {
@@ -402,6 +413,7 @@ class MainActivity : AppCompatActivity() {
             }
             bindSnapshotWeather(snapshot)
             binding.weatherDateTimeText.text = historicalDayFormat.format(Date(dayMillis))
+            binding.weatherDateTimeText.setBackgroundColor(getColor(R.color.weather_title_bg_past))
         }
     }
 
@@ -490,21 +502,26 @@ class MainActivity : AppCompatActivity() {
         }
         activeSensorHistoryId = reading.id
         showInfoPanel(InfoPanelView.SENSOR_CHART)
-        sensorChartPanel.setTitle("${reading.roomName} — temperature")
         refreshSensorChart(reading.id)
     }
 
     private fun refreshSensorChart(sensorId: String) {
+        // Live values (and the room name, in case it's since changed in Settings) refresh
+        // synchronously from the current state; the history plot needs an async DB read.
+        AppState.uiState.value.sensors.firstOrNull { it.id == sensorId }?.let { reading ->
+            sensorChartPanel.setSensor(reading.roomName, reading.tempF, reading.humidityPct)
+        }
         lifecycleScope.launch {
             val sinceMillis = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(48)
-            val points = withContext(Dispatchers.IO) {
+            val history = withContext(Dispatchers.IO) {
                 sensorHistoryStore.getHistorySince(sensorId, sinceMillis)
-                    .mapNotNull { point -> point.tempF?.let { point.timestampMillis to it } }
             }
             // The sensor may no longer be the active one if the user already switched to a
             // different sensor (or closed the chart) before this returned.
             if (activeSensorHistoryId == sensorId) {
-                sensorChartPanel.render(points)
+                val tempPoints = history.mapNotNull { point -> point.tempF?.let { point.timestampMillis to it } }
+                val humidityPoints = history.mapNotNull { point -> point.humidityPct?.let { point.timestampMillis to it } }
+                sensorChartPanel.render(tempPoints, humidityPoints)
             }
         }
     }
