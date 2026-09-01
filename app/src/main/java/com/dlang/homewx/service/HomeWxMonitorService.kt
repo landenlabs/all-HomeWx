@@ -81,7 +81,18 @@ class HomeWxMonitorService : LifecycleService() {
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(NOTIFICATION_ID, buildNotification())
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification())
+        } catch (e: Exception) {
+            // On API 31+ the system can recreate a START_STICKY service directly after an
+            // OOM-kill, outside of MainActivity's explicit startForegroundService() call - that
+            // path doesn't carry the "allowed to start from background" grant, so
+            // startForeground() throws ForegroundServiceStartNotAllowedException here. Bail out
+            // instead of crashing; MainActivity restarts this service (with the grant) the next
+            // time it's created.
+            stopSelf()
+            return
+        }
 
         lightSensorMonitor.start()
         AppState.uiState.update { it.copy(networkReachable = isNetworkCurrentlyReachable()) }
@@ -186,7 +197,11 @@ class HomeWxMonitorService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
-        return START_STICKY
+        // START_NOT_STICKY: don't let the system auto-restart this service after it's killed -
+        // that restart path is what triggers ForegroundServiceStartNotAllowedException above.
+        // MainActivity.onCreate already restarts it (with the required grant) whenever it comes
+        // back up.
+        return START_NOT_STICKY
     }
 
     override fun onDestroy() {
