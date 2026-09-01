@@ -14,14 +14,21 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.lifecycleScope
 import com.dlang.homewx.BuildConfig
 import com.dlang.homewx.R
 import com.dlang.homewx.databinding.ActivitySettingsBinding
 import com.dlang.homewx.model.SensorReading
 import com.dlang.homewx.news.WebRequestLogger
+import com.dlang.homewx.rivers.GaugeSite
+import com.dlang.homewx.rivers.RiverGaugeRepository
+import com.dlang.homewx.rivers.RiverGaugeSettings
 import com.dlang.homewx.state.AppState
 import com.dlang.homewx.weather.WeatherSourceConfig
 import com.dlang.homewx.weather.WeatherSourceId
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -29,6 +36,9 @@ class SettingsActivity : AppCompatActivity() {
     private var sensorIds: List<String> = emptyList()
     private var sensorVisibilityCheckBoxes: List<CheckBox> = emptyList()
     private var sensorLabelEditTexts: List<EditText> = emptyList()
+    private val riverGaugeRepository = RiverGaugeRepository()
+    private var riverGaugeCandidates: List<GaugeSite> = emptyList()
+    private var riverGaugeCheckBoxes: List<CheckBox> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,6 +63,7 @@ class SettingsActivity : AppCompatActivity() {
         setUpScreenBrightnessSlider()
         setUpBackgroundDarkenSlider()
         setUpLightThresholdSlider()
+        setUpRiverGaugesSection()
         bindCurrentValues()
 
         binding.tempOverrideSwitch.setOnCheckedChangeListener { _, checked ->
@@ -215,6 +226,60 @@ class SettingsActivity : AppCompatActivity() {
         })
     }
 
+    private fun setUpRiverGaugesSection() {
+        binding.riverGaugesEnabledSwitch.setOnCheckedChangeListener { _, checked ->
+            binding.riverZipEditText.isEnabled = checked
+            binding.findGaugesButton.isEnabled = checked
+        }
+        binding.findGaugesButton.setOnClickListener { onFindGaugesClicked() }
+    }
+
+    private fun onFindGaugesClicked() {
+        val zip = binding.riverZipEditText.text.toString().trim()
+        if (zip.length != 5) {
+            binding.riverSearchStatusText.text = getString(R.string.settings_rivers_search_failed, "enter a 5-digit zip code")
+            return
+        }
+        binding.riverSearchStatusText.text = getString(R.string.settings_rivers_searching)
+        binding.riverGaugeCheckboxContainer.removeAllViews()
+        lifecycleScope.launch {
+            try {
+                val location = withContext(Dispatchers.IO) { riverGaugeRepository.geocodeZip(zip) }
+                val gauges = withContext(Dispatchers.IO) { riverGaugeRepository.findNearestGauges(location) }
+                riverGaugeCandidates = gauges
+                binding.riverSearchStatusText.text = if (gauges.isEmpty()) {
+                    getString(R.string.settings_rivers_no_gauges_found)
+                } else {
+                    ""
+                }
+                rebuildRiverGaugeCheckBoxes(gauges, checkedSiteIds = gauges.map { it.siteId }.toSet())
+            } catch (e: Exception) {
+                binding.riverSearchStatusText.text = getString(R.string.settings_rivers_search_failed, e.message ?: "network error")
+            }
+        }
+    }
+
+    private fun rebuildRiverGaugeCheckBoxes(gauges: List<GaugeSite>, checkedSiteIds: Set<String>) {
+        binding.riverGaugeCheckboxContainer.removeAllViews()
+        riverGaugeCheckBoxes = gauges.map { gauge ->
+            CheckBox(this).apply {
+                text = riverGaugeLabel(gauge)
+                tag = gauge.siteId
+                isChecked = gauge.siteId in checkedSiteIds
+                setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text_primary))
+            }
+        }
+        riverGaugeCheckBoxes.forEach { binding.riverGaugeCheckboxContainer.addView(it) }
+    }
+
+    private fun riverGaugeLabel(gauge: GaugeSite): String {
+        val params = listOfNotNull(
+            "level".takeIf { gauge.hasGageHeight },
+            "flow".takeIf { gauge.hasDischarge }
+        ).joinToString("/")
+        return "%s (%.1f mi) - %s".format(gauge.name, gauge.distanceMiles, params)
+    }
+
     /** Slider progress (0-95) maps to a lux threshold (5-100); the floor keeps the derived dark threshold at or above 0. */
     private fun progressToLux(progress: Int): Int = progress + AppSettings.MIN_LIGHT_THRESHOLD_LUX.toInt()
 
@@ -275,6 +340,17 @@ class SettingsActivity : AppCompatActivity() {
             R.string.settings_webview_logging_path,
             WebRequestLogger.logFile(this).absolutePath
         )
+
+        val riversEnabled = RiverGaugeSettings.isEnabled(this)
+        binding.riverGaugesEnabledSwitch.isChecked = riversEnabled
+        binding.riverZipEditText.isEnabled = riversEnabled
+        binding.findGaugesButton.isEnabled = riversEnabled
+        binding.riverZipEditText.setText(RiverGaugeSettings.getZipCode(this).orEmpty())
+        binding.riverSearchStatusText.text = ""
+        // Reload discards any unsaved Find-gauges search - show the last-saved selection again,
+        // all checked, rather than an empty list (a fresh search is one Find tap away).
+        riverGaugeCandidates = RiverGaugeSettings.getSelectedGauges(this)
+        rebuildRiverGaugeCheckBoxes(riverGaugeCandidates, checkedSiteIds = riverGaugeCandidates.map { it.siteId }.toSet())
     }
 
     private fun saveSettings() {
@@ -312,5 +388,10 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         AppSettings.setWebViewRequestLoggingEnabled(this, binding.webviewLoggingSwitch.isChecked)
+
+        RiverGaugeSettings.setEnabled(this, binding.riverGaugesEnabledSwitch.isChecked)
+        RiverGaugeSettings.setZipCode(this, binding.riverZipEditText.text.toString().trim().takeIf { it.isNotBlank() })
+        val checkedSiteIds = riverGaugeCheckBoxes.filter { it.isChecked }.map { it.tag as String }.toSet()
+        RiverGaugeSettings.setSelectedGauges(this, riverGaugeCandidates.filter { it.siteId in checkedSiteIds })
     }
 }

@@ -57,4 +57,17 @@
         android:src="@drawable/ic_radar"
         app:tint="@color/text_secondary" />
 
+    <ImageButton
+        android:id="@+id/riversTabButton"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/tab_rivers_title"
+        android:padding="12dp"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_river"
+        android:visibility="gone"
+        app:tint="@color/text_secondary" />
+
 </LinearLayout>

@@ -18,12 +18,15 @@ import com.dlang.homewx.R
 import com.dlang.homewx.data.DailySnapshot
 import com.dlang.homewx.data.DailySnapshotStore
 import com.dlang.homewx.data.GoveeRepository
+import com.dlang.homewx.data.RiverHistoryStore
 import com.dlang.homewx.data.SensorHistoryStore
 import com.dlang.homewx.data.WeatherMetricsHistoryStore
 import com.dlang.homewx.model.LightMode
 import com.dlang.homewx.news.NewsRepository
 import com.dlang.homewx.news.NewsSourceId
 import com.dlang.homewx.power.LightSensorMonitor
+import com.dlang.homewx.rivers.RiverGaugeRepository
+import com.dlang.homewx.rivers.RiverGaugeSettings
 import com.dlang.homewx.settings.AppSettings
 import com.dlang.homewx.state.AppState
 import com.dlang.homewx.weather.DailyExtreme
@@ -58,6 +61,8 @@ class HomeWxMonitorService : LifecycleService() {
     private val dailySnapshotStore by lazy { DailySnapshotStore(applicationContext) }
     private val weatherDailyTracker = WeatherDailyTracker()
     private val newsRepository = NewsRepository()
+    private val riverGaugeRepository = RiverGaugeRepository()
+    private val riverHistoryStore by lazy { RiverHistoryStore(applicationContext) }
     private val weatherRepository = WeatherRepository(
         location = HomeLocation.CURRENT,
         activeSource = { WeatherSourceConfig.getActiveSource(applicationContext) },
@@ -191,6 +196,41 @@ class HomeWxMonitorService : LifecycleService() {
                 }
                 AppState.uiState.update { it.copy(newsItemsBySource = items) }
                 delay(NEWS_POLL_INTERVAL_MS)
+            }
+        }
+
+        lifecycleScope.launch {
+            while (true) {
+                val gauges = RiverGaugeSettings.getSelectedGauges(applicationContext)
+                if (RiverGaugeSettings.isEnabled(applicationContext) && gauges.isNotEmpty()) {
+                    try {
+                        val latest = withContext(Dispatchers.IO) {
+                            gauges.associate { site ->
+                                // First time this gauge has ever been polled: backfill a week of
+                                // history so its strip chart isn't empty on first visit, instead
+                                // of just the one point a plain "latest reading" call would give.
+                                if (riverHistoryStore.getLatestTimestamp(site.siteId) == null) {
+                                    val history = riverGaugeRepository.getHistory(
+                                        site,
+                                        System.currentTimeMillis() - RIVER_BACKFILL_MILLIS
+                                    )
+                                    riverHistoryStore.recordAll(history)
+                                    site.siteId to (history.lastOrNull() ?: riverGaugeRepository.getLatestReading(site))
+                                } else {
+                                    val reading = riverGaugeRepository.getLatestReading(site)
+                                    riverHistoryStore.record(reading)
+                                    site.siteId to reading
+                                }
+                            }
+                        }
+                        AppState.uiState.update {
+                            it.copy(riverReadings = latest, riverReadingsUpdatedAtMillis = System.currentTimeMillis(), riverError = null)
+                        }
+                    } catch (e: Exception) {
+                        AppState.uiState.update { it.copy(riverError = e.message ?: "River gauge refresh failed") }
+                    }
+                }
+                delay(RIVER_POLL_INTERVAL_MS)
             }
         }
     }
@@ -360,6 +400,8 @@ class HomeWxMonitorService : LifecycleService() {
         private const val HOUR_MILLIS = 60 * 60 * 1000L
         private const val SENSOR_TREND_TOLERANCE_MS = 20 * 60 * 1000L
         private const val NEWS_POLL_INTERVAL_MS = 10 * 60 * 1000L
+        private const val RIVER_POLL_INTERVAL_MS = 15 * 60 * 1000L
+        private const val RIVER_BACKFILL_MILLIS = 7 * 24 * 60 * 60 * 1000L
 
         fun start(context: Context) {
             val intent = Intent(context, HomeWxMonitorService::class.java)

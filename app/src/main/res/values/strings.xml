@@ -6,9 +6,11 @@
     <string name="weather_placeholder">Loading weather…</string>
     <string name="strip_chart_no_data">Not enough history yet</string>
     <string name="tab_news_title">News</string>
+    <string name="news_tab_drought">Drought</string>
     <string name="tab_forecast_title">Forecast</string>
     <string name="tab_sensor_graphs_title">Sensor history graphs</string>
     <string name="tab_radar_title">Radar</string>
+    <string name="tab_rivers_title">River gauges</string>
     <string name="radar_play_animation">Play radar animation</string>
     <string name="radar_pause_animation">Pause radar animation</string>
     <string name="radar_loading_animation">Loading radar…</string>
@@ -69,4 +71,12 @@
     <string name="settings_webview_logging_switch">Log WebView request domains</string>
     <string name="settings_webview_logging_path">Log file: %1$s</string>
     <string name="settings_undo">Undo</string>
+
+    <string name="settings_section_rivers">RIVERS</string>
+    <string name="settings_rivers_enabled_switch">Show river gauges</string>
+    <string name="settings_rivers_zip_label">Zip code</string>
+    <string name="settings_rivers_find_button">Find gauges</string>
+    <string name="settings_rivers_searching">Searching for nearby gauges…</string>
+    <string name="settings_rivers_no_gauges_found">No river gauges found near that zip code</string>
+    <string name="settings_rivers_search_failed">Gauge search failed: %1$s</string>
 </resources>

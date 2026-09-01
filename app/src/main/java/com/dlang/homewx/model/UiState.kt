@@ -2,6 +2,7 @@ package com.dlang.homewx.model
 
 import com.dlang.homewx.news.NewsItem
 import com.dlang.homewx.news.NewsSourceId
+import com.dlang.homewx.rivers.GaugeReading
 import com.dlang.homewx.weather.CurrentConditions
 import com.dlang.homewx.weather.DailyExtremes
 import com.dlang.homewx.weather.HistoricalTempAverage
@@ -37,5 +38,8 @@ data class UiState(
     val weatherError: String? = null,
     val lastError: String? = null,
     val newsItemsBySource: Map<NewsSourceId, List<NewsItem>> = emptyMap(),
-    val networkReachable: Boolean = true
+    val networkReachable: Boolean = true,
+    val riverReadings: Map<String, GaugeReading> = emptyMap(),
+    val riverReadingsUpdatedAtMillis: Long? = null,
+    val riverError: String? = null
 )

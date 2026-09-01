@@ -26,6 +26,8 @@ import com.dlang.homewx.model.SensorReading
 import com.dlang.homewx.model.UiState
 import com.dlang.homewx.news.NewsItem
 import com.dlang.homewx.power.ScreenPowerController
+import com.dlang.homewx.rivers.RiverGaugeSettings
+import com.dlang.homewx.data.RiverHistoryStore
 import com.dlang.homewx.service.HomeWxMonitorService
 import com.dlang.homewx.settings.AppSettings
 import com.dlang.homewx.settings.SettingsActivity
@@ -34,6 +36,7 @@ import com.dlang.homewx.ui.ArticlePanel
 import com.dlang.homewx.ui.ForecastPanel
 import com.dlang.homewx.ui.NewsPanel
 import com.dlang.homewx.ui.RadarPanel
+import com.dlang.homewx.ui.RiverGraphsPanel
 import com.dlang.homewx.ui.SensorAdapter
 import com.dlang.homewx.ui.SensorChartPanel
 import com.dlang.homewx.ui.SensorGraphsPanel
@@ -67,9 +70,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var forecastPanel: ForecastPanel
     private lateinit var sensorGraphsPanel: SensorGraphsPanel
     private lateinit var radarPanel: RadarPanel
+    private lateinit var riverGraphsPanel: RiverGraphsPanel
     private val sensorHistoryStore by lazy { SensorHistoryStore(applicationContext) }
     private val weatherMetricsHistoryStore by lazy { WeatherMetricsHistoryStore(applicationContext) }
     private val dailySnapshotStore by lazy { DailySnapshotStore(applicationContext) }
+    private val riverHistoryStore by lazy { RiverHistoryStore(applicationContext) }
 
     private val weatherDateTimeFormat = SimpleDateFormat("dd MMM, EEE hh:mm a", Locale.getDefault())
     private val hourOnlyFormat = SimpleDateFormat("h a", Locale.getDefault())
@@ -142,11 +147,13 @@ class MainActivity : AppCompatActivity() {
         forecastPanel = ForecastPanel(binding.infoPanelContainer)
         sensorGraphsPanel = SensorGraphsPanel(binding.infoPanelContainer)
         radarPanel = RadarPanel(binding.infoPanelContainer, lifecycleScope)
+        riverGraphsPanel = RiverGraphsPanel(binding.infoPanelContainer)
 
         binding.infoPanelTabBar.newsTabButton.setOnClickListener { selectTab(InfoPanelView.NEWS) }
         binding.infoPanelTabBar.forecastTabButton.setOnClickListener { selectTab(InfoPanelView.FORECAST) }
         binding.infoPanelTabBar.sensorGraphsTabButton.setOnClickListener { selectTab(InfoPanelView.SENSOR_GRAPHS) }
         binding.infoPanelTabBar.radarTabButton.setOnClickListener { selectTab(InfoPanelView.RADAR) }
+        binding.infoPanelTabBar.riversTabButton.setOnClickListener { selectTab(InfoPanelView.RIVERS) }
         showInfoPanel(InfoPanelView.NEWS)
 
         HomeWxMonitorService.start(this)
@@ -160,6 +167,18 @@ class MainActivity : AppCompatActivity() {
         binding.weatherBackgroundScrim.alpha = AppSettings.getBackgroundDarkenPercent(this) / 100f
         screenPowerController.refresh()
         sensorAdapter.submit(visibleSensors(AppState.uiState.value.sensors))
+        updateRiverTabVisibility()
+    }
+
+    /** The Rivers tab only shows once the feature is enabled and gauges are selected in
+     *  Settings - both only change while this activity is paused (Settings is a separate
+     *  Activity), so re-checking here on every resume is enough, no need to watch AppState. */
+    private fun updateRiverTabVisibility() {
+        val showRiversTab = RiverGaugeSettings.isEnabled(this) && RiverGaugeSettings.getSelectedGauges(this).isNotEmpty()
+        binding.infoPanelTabBar.riversTabButton.visibility = if (showRiversTab) View.VISIBLE else View.GONE
+        if (!showRiversTab && currentInfoPanel == InfoPanelView.RIVERS) {
+            selectTab(InfoPanelView.NEWS, isUserAction = false)
+        }
     }
 
     /** A tap anywhere on screen while QUIET wakes the display and holds it ACTIVE for a few minutes. */
@@ -288,6 +307,7 @@ class MainActivity : AppCompatActivity() {
             InfoPanelView.SENSOR_GRAPHS -> refreshSensorGraphs()
             InfoPanelView.SENSOR_CHART -> activeSensorHistoryId?.let { refreshSensorChart(it) }
             InfoPanelView.FORECAST -> refreshForecastPanel()
+            InfoPanelView.RIVERS -> refreshRiverGraphs()
             else -> Unit
         }
     }
@@ -460,12 +480,13 @@ class MainActivity : AppCompatActivity() {
         forecastPanel.root.visibility = if (panel == InfoPanelView.FORECAST) View.VISIBLE else View.GONE
         sensorGraphsPanel.root.visibility = if (panel == InfoPanelView.SENSOR_GRAPHS) View.VISIBLE else View.GONE
         radarPanel.root.visibility = if (panel == InfoPanelView.RADAR) View.VISIBLE else View.GONE
+        riverGraphsPanel.root.visibility = if (panel == InfoPanelView.RIVERS) View.VISIBLE else View.GONE
         if (panel != InfoPanelView.RADAR) radarPanel.stopAnimation()
         updateTabSelection(panel)
     }
 
-    /** Tints whichever of the four tab bar icons matches [panel]; SENSOR_CHART/ARTICLE aren't
-     *  tabs, so none of the four show selected while either of those is showing. */
+    /** Tints whichever of the five tab bar icons matches [panel]; SENSOR_CHART/ARTICLE aren't
+     *  tabs, so none of the five show selected while either of those is showing. */
     private fun updateTabSelection(panel: InfoPanelView) {
         val selectedColor = getColor(R.color.accent_cool)
         val unselectedColor = getColor(R.color.text_secondary)
@@ -477,6 +498,8 @@ class MainActivity : AppCompatActivity() {
             ColorStateList.valueOf(if (panel == InfoPanelView.SENSOR_GRAPHS) selectedColor else unselectedColor)
         binding.infoPanelTabBar.radarTabButton.imageTintList =
             ColorStateList.valueOf(if (panel == InfoPanelView.RADAR) selectedColor else unselectedColor)
+        binding.infoPanelTabBar.riversTabButton.imageTintList =
+            ColorStateList.valueOf(if (panel == InfoPanelView.RIVERS) selectedColor else unselectedColor)
     }
 
     /** Switches the info panel to [panel]. [isUserAction] is false when the switch comes from
@@ -489,6 +512,7 @@ class MainActivity : AppCompatActivity() {
             InfoPanelView.SENSOR_GRAPHS -> refreshSensorGraphs()
             InfoPanelView.FORECAST -> refreshForecastPanel()
             InfoPanelView.RADAR -> radarPanel.refresh()
+            InfoPanelView.RIVERS -> refreshRiverGraphs()
             else -> Unit
         }
     }
@@ -558,6 +582,26 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** One chart per currently-selected river gauge (Settings > Rivers), mirroring
+     *  [refreshSensorGraphs]. Current values come from [AppState] (already in memory); history
+     *  needs an async DB read per gauge. */
+    private fun refreshRiverGraphs() {
+        val gauges = RiverGaugeSettings.getSelectedGauges(this)
+        riverGraphsPanel.setGauges(gauges, AppState.uiState.value.riverReadings)
+        lifecycleScope.launch {
+            val sinceMillis = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(48)
+            gauges.forEach { gauge ->
+                val history = withContext(Dispatchers.IO) {
+                    riverHistoryStore.getHistorySince(gauge.siteId, sinceMillis)
+                }
+                val levelPoints = history.mapNotNull { point -> point.gageHeightFt?.let { point.timestampMillis to it } }
+                val flowPoints = history.mapNotNull { point -> point.dischargeCfs?.let { point.timestampMillis to it } }
+                if (currentInfoPanel != InfoPanelView.RIVERS) return@launch
+                riverGraphsPanel.render(gauge.siteId, levelPoints, flowPoints)
+            }
+        }
+    }
+
     private fun startClock() {
         lifecycleScope.launch {
             while (true) {
@@ -595,4 +639,4 @@ class MainActivity : AppCompatActivity() {
 /** Which of the mutually-exclusive views is showing in the info panel. NEWS/FORECAST/
  *  SENSOR_GRAPHS/RADAR are the four tab bar destinations; SENSOR_CHART/ARTICLE are reached other
  *  ways (tapping a sensor row / a news item) and leave the tab bar showing nothing selected. */
-private enum class InfoPanelView { NEWS, SENSOR_CHART, ARTICLE, FORECAST, SENSOR_GRAPHS, RADAR }
+private enum class InfoPanelView { NEWS, SENSOR_CHART, ARTICLE, FORECAST, SENSOR_GRAPHS, RADAR, RIVERS }
