@@ -7,6 +7,7 @@
     <string name="strip_chart_no_data">Not enough history yet</string>
     <string name="tab_news_title">News</string>
     <string name="news_tab_drought">Drought</string>
+    <string name="news_tab_stocks">Stocks</string>
     <string name="tab_forecast_title">Forecast</string>
     <string name="tab_sensor_graphs_title">Sensor history graphs</string>
     <string name="tab_radar_title">Radar</string>

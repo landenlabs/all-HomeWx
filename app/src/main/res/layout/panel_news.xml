@@ -34,4 +34,13 @@
         android:layout_weight="1"
         android:visibility="gone" />
 
+    <!-- Shows the TradingView Market Overview widget when the "Stocks" sub-tab is selected -
+         visibility toggled alongside the other two views above, never more than one visible. -->
+    <WebView
+        android:id="@+id/stocksWebView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:visibility="gone" />
+
 </LinearLayout>

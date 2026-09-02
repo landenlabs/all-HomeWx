@@ -106,16 +106,21 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 renderMetric(
                     binding.forecastPrecipSection, binding.forecastPrecipChartFrame, binding.forecastPrecipChartView, binding.forecastPrecipEmptyText,
                     hours.mapNotNull { h -> h.precipitationChancePct?.let { h.timeMillis to it.toDouble() } },
-                    R.string.forecast_no_precipitation_data, R.string.forecast_no_precipitation
+                    R.string.forecast_no_precipitation_data, R.string.forecast_no_precipitation,
+                    R.color.accent_cool, filled = true
                 )
             }
             ForecastRange.DAILY -> {
+                val days = forecast.daily
+                // Each entry here is already one full calendar day apart, so the shared
+                // day-boundary detector (built for hourly's many-points-per-day case) places a
+                // marker at every entry but the first - exactly the dividers between days.
+                val dayBoundaries = LineChartSetup.dayBoundaryXValues(days.map { it.dateMillis })
                 listOf(binding.forecastTempChartView, binding.forecastWindChartView, binding.forecastPrecipChartView).forEach { chart ->
                     chart.xAxis.setDrawLabels(true)
-                    LineChartSetup.setLimitLines(chart, context, emptyList())
+                    LineChartSetup.setLimitLines(chart, context, dayBoundaries)
                 }
 
-                val days = forecast.daily
                 renderDailyTemp(
                     days.mapNotNull { d -> d.highF?.let { d.dateMillis to it } },
                     days.mapNotNull { d -> d.lowF?.let { d.dateMillis to it } }
@@ -128,7 +133,8 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 renderMetric(
                     binding.forecastPrecipSection, binding.forecastPrecipChartFrame, binding.forecastPrecipChartView, binding.forecastPrecipEmptyText,
                     days.mapNotNull { d -> d.precipitationChancePct?.let { d.dateMillis to it.toDouble() } },
-                    R.string.forecast_no_precipitation_data, R.string.forecast_no_precipitation
+                    R.string.forecast_no_precipitation_data, R.string.forecast_no_precipitation,
+                    R.color.accent_cool, filled = true
                 )
             }
             ForecastRange.PAST -> {
@@ -240,7 +246,9 @@ class ForecastGraphsPanel(container: ViewGroup) {
         emptyText: TextView,
         points: List<Pair<Long, Double>>,
         noDataMessageRes: Int,
-        allZeroMessageRes: Int?
+        allZeroMessageRes: Int?,
+        colorRes: Int = R.color.accent_warm,
+        filled: Boolean = false
     ) {
         val noData = points.size < 2
         val allZero = !noData && allZeroMessageRes != null && points.all { it.second == 0.0 }
@@ -253,7 +261,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
         } else {
             chart.visibility = View.VISIBLE
             emptyText.visibility = View.GONE
-            LineChartSetup.render(chart, context, points)
+            LineChartSetup.render(chart, context, points, colorRes, filled)
         }
     }
 

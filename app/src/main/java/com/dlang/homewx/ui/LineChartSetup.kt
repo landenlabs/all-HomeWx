@@ -130,19 +130,33 @@ object LineChartSetup {
         }
     }
 
-    /** Every line graph in the app shares the same line color by design. */
-    fun render(chart: LineChart, context: Context, points: List<Pair<Long, Double>>) {
+    /** Every line graph in the app shares the same line color by default - [colorRes] is an
+     *  override for the few that don't (e.g. precipitation chance, filled and light-blue to
+     *  match the temperature graph's low-temp line). */
+    fun render(
+        chart: LineChart,
+        context: Context,
+        points: List<Pair<Long, Double>>,
+        colorRes: Int = R.color.accent_warm,
+        filled: Boolean = false
+    ) {
         if (points.size < 2) {
             chart.clear()
             return
         }
         val entries = points.map { (timeMillis, value) -> Entry(timeMillis / 1000f, value.toFloat()) }
+        val color = ContextCompat.getColor(context, colorRes)
         val dataSet = LineDataSet(entries, null).apply {
-            color = ContextCompat.getColor(context, R.color.accent_warm)
+            this.color = color
             lineWidth = 2f
             setDrawCircles(false)
             setDrawValues(false)
             mode = LineDataSet.Mode.LINEAR
+            if (filled) {
+                setDrawFilled(true)
+                fillColor = color
+                fillAlpha = 100
+            }
         }
         chart.data = LineData(dataSet)
         chart.invalidate()
