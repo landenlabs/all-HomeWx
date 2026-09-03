@@ -1,13 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Up to 4 charts (temperature, wind, precipitation, pressure - pressure only shown for the
-     Past range) sharing equal height. Each chart is wrapped in a FrameLayout with an "empty"
-     TextView overlay, followed by its own title TextView below the chart (not MPAndroidChart's
-     built-in description, which draws inside the chart's own bottom-right corner and overlapped
-     the hourly view's day-of-week axis labels there). Each outer *Section LinearLayout and its
-     inner *ChartFrame can be collapsed to wrap_content/weight=0 by ForecastGraphsPanel when that
-     metric has no data, so the other sections' weight=1 absorbs the freed space. -->
+     Past range) sharing equal height. Each chart is wrapped in a FrameLayout with a large
+     watermark label behind it (drawn first, so the chart - transparent background - shows it
+     through its own empty space; biased toward the top third via its ConstraintLayout wrapper
+     rather than dead center, which is where the y-axis auto-scaling and the "no history yet"
+     empty-state message both already sit) and an "empty" TextView overlay, followed by a
+     legend-style row below the chart: the max value of the plotted series centered, and the
+     chart's title at the right edge (not MPAndroidChart's built-in description, which draws
+     inside the chart's own bottom-right corner and overlapped the hourly view's day-of-week axis
+     labels there). This mirrors SensorHistoryChartView's watermark + legend-row styling. Each
+     outer *Section LinearLayout and its inner *ChartFrame can be collapsed to
+     wrap_content/weight=0 by ForecastGraphsPanel when that metric has no data, so the other
+     sections' weight=1 absorbs the freed space. -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
@@ -24,6 +31,29 @@
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1">
+
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <!-- Biased toward the top third rather than dead center - center is where the
+                     y-axis auto-scaling and the "no history yet" empty-state message both
+                     already sit. -->
+                <TextView
+                    android:id="@+id/forecastTempWatermarkText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:maxLines="2"
+                    android:textSize="30sp"
+                    android:textStyle="bold"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintVertical_bias="0.15" />
+
+            </androidx.constraintlayout.widget.ConstraintLayout>
 
             <com.github.mikephil.charting.charts.LineChart
                 android:id="@+id/forecastTempChartView"
@@ -44,14 +74,39 @@
 
         </FrameLayout>
 
-        <TextView
-            android:id="@+id/forecastTempTitleText"
+        <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:paddingBottom="1dp"
-            android:textColor="@color/accent_cool"
-            android:textSize="12sp" />
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/forecastTempMaxValueText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingBottom="1dp"
+                android:textColor="@color/white"
+                android:textSize="13sp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/forecastTempTitleText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:gravity="end"
+                android:maxLines="1"
+                android:paddingStart="8dp"
+                android:paddingBottom="1dp"
+                android:textColor="@color/accent_cool"
+                android:textSize="12sp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@id/forecastTempMaxValueText"
+                app:layout_constraintTop_toTopOf="parent" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
 
     </LinearLayout>
 
@@ -67,6 +122,26 @@
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1">
+
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <TextView
+                    android:id="@+id/forecastWindWatermarkText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:maxLines="2"
+                    android:textSize="30sp"
+                    android:textStyle="bold"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintVertical_bias="0.15" />
+
+            </androidx.constraintlayout.widget.ConstraintLayout>
 
             <com.github.mikephil.charting.charts.LineChart
                 android:id="@+id/forecastWindChartView"
@@ -87,14 +162,39 @@
 
         </FrameLayout>
 
-        <TextView
-            android:id="@+id/forecastWindTitleText"
+        <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:paddingBottom="1dp"
-            android:textColor="@color/accent_cool"
-            android:textSize="12sp" />
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/forecastWindMaxValueText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingBottom="1dp"
+                android:textColor="@color/white"
+                android:textSize="13sp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/forecastWindTitleText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:gravity="end"
+                android:maxLines="1"
+                android:paddingStart="8dp"
+                android:paddingBottom="1dp"
+                android:textColor="@color/accent_cool"
+                android:textSize="12sp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@id/forecastWindMaxValueText"
+                app:layout_constraintTop_toTopOf="parent" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
 
     </LinearLayout>
 
@@ -110,6 +210,26 @@
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1">
+
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <TextView
+                    android:id="@+id/forecastPrecipWatermarkText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:maxLines="2"
+                    android:textSize="30sp"
+                    android:textStyle="bold"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintVertical_bias="0.15" />
+
+            </androidx.constraintlayout.widget.ConstraintLayout>
 
             <com.github.mikephil.charting.charts.LineChart
                 android:id="@+id/forecastPrecipChartView"
@@ -130,14 +250,39 @@
 
         </FrameLayout>
 
-        <TextView
-            android:id="@+id/forecastPrecipTitleText"
+        <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:paddingBottom="1dp"
-            android:textColor="@color/accent_cool"
-            android:textSize="12sp" />
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/forecastPrecipMaxValueText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingBottom="1dp"
+                android:textColor="@color/white"
+                android:textSize="13sp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/forecastPrecipTitleText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:gravity="end"
+                android:maxLines="1"
+                android:paddingStart="8dp"
+                android:paddingBottom="1dp"
+                android:textColor="@color/accent_cool"
+                android:textSize="12sp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@id/forecastPrecipMaxValueText"
+                app:layout_constraintTop_toTopOf="parent" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
 
     </LinearLayout>
 
@@ -154,6 +299,26 @@
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1">
+
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <TextView
+                    android:id="@+id/forecastPressureWatermarkText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:maxLines="2"
+                    android:textSize="30sp"
+                    android:textStyle="bold"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintVertical_bias="0.15" />
+
+            </androidx.constraintlayout.widget.ConstraintLayout>
 
             <com.github.mikephil.charting.charts.LineChart
                 android:id="@+id/forecastPressureChartView"
@@ -174,14 +339,39 @@
 
         </FrameLayout>
 
-        <TextView
-            android:id="@+id/forecastPressureTitleText"
+        <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:paddingBottom="1dp"
-            android:textColor="@color/accent_cool"
-            android:textSize="12sp" />
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/forecastPressureMaxValueText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingBottom="1dp"
+                android:textColor="@color/white"
+                android:textSize="13sp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/forecastPressureTitleText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:gravity="end"
+                android:maxLines="1"
+                android:paddingStart="8dp"
+                android:paddingBottom="1dp"
+                android:textColor="@color/accent_cool"
+                android:textSize="12sp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@id/forecastPressureMaxValueText"
+                app:layout_constraintTop_toTopOf="parent" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
 
     </LinearLayout>
 

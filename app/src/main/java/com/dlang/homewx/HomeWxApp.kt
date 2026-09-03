@@ -1,6 +1,7 @@
 package com.dlang.homewx
 
 import android.app.Application
+import com.dlang.homewx.weather.wxdata.WxDataWeatherProvider
 import com.squareup.picasso.LruCache
 import com.squareup.picasso.OkHttp3Downloader
 import com.squareup.picasso.Picasso
@@ -28,6 +29,10 @@ class HomeWxApp : Application() {
                 .memoryCache(picassoMemoryCache)
                 .build()
         )
+
+        // Once at app startup regardless of which weather source is currently active - see
+        // WxDataWeatherProvider.initialize().
+        WxDataWeatherProvider.initialize(this)
     }
 
     override fun onLowMemory() {

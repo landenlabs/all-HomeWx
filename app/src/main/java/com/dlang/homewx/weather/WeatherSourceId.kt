@@ -6,5 +6,6 @@ package com.dlang.homewx.weather
  * [WeatherProviderFactory] - the compiler flags every other spot that needs it.
  */
 enum class WeatherSourceId {
-    OPEN_METEO
+    OPEN_METEO,
+    WXDATA
 }

@@ -6,8 +6,11 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
 import com.dlang.homewx.R
 import com.dlang.homewx.data.WeatherMetricsPoint
+import com.dlang.homewx.settings.AppSettings
 import com.dlang.homewx.databinding.PanelForecastGraphsBinding
 import com.dlang.homewx.weather.HourlyForecastEntry
 import com.dlang.homewx.weather.WeatherForecast
@@ -17,6 +20,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 /**
  * Temperature / wind / precipitation / pressure line graphs for the forecast panel's Past,
@@ -50,12 +54,29 @@ class ForecastGraphsPanel(container: ViewGroup) {
         // overlapped the hourly view's day-of-week axis labels there.
         binding.forecastTempTitleText.text = context.getString(R.string.forecast_graph_temperature)
         binding.forecastWindTitleText.text = context.getString(R.string.weather_graph_wind_speed)
-        binding.forecastPrecipTitleText.text = context.getString(R.string.forecast_graph_precipitation_chance)
         binding.forecastPressureTitleText.text = context.getString(R.string.weather_graph_pressure)
+        // Precip's title (and watermark) depend on range - Hourly/Daily show a percentage chance,
+        // Past shows recorded inches - so those two are set per-render instead of here.
+
+        val watermarkTextColor = ColorUtils.setAlphaComponent(ContextCompat.getColor(context, R.color.text_secondary), WATERMARK_ALPHA)
+        listOf(
+            binding.forecastTempWatermarkText to binding.forecastTempTitleText,
+            binding.forecastWindWatermarkText to binding.forecastWindTitleText,
+            binding.forecastPressureWatermarkText to binding.forecastPressureTitleText
+        ).forEach { (watermark, title) ->
+            watermark.setTextColor(watermarkTextColor)
+            watermark.text = title.text
+        }
+        binding.forecastPrecipWatermarkText.setTextColor(watermarkTextColor)
     }
 
     fun render(range: ForecastRange, forecast: WeatherForecast, pastPoints: List<WeatherMetricsPoint>) {
         binding.forecastPressureSection.visibility = if (range == ForecastRange.PAST) View.VISIBLE else View.GONE
+
+        binding.forecastPrecipTitleText.text = context.getString(
+            if (range == ForecastRange.PAST) R.string.weather_graph_precipitation else R.string.forecast_graph_precipitation_chance
+        )
+        binding.forecastPrecipWatermarkText.text = binding.forecastPrecipTitleText.text
 
         val xAxisValueFormatter = object : ValueFormatter() {
             override fun getFormattedValue(value: Float): String {
@@ -99,15 +120,16 @@ class ForecastGraphsPanel(container: ViewGroup) {
 
                 renderSingleLineTemp(hours.mapNotNull { h -> h.temperatureF?.let { h.timeMillis to it } })
                 renderMetric(
-                    binding.forecastWindSection, binding.forecastWindChartFrame, binding.forecastWindChartView, binding.forecastWindEmptyText,
+                    binding.forecastWindSection, binding.forecastWindChartFrame, binding.forecastWindChartView, binding.forecastWindEmptyText, binding.forecastWindMaxValueText,
                     hours.mapNotNull { h -> h.windSpeedMph?.let { h.timeMillis to it } },
-                    R.string.forecast_no_wind_data, R.string.forecast_no_wind
+                    R.string.forecast_no_wind_data, R.string.forecast_no_wind,
+                    valueFormatter = windValueFormatter
                 )
                 renderMetric(
-                    binding.forecastPrecipSection, binding.forecastPrecipChartFrame, binding.forecastPrecipChartView, binding.forecastPrecipEmptyText,
+                    binding.forecastPrecipSection, binding.forecastPrecipChartFrame, binding.forecastPrecipChartView, binding.forecastPrecipEmptyText, binding.forecastPrecipMaxValueText,
                     hours.mapNotNull { h -> h.precipitationChancePct?.let { h.timeMillis to it.toDouble() } },
                     R.string.forecast_no_precipitation_data, R.string.forecast_no_precipitation,
-                    R.color.accent_cool, filled = true
+                    R.color.accent_cool, filled = true, valueFormatter = pctValueFormatter
                 )
             }
             ForecastRange.DAILY -> {
@@ -121,43 +143,61 @@ class ForecastGraphsPanel(container: ViewGroup) {
                     LineChartSetup.setLimitLines(chart, context, dayBoundaries)
                 }
 
+                val spline = AppSettings.isDailyWeatherSplineEnabled(context)
                 renderDailyTemp(
                     days.mapNotNull { d -> d.highF?.let { d.dateMillis to it } },
-                    days.mapNotNull { d -> d.lowF?.let { d.dateMillis to it } }
+                    days.mapNotNull { d -> d.lowF?.let { d.dateMillis to it } },
+                    spline
                 )
                 renderMetric(
-                    binding.forecastWindSection, binding.forecastWindChartFrame, binding.forecastWindChartView, binding.forecastWindEmptyText,
+                    binding.forecastWindSection, binding.forecastWindChartFrame, binding.forecastWindChartView, binding.forecastWindEmptyText, binding.forecastWindMaxValueText,
                     days.mapNotNull { d -> d.windMaxMph?.let { d.dateMillis to it } },
-                    R.string.forecast_no_wind_data, R.string.forecast_no_wind
+                    R.string.forecast_no_wind_data, R.string.forecast_no_wind,
+                    spline = spline, valueFormatter = windValueFormatter
                 )
                 renderMetric(
-                    binding.forecastPrecipSection, binding.forecastPrecipChartFrame, binding.forecastPrecipChartView, binding.forecastPrecipEmptyText,
+                    binding.forecastPrecipSection, binding.forecastPrecipChartFrame, binding.forecastPrecipChartView, binding.forecastPrecipEmptyText, binding.forecastPrecipMaxValueText,
                     days.mapNotNull { d -> d.precipitationChancePct?.let { d.dateMillis to it.toDouble() } },
                     R.string.forecast_no_precipitation_data, R.string.forecast_no_precipitation,
-                    R.color.accent_cool, filled = true
+                    R.color.accent_cool, filled = true, spline = spline, valueFormatter = pctValueFormatter
                 )
             }
             ForecastRange.PAST -> {
+                val dayBoundaries = LineChartSetup.dayBoundaryXValues(pastPoints.map { it.timestampMillis })
                 listOf(binding.forecastTempChartView, binding.forecastWindChartView, binding.forecastPrecipChartView, binding.forecastPressureChartView).forEach { chart ->
                     chart.xAxis.setDrawLabels(true)
-                    LineChartSetup.setLimitLines(chart, context, emptyList())
+                    LineChartSetup.setLimitLines(chart, context, dayBoundaries)
                 }
 
-                renderSingleLineTemp(pastPoints.mapNotNull { p -> p.temperatureF?.let { p.timestampMillis to it } })
+                // A short Past range - too few samples for a line to read as a trend on its own -
+                // gets the same optional spline smoothing Daily's graphs use, gated by the same
+                // Settings toggle.
+                val splineEnabled = AppSettings.isDailyWeatherSplineEnabled(context)
+                fun useSpline(points: List<Pair<Long, Double>>) = splineEnabled && points.size < PAST_SPLINE_MAX_POINTS
+
+                val tempPoints = pastPoints.mapNotNull { p -> p.temperatureF?.let { p.timestampMillis to it } }
+                renderSingleLineTemp(tempPoints, useSpline(tempPoints))
+
+                val windPoints = pastPoints.mapNotNull { p -> p.windSpeedMph?.let { p.timestampMillis to it } }
                 renderMetric(
-                    binding.forecastWindSection, binding.forecastWindChartFrame, binding.forecastWindChartView, binding.forecastWindEmptyText,
-                    pastPoints.mapNotNull { p -> p.windSpeedMph?.let { p.timestampMillis to it } },
-                    R.string.forecast_no_wind_data, R.string.forecast_no_wind_recorded
+                    binding.forecastWindSection, binding.forecastWindChartFrame, binding.forecastWindChartView, binding.forecastWindEmptyText, binding.forecastWindMaxValueText,
+                    windPoints,
+                    R.string.forecast_no_wind_data, R.string.forecast_no_wind_recorded,
+                    valueFormatter = windValueFormatter, spline = useSpline(windPoints)
                 )
+                val precipPoints = pastPoints.mapNotNull { p -> p.precipitationIn?.let { p.timestampMillis to it } }
                 renderMetric(
-                    binding.forecastPrecipSection, binding.forecastPrecipChartFrame, binding.forecastPrecipChartView, binding.forecastPrecipEmptyText,
-                    pastPoints.mapNotNull { p -> p.precipitationIn?.let { p.timestampMillis to it } },
-                    R.string.forecast_no_precipitation_data, R.string.forecast_no_precipitation_recorded
+                    binding.forecastPrecipSection, binding.forecastPrecipChartFrame, binding.forecastPrecipChartView, binding.forecastPrecipEmptyText, binding.forecastPrecipMaxValueText,
+                    precipPoints,
+                    R.string.forecast_no_precipitation_data, R.string.forecast_no_precipitation_recorded,
+                    R.color.accent_cool, filled = true, valueFormatter = precipInValueFormatter, spline = useSpline(precipPoints)
                 )
+                val pressurePoints = pastPoints.mapNotNull { p -> p.pressureInHg?.let { p.timestampMillis to it } }
                 renderMetric(
-                    binding.forecastPressureSection, binding.forecastPressureChartFrame, binding.forecastPressureChartView, binding.forecastPressureEmptyText,
-                    pastPoints.mapNotNull { p -> p.pressureInHg?.let { p.timestampMillis to it } },
-                    R.string.forecast_no_pressure_data, allZeroMessageRes = null
+                    binding.forecastPressureSection, binding.forecastPressureChartFrame, binding.forecastPressureChartView, binding.forecastPressureEmptyText, binding.forecastPressureMaxValueText,
+                    pressurePoints,
+                    R.string.forecast_no_pressure_data, allZeroMessageRes = null,
+                    valueFormatter = pressureValueFormatter, spline = useSpline(pressurePoints)
                 )
             }
         }
@@ -203,35 +243,40 @@ class ForecastGraphsPanel(container: ViewGroup) {
         return labels
     }
 
-    private fun renderSingleLineTemp(points: List<Pair<Long, Double>>) {
+    private fun renderSingleLineTemp(points: List<Pair<Long, Double>>, spline: Boolean = false) {
         val collapse = points.size < 2
         setSectionCollapsed(binding.forecastTempSection, binding.forecastTempChartFrame, binding.forecastTempEmptyText, collapse)
         if (collapse) {
             binding.forecastTempChartView.visibility = View.GONE
             binding.forecastTempEmptyText.visibility = View.VISIBLE
             binding.forecastTempEmptyText.setText(R.string.forecast_no_temperature_data)
+            binding.forecastTempMaxValueText.text = ""
         } else {
             binding.forecastTempChartView.visibility = View.VISIBLE
             binding.forecastTempEmptyText.visibility = View.GONE
-            LineChartSetup.render(binding.forecastTempChartView, context, points)
+            LineChartSetup.render(binding.forecastTempChartView, context, points, spline = spline)
+            binding.forecastTempMaxValueText.text = tempValueFormatter(points.maxOf { it.second })
         }
     }
 
-    private fun renderDailyTemp(highs: List<Pair<Long, Double>>, lows: List<Pair<Long, Double>>) {
+    private fun renderDailyTemp(highs: List<Pair<Long, Double>>, lows: List<Pair<Long, Double>>, spline: Boolean = false) {
         val collapse = highs.size < 2 && lows.size < 2
         setSectionCollapsed(binding.forecastTempSection, binding.forecastTempChartFrame, binding.forecastTempEmptyText, collapse)
         if (collapse) {
             binding.forecastTempChartView.visibility = View.GONE
             binding.forecastTempEmptyText.visibility = View.VISIBLE
             binding.forecastTempEmptyText.setText(R.string.forecast_no_temperature_data)
+            binding.forecastTempMaxValueText.text = ""
         } else {
             binding.forecastTempChartView.visibility = View.VISIBLE
             binding.forecastTempEmptyText.visibility = View.GONE
             LineChartSetup.renderSeries(
                 binding.forecastTempChartView,
                 context,
-                listOf(highs to R.color.accent_warm, lows to R.color.accent_cool)
+                listOf(highs to R.color.accent_warm, lows to R.color.accent_cool),
+                spline
             )
+            binding.forecastTempMaxValueText.text = tempValueFormatter((highs + lows).maxOf { it.second })
         }
     }
 
@@ -244,11 +289,14 @@ class ForecastGraphsPanel(container: ViewGroup) {
         chartFrame: FrameLayout,
         chart: LineChart,
         emptyText: TextView,
+        maxValueText: TextView,
         points: List<Pair<Long, Double>>,
         noDataMessageRes: Int,
         allZeroMessageRes: Int?,
         colorRes: Int = R.color.accent_warm,
-        filled: Boolean = false
+        filled: Boolean = false,
+        spline: Boolean = false,
+        valueFormatter: (Double) -> String = { it.roundToInt().toString() }
     ) {
         val noData = points.size < 2
         val allZero = !noData && allZeroMessageRes != null && points.all { it.second == 0.0 }
@@ -258,10 +306,12 @@ class ForecastGraphsPanel(container: ViewGroup) {
             chart.visibility = View.GONE
             emptyText.visibility = View.VISIBLE
             emptyText.setText(if (noData) noDataMessageRes else allZeroMessageRes!!)
+            maxValueText.text = ""
         } else {
             chart.visibility = View.VISIBLE
             emptyText.visibility = View.GONE
-            LineChartSetup.render(chart, context, points, colorRes, filled)
+            LineChartSetup.render(chart, context, points, colorRes, filled, spline)
+            maxValueText.text = valueFormatter(points.maxOf { it.second })
         }
     }
 
@@ -290,8 +340,23 @@ class ForecastGraphsPanel(container: ViewGroup) {
          *  not enough room to draw it without crowding the chart's border. */
         private const val EDGE_MARGIN_FRACTION = 0.05
 
+        /** Below this many points, Past's graphs are eligible for the same optional spline
+         *  smoothing Daily's graphs use - a short-enough range that a spline reads as smoothing
+         *  rather than inventing values between real samples. */
+        private const val PAST_SPLINE_MAX_POINTS = 20
+
+        /** Matches [SensorHistoryChartView]'s watermark opacity - fully opaque read as too bold
+         *  behind the plotted line. */
+        private const val WATERMARK_ALPHA = 204
+
         private val TEMPERATURE_THRESHOLDS = listOf(100f to R.color.white, 32f to R.color.blue2)
         private val WIND_THRESHOLDS = listOf(10f to R.color.white, 20f to R.color.red)
         private val PRECIPITATION_CHANCE_THRESHOLDS = listOf(50f to R.color.white, 75f to R.color.blue2)
+
+        private val tempValueFormatter: (Double) -> String = { v -> "${v.roundToInt()}°" }
+        private val windValueFormatter: (Double) -> String = { v -> "${v.roundToInt()} mph" }
+        private val pctValueFormatter: (Double) -> String = { v -> "${v.roundToInt()}%" }
+        private val precipInValueFormatter: (Double) -> String = { v -> "%.2f in".format(v) }
+        private val pressureValueFormatter: (Double) -> String = { v -> "%.2f inHg".format(v) }
     }
 }

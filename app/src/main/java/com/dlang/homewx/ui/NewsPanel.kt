@@ -1,8 +1,13 @@
 package com.dlang.homewx.ui
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.net.wifi.WifiManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.dlang.homewx.R
 import com.dlang.homewx.databinding.PanelNewsBinding
@@ -10,6 +15,18 @@ import com.dlang.homewx.news.LoggingWebViewClient
 import com.dlang.homewx.news.NewsItem
 import com.dlang.homewx.news.NewsSourceId
 import com.google.android.material.tabs.TabLayout
+
+/** Null unless ACCESS_FINE_LOCATION is granted - Android ties real WiFi SSID lookups to location
+ *  permission, returning "<unknown ssid>" without it. */
+private fun currentWifiSsid(context: Context): String? {
+    val hasLocationPermission = ContextCompat.checkSelfPermission(
+        context, Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+    if (!hasLocationPermission) return null
+    val wifiManager = context.applicationContext.getSystemService(WifiManager::class.java) ?: return null
+    val ssid = wifiManager.connectionInfo?.ssid?.trim('"')
+    return ssid?.takeIf { it.isNotBlank() && it != "<unknown ssid>" }
+}
 
 /** Tab-tag sentinel for the Drought sub-tab, distinguishing it from a [NewsSourceId] tag on the
  *  same [TabLayout]. */
@@ -87,7 +104,7 @@ class NewsPanel(container: ViewGroup, onArticleClick: (NewsItem) -> Unit) {
     }
 
     private fun showNewsList() {
-        binding.newsRecyclerView.visibility = View.VISIBLE
+        binding.newsListContainer.visibility = View.VISIBLE
         binding.droughtMonitorWebView.visibility = View.GONE
         binding.stocksWebView.visibility = View.GONE
         refresh()
@@ -96,7 +113,7 @@ class NewsPanel(container: ViewGroup, onArticleClick: (NewsItem) -> Unit) {
     /** Loads the map once on first visit to this sub-tab, not on every selection - it's a
      *  slow-changing daily map, not something that needs a fresh network fetch each time. */
     private fun showDroughtMonitor() {
-        binding.newsRecyclerView.visibility = View.GONE
+        binding.newsListContainer.visibility = View.GONE
         binding.droughtMonitorWebView.visibility = View.VISIBLE
         binding.stocksWebView.visibility = View.GONE
         if (!droughtMonitorLoaded) {
@@ -108,7 +125,7 @@ class NewsPanel(container: ViewGroup, onArticleClick: (NewsItem) -> Unit) {
     /** Loads the widget once on first visit, same rationale as [showDroughtMonitor]. The widget
      *  self-refreshes its quotes over its own websocket once loaded, so a reload isn't needed. */
     private fun showStocks() {
-        binding.newsRecyclerView.visibility = View.GONE
+        binding.newsListContainer.visibility = View.GONE
         binding.droughtMonitorWebView.visibility = View.GONE
         binding.stocksWebView.visibility = View.VISIBLE
         if (!stocksWidgetLoaded) {
@@ -124,7 +141,15 @@ class NewsPanel(container: ViewGroup, onArticleClick: (NewsItem) -> Unit) {
     }
 
     private fun refresh() {
-        adapter.submit(latestItemsBySource[selectedSource].orEmpty())
+        val items = latestItemsBySource[selectedSource].orEmpty()
+        adapter.submit(items)
+        binding.newsEmptyText.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
+        if (items.isEmpty()) {
+            val context = binding.root.context
+            binding.newsEmptyText.text = currentWifiSsid(context)?.let {
+                context.getString(R.string.news_no_data_with_wifi, it)
+            } ?: context.getString(R.string.news_no_data)
+        }
     }
 
     companion object {

@@ -125,11 +125,23 @@
         android:layout_height="wrap_content"
         android:textColor="@color/text_secondary"
         android:textSize="33sp"
-        app:layout_constraintBottom_toBottomOf="@id/weatherBackgroundImage"
+        app:layout_constraintBottom_toTopOf="@id/tempTrend4hText"
         app:layout_constraintEnd_toEndOf="@id/weatherIcon"
         app:layout_constraintStart_toStartOf="@id/weatherIcon"
         app:layout_constraintTop_toBottomOf="@id/currentTempText"
-        tools:text="+2°F" />
+        tools:text="+2°F/1hr" />
+
+    <TextView
+        android:id="@+id/tempTrend4hText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/text_secondary"
+        android:textSize="22sp"
+        app:layout_constraintBottom_toBottomOf="@id/weatherBackgroundImage"
+        app:layout_constraintEnd_toEndOf="@id/weatherIcon"
+        app:layout_constraintStart_toStartOf="@id/weatherIcon"
+        app:layout_constraintTop_toBottomOf="@id/tempTrendText"
+        tools:text="+3°F/4hr" />
 
     <!-- condition/humidity/wind/precip/pressure table: label,value,label,value per row
          (4 columns - wide 10"+ tablets like the Tab S3 only; narrower landscape screens
@@ -172,9 +184,9 @@
         <TextView style="@style/wx_label" android:text="@string/wx_lbl_pressure" />
         <TextView android:id="@+id/pressureValueText" style="@style/wx_value" />
 
-        <TextView style="@style/wx_label" android:text="@string/wx_lbl_ly_min" />
+        <TextView android:id="@+id/lyMinLabelText" style="@style/wx_label" android:text="@string/wx_lbl_ly_min" />
         <TextView android:id="@+id/lyMinValueText" style="@style/wx_value" />
-        <TextView style="@style/wx_label" android:text="@string/wx_lbl_ly_max" />
+        <TextView android:id="@+id/lyMaxLabelText" style="@style/wx_label" android:text="@string/wx_lbl_ly_max" />
         <TextView android:id="@+id/lyMaxValueText" style="@style/wx_value" />
     </GridLayout>
 

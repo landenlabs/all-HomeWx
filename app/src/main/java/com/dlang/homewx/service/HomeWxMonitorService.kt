@@ -167,12 +167,14 @@ class HomeWxMonitorService : LifecycleService() {
                     weatherDailyTracker.recordSample(current.observedAtMillis, current.temperatureF, current.windSpeedMph)
                     withContext(Dispatchers.IO) { weatherMetricsHistoryStore.record(current) }
                     val tempTrend = forecast.hourlyDelta(current.observedAtMillis, 1, current.temperatureF) { it.temperatureF }
+                    val tempTrend4h = forecast.hourlyDelta(current.observedAtMillis, 4, current.temperatureF) { it.temperatureF }
                     val pressureTrend = forecast.hourlyDelta(current.observedAtMillis, 6, current.pressureInHg) { it.pressureInHg }
                     AppState.uiState.update {
                         it.copy(
                             currentWeather = current,
                             weatherForecast = forecast,
                             tempTrendNextHourF = tempTrend,
+                            tempTrendNext4HourF = tempTrend4h,
                             pressureTrend6hInHg = pressureTrend,
                             weatherError = null
                         )

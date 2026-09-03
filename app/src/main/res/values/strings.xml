@@ -4,6 +4,9 @@
     <string name="monitor_service_notification_title">HomeWx is watching your home</string>
     <string name="monitor_service_notification_text">Weather and sensor updates running in the background</string>
     <string name="weather_placeholder">Loading weather…</string>
+    <string name="weather_unavailable">Weather unavailable</string>
+    <string name="news_no_data">No data available</string>
+    <string name="news_no_data_with_wifi">No data available using Wifi %1$s</string>
     <string name="strip_chart_no_data">Not enough history yet</string>
     <string name="tab_news_title">News</string>
     <string name="news_tab_drought">Drought</string>
@@ -48,6 +51,8 @@
     <string name="wx_lbl_pressure">Pres</string>
     <string name="wx_lbl_ly_max">LstYr max</string>
     <string name="wx_lbl_ly_min">LstYr min</string>
+    <string name="wx_lbl_normal_max">Normal max</string>
+    <string name="wx_lbl_normal_min">Normal min</string>
 
     <string name="settings_title">Settings</string>
     <string name="settings_version_info">Version %1$s (%2$d) · Built %3$s</string>
@@ -55,6 +60,7 @@
     <string name="settings_weather_source_label">Weather source</string>
     <string name="settings_weather_interval_label">Refresh interval (minutes)</string>
     <string name="settings_forecast_days_label">Forecast days</string>
+    <string name="settings_daily_spline_switch">Smooth daily/past forecast graphs (spline)</string>
     <string name="settings_section_display">DISPLAY</string>
     <string name="settings_screen_brightness_label">Screen brightness</string>
     <string name="settings_background_darken_label">Darken background image</string>

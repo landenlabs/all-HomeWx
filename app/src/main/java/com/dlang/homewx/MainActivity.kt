@@ -1,6 +1,8 @@
 package com.dlang.homewx
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.os.Bundle
 import android.text.Spannable
@@ -10,7 +12,9 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -45,6 +49,8 @@ import com.dlang.homewx.ui.weatherIconRes
 import com.dlang.homewx.weather.DailyExtreme
 import com.dlang.homewx.weather.DailyForecastEntry
 import com.dlang.homewx.weather.WeatherForecast
+import com.dlang.homewx.weather.WeatherSourceConfig
+import com.dlang.homewx.weather.WeatherSourceId
 import com.dlang.homewx.weather.isSameDay
 import com.dlang.homewx.weather.startOfDay
 import kotlinx.coroutines.Dispatchers
@@ -63,6 +69,12 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var screenPowerController: ScreenPowerController
+    // Only needed so NewsPanel's "no data" message can name the connected WiFi network -
+    // Android ties real SSID lookups to location permission. Re-render on grant so the
+    // message picks up the SSID immediately instead of waiting for the next news poll.
+    private val locationPermissionRequest = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) newsPanel.onStateUpdated(AppState.uiState.value.newsItemsBySource)
+    }
     private val sensorAdapter = SensorAdapter(onSensorClick = ::showSensorHistory)
     private lateinit var newsPanel: NewsPanel
     private lateinit var sensorChartPanel: SensorChartPanel
@@ -157,6 +169,12 @@ class MainActivity : AppCompatActivity() {
         showInfoPanel(InfoPanelView.NEWS)
 
         HomeWxMonitorService.start(this)
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            locationPermissionRequest.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
 
         observeState()
         startClock()
@@ -263,6 +281,7 @@ class MainActivity : AppCompatActivity() {
                 binding.infoPanelTabBar.root.setBackgroundColor(
                     getColor(if (state.networkReachable) R.color.bg_panel_bottom else R.color.red)
                 )
+                updateWeatherDateTimeBackground(state)
             }
         }
     }
@@ -314,20 +333,33 @@ class MainActivity : AppCompatActivity() {
 
     private fun bindLiveWeather(state: UiState) {
         val conditions = state.currentWeather
-        binding.currentTempText.text = state.weatherError
-            ?: conditions?.temperatureF?.roundToInt()?.let { "$it°F" }
-            ?: getString(R.string.weather_placeholder)
-        binding.tempTrendText.text = formatSignedDelta(state.tempTrendNextHourF, "°F")
+        // A raw exception message (e.g. a connect-timeout string) must never land in this
+        // 44sp display - stale data is treated the same as no data rather than shown as if live.
+        val isStale = conditions != null &&
+            System.currentTimeMillis() - conditions.observedAtMillis > STALE_WEATHER_THRESHOLD_MS
+        val liveConditions = conditions.takeUnless { isStale }
 
-        if (conditions != null) {
-            binding.weatherIcon.setImageResource(weatherIconRes(conditions.iconKey))
-            binding.weatherBackgroundImage.setImageResource(weatherBackgroundRes(conditions.iconKey, conditions.windSpeedMph))
-            binding.conditionValueText.text = conditions.conditionText
-            binding.humidityValueText.text = conditions.humidityPct?.roundToInt()?.let { "$it%" } ?: "--"
-            binding.windSpeedValueText.text = conditions.windSpeedMph?.roundToInt()?.let { "$it mph" } ?: "--"
-            binding.windDirectionValueText.text = formatWindDirection(conditions.windDirectionDeg)
-            binding.precipitationValueText.text = conditions.precipitationIn?.let { "%.2f in".format(it) } ?: "--"
-            binding.pressureValueText.text = formatPressure(conditions.pressureInHg, state.pressureTrend6hInHg)
+        binding.currentTempText.text = liveConditions?.temperatureF?.roundToInt()?.let { "$it°F" }
+            ?: getString(if (isStale) R.string.weather_unavailable else R.string.weather_placeholder)
+        binding.tempTrendText.text = if (liveConditions != null) formatSignedDelta(state.tempTrendNextHourF, "°F/1hr") else ""
+        binding.tempTrend4hText.text = if (liveConditions != null) formatSignedDelta(state.tempTrendNext4HourF, "°F/4hr") else ""
+
+        if (liveConditions != null) {
+            binding.weatherIcon.setImageResource(weatherIconRes(liveConditions.iconKey))
+            binding.weatherBackgroundImage.setImageResource(weatherBackgroundRes(liveConditions.iconKey, liveConditions.windSpeedMph))
+            binding.conditionValueText.text = liveConditions.conditionText
+            binding.humidityValueText.text = liveConditions.humidityPct?.roundToInt()?.let { "$it%" } ?: "--"
+            binding.windSpeedValueText.text = liveConditions.windSpeedMph?.roundToInt()?.let { "$it mph" } ?: "--"
+            binding.windDirectionValueText.text = formatWindDirection(liveConditions.windDirectionDeg)
+            binding.precipitationValueText.text = liveConditions.precipitationIn?.let { "%.2f in".format(it) } ?: "--"
+            binding.pressureValueText.text = formatPressure(liveConditions.pressureInHg, state.pressureTrend6hInHg)
+        } else {
+            binding.conditionValueText.text = if (isStale) getString(R.string.weather_unavailable) else "--"
+            binding.humidityValueText.text = "--"
+            binding.windSpeedValueText.text = "--"
+            binding.windDirectionValueText.text = "--"
+            binding.precipitationValueText.text = "--"
+            binding.pressureValueText.text = "--"
         }
 
         val extremes = state.dailyExtremes
@@ -337,8 +369,23 @@ class MainActivity : AppCompatActivity() {
         binding.windLowValueText.text = formatExtreme(extremes.windLowMph, " mph")
 
         val historicalAverage = state.historicalTempAverage
+        updateLastYearLabel()
         binding.lyMaxValueText.text = historicalAverage?.avgHighF?.roundToInt()?.let { "$it°F" } ?: "--"
         binding.lyMinValueText.text = historicalAverage?.avgLowF?.roundToInt()?.let { "$it°F" } ?: "--"
+    }
+
+    /**
+     * The lyMax/lyMinValueText fields mean different things depending on the active weather
+     * source: Open-Meteo backs them with last year's real observed average
+     * ([com.dlang.homewx.weather.openmeteo.OpenMeteoWeatherProvider.getHistoricalDailyAverage]),
+     * while WxData backs them with a 10-30 year NCDC climate normal for the same calendar days
+     * ([com.dlang.homewx.weather.wxdata.WxDataWeatherProvider.getHistoricalDailyAverage]) -
+     * different statistics, so the label switches to stay honest about which one is showing.
+     */
+    private fun updateLastYearLabel() {
+        val isNormal = WeatherSourceConfig.getActiveSource(this) == WeatherSourceId.WXDATA
+        binding.lyMaxLabelText.setText(if (isNormal) R.string.wx_lbl_normal_max else R.string.wx_lbl_ly_max)
+        binding.lyMinLabelText.setText(if (isNormal) R.string.wx_lbl_normal_min else R.string.wx_lbl_ly_min)
     }
 
     private fun bindSnapshotWeather(snapshot: DailySnapshot) {
@@ -356,6 +403,7 @@ class MainActivity : AppCompatActivity() {
         binding.tempLowValueText.text = formatExtreme(toExtreme(snapshot.tempLowF, snapshot.tempLowAtMillis), "°F")
         binding.windHighValueText.text = formatExtreme(toExtreme(snapshot.windHighMph, snapshot.windHighAtMillis), " mph")
         binding.windLowValueText.text = formatExtreme(toExtreme(snapshot.windLowMph, snapshot.windLowAtMillis), " mph")
+        updateLastYearLabel()
         binding.lyMaxValueText.text = snapshot.lyAvgHighF?.roundToInt()?.let { "$it°F" } ?: "--"
         binding.lyMinValueText.text = snapshot.lyAvgLowF?.roundToInt()?.let { "$it°F" } ?: "--"
     }
@@ -407,7 +455,7 @@ class MainActivity : AppCompatActivity() {
         if (viewingDayOffset == 0) {
             bindLiveWeather(AppState.uiState.value)
             binding.weatherDateTimeText.text = weatherDateTimeFormat.format(Date())
-            binding.weatherDateTimeText.setBackgroundColor(getColor(R.color.weather_title_bg_current))
+            updateWeatherDateTimeBackground()
             return
         }
         val dayMillis = startOfDay(System.currentTimeMillis()) + viewingDayOffset * DAY_MILLIS
@@ -420,7 +468,7 @@ class MainActivity : AppCompatActivity() {
             }
             bindForecastWeather(entry)
             binding.weatherDateTimeText.text = "${historicalDayFormat.format(Date(dayMillis))} (forecast)"
-            binding.weatherDateTimeText.setBackgroundColor(getColor(R.color.weather_title_bg_forecast))
+            updateWeatherDateTimeBackground()
             return
         }
         lifecycleScope.launch {
@@ -433,8 +481,23 @@ class MainActivity : AppCompatActivity() {
             }
             bindSnapshotWeather(snapshot)
             binding.weatherDateTimeText.text = historicalDayFormat.format(Date(dayMillis))
-            binding.weatherDateTimeText.setBackgroundColor(getColor(R.color.weather_title_bg_past))
+            updateWeatherDateTimeBackground()
         }
+    }
+
+    /** Red overrides the current/forecast/past mode color whenever the device is offline or the
+     *  last weather fetch failed, so the title row itself flags the problem instead of only the
+     *  (larger, easier-to-miss) tab bar - and instead of dumping the raw error into the weather display. */
+    private fun updateWeatherDateTimeBackground(state: UiState = AppState.uiState.value) {
+        val networkFailing = !state.networkReachable || state.weatherError != null
+        val colorRes = if (networkFailing) {
+            R.color.red
+        } else when {
+            viewingDayOffset > 0 -> R.color.weather_title_bg_forecast
+            viewingDayOffset < 0 -> R.color.weather_title_bg_past
+            else -> R.color.weather_title_bg_current
+        }
+        binding.weatherDateTimeText.setBackgroundColor(getColor(colorRes))
     }
 
     private fun formatSignedDelta(delta: Double?, unit: String): String =
@@ -628,6 +691,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val SWIPE_THRESHOLD_PX = 80
         private const val DAY_MILLIS = 24 * 60 * 60 * 1000L
+        private const val STALE_WEATHER_THRESHOLD_MS = 60 * 60 * 1000L
         private const val WAKE_OVERRIDE_DURATION_MS = 5 * 60 * 1000L
         private const val AUTO_CYCLE_INTERVAL_MS = 5 * 60 * 1000L
         private val AUTO_CYCLE_TABS = listOf(

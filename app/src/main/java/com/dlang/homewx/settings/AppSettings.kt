@@ -22,6 +22,7 @@ object AppSettings {
     private const val KEY_FORECAST_DAYS = "forecast_days"
     private const val KEY_SMOOTHING_WINDOW_MINUTES = "smoothing_window_minutes"
     private const val KEY_FLAT_RANGE_THRESHOLD = "flat_range_threshold"
+    private const val KEY_DAILY_WEATHER_SPLINE_ENABLED = "daily_weather_spline_enabled"
 
     const val DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES = 30
     const val MIN_WEATHER_SAMPLE_INTERVAL_MINUTES = 1
@@ -117,6 +118,15 @@ object AppSettings {
 
     fun setWebViewRequestLoggingEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit { putBoolean(KEY_WEBVIEW_REQUEST_LOGGING_ENABLED, enabled) }
+    }
+
+    /** Whether the Daily forecast graphs (temp/wind/precipitation) draw a smoothed spline curve
+     *  through each day's point instead of straight line segments. */
+    fun isDailyWeatherSplineEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_DAILY_WEATHER_SPLINE_ENABLED, true)
+
+    fun setDailyWeatherSplineEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit { putBoolean(KEY_DAILY_WEATHER_SPLINE_ENABLED, enabled) }
     }
 
     fun getHiddenSensorIds(context: Context): Set<String> =

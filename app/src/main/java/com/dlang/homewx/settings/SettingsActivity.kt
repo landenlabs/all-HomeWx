@@ -327,6 +327,8 @@ class SettingsActivity : AppCompatActivity() {
         binding.lightThresholdSlider.progress = lightThresholdLux - AppSettings.MIN_LIGHT_THRESHOLD_LUX.toInt()
         binding.lightThresholdValueText.text = "$lightThresholdLux lux"
 
+        binding.dailySplineSwitch.isChecked = AppSettings.isDailyWeatherSplineEnabled(this)
+
         val overrideEnabled = AppSettings.isTempSensorOverrideEnabled(this)
         binding.tempOverrideSwitch.isChecked = overrideEnabled
         binding.tempOverrideSensorSpinner.isEnabled = overrideEnabled && sensorIds.isNotEmpty()
@@ -369,6 +371,7 @@ class SettingsActivity : AppCompatActivity() {
         AppSettings.setScreenBrightnessPercent(this, progressToBrightnessPercent(binding.screenBrightnessSlider.progress))
         AppSettings.setBackgroundDarkenPercent(this, binding.backgroundDarkenSlider.progress)
         AppSettings.setLightThresholdLux(this, progressToLux(binding.lightThresholdSlider.progress).toFloat())
+        AppSettings.setDailyWeatherSplineEnabled(this, binding.dailySplineSwitch.isChecked)
 
         val selectedSource = WeatherSourceId.values()[binding.weatherSourceSpinner.selectedItemPosition]
         WeatherSourceConfig.setActiveSource(this, selectedSource)

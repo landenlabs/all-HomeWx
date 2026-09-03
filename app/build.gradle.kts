@@ -20,13 +20,16 @@ android {
 
     defaultConfig {
         applicationId = "com.dlang.homewx"
-        minSdk = 24
+        minSdk = 28 // wxdata's AAR declares minSdk 28 (see wxdata-integration-notes.md)
         targetSdk = 37
         versionCode = 60420
         versionName = "6.04.20"
 
         val goveeApiKey = localProperties.getProperty("GOVEE_API_KEY") ?: ""
         buildConfigField("String", "GOVEE_API_KEY", "\"$goveeApiKey\"")
+
+        val sunApiKey = localProperties.getProperty("SUN_API_KEY") ?: ""
+        buildConfigField("String", "SUN_API_KEY", "\"$sunApiKey\"")
 
         val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date())
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
@@ -63,4 +66,12 @@ dependencies {
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
     implementation("com.squareup.picasso:picasso:2.71828")
     implementation("org.osmdroid:osmdroid-android:6.1.20")
+
+    // WxData (see wxdata-integration-notes.md) - a local .aar carries no dependency metadata of
+    // its own, so every one of its own dependencies must be declared here explicitly too, even
+    // the ones it marks "implementation" rather than "api".
+    implementation(files("libs/WxData-debug-2.26.0903.aar"))
+    implementation("com.squareup.okhttp3:logging-interceptor:5.5.0")
+    implementation("com.google.code.gson:gson:2.14.0")
+    implementation("org.greenrobot:eventbus:3.3.1")
 }

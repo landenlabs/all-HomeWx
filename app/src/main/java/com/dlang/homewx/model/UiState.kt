@@ -32,6 +32,7 @@ data class UiState(
     val currentWeather: CurrentConditions? = null,
     val weatherForecast: WeatherForecast? = null,
     val tempTrendNextHourF: Double? = null,
+    val tempTrendNext4HourF: Double? = null,
     val pressureTrend6hInHg: Double? = null,
     val dailyExtremes: DailyExtremes = DailyExtremes(),
     val historicalTempAverage: HistoricalTempAverage? = null,

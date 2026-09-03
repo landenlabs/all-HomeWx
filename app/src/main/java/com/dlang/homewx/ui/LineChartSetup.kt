@@ -95,13 +95,15 @@ object LineChartSetup {
         }
     }
 
-    /** Draws fixed horizontal threshold lines on the value (y) axis - e.g. wind speed's "high
-     *  wind" line, or temperature's freezing line. Replaces whatever horizontal limit lines the
-     *  chart had before, so pass an empty list to clear them. */
-    fun setThresholdLines(chart: LineChart, context: Context, thresholds: List<Pair<Float, Int>>) {
-        chart.axisLeft.removeAllLimitLines()
+    /** Draws fixed horizontal threshold lines on [axis] - e.g. wind speed's "high wind" line, or
+     *  temperature's freezing line. Defaults to the left axis (every chart but the sensor
+     *  graphs' dual-axis one is left-axis only); pass [chart]'s right axis for a series plotted
+     *  there instead. Replaces whatever horizontal limit lines were on that axis, so pass an
+     *  empty list to clear them. */
+    fun setThresholdLines(chart: LineChart, context: Context, thresholds: List<Pair<Float, Int>>, axis: YAxis = chart.axisLeft) {
+        axis.removeAllLimitLines()
         thresholds.forEach { (value, colorRes) ->
-            chart.axisLeft.addLimitLine(
+            axis.addLimitLine(
                 LimitLine(value).apply {
                     lineColor = ContextCompat.getColor(context, colorRes)
                     lineWidth = 1.5f
@@ -138,7 +140,8 @@ object LineChartSetup {
         context: Context,
         points: List<Pair<Long, Double>>,
         colorRes: Int = R.color.accent_warm,
-        filled: Boolean = false
+        filled: Boolean = false,
+        spline: Boolean = false
     ) {
         if (points.size < 2) {
             chart.clear()
@@ -151,7 +154,7 @@ object LineChartSetup {
             lineWidth = 2f
             setDrawCircles(false)
             setDrawValues(false)
-            mode = LineDataSet.Mode.LINEAR
+            mode = if (spline) LineDataSet.Mode.CUBIC_BEZIER else LineDataSet.Mode.LINEAR
             if (filled) {
                 setDrawFilled(true)
                 fillColor = color
@@ -238,7 +241,7 @@ object LineChartSetup {
 
     /** Like [render], but for the one chart in the app that plots two related series
      *  (daily high/low temperature) - each series gets its own color. */
-    fun renderSeries(chart: LineChart, context: Context, series: List<Pair<List<Pair<Long, Double>>, Int>>) {
+    fun renderSeries(chart: LineChart, context: Context, series: List<Pair<List<Pair<Long, Double>>, Int>>, spline: Boolean = false) {
         val dataSets = series.mapNotNull { (points, colorRes) ->
             if (points.size < 2) return@mapNotNull null
             val entries = points.map { (timeMillis, value) -> Entry(timeMillis / 1000f, value.toFloat()) }
@@ -247,7 +250,7 @@ object LineChartSetup {
                 lineWidth = 2f
                 setDrawCircles(false)
                 setDrawValues(false)
-                mode = LineDataSet.Mode.LINEAR
+                mode = if (spline) LineDataSet.Mode.CUBIC_BEZIER else LineDataSet.Mode.LINEAR
             }
         }
         if (dataSets.isEmpty()) {

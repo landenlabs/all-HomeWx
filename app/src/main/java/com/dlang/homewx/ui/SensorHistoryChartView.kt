@@ -26,7 +26,7 @@ import kotlin.math.roundToInt
 
 /**
  * One sensor's temperature+humidity history chart: a room-name watermark behind the plot,
- * dual-axis temp (left, yellow) / humidity (right, blue) lines with green day dividers, and a
+ * dual-axis humidity (left, blue) / temp (right, yellow) lines with green day dividers, and a
  * legend row below standing in for MPAndroidChart's own legend - a Temp/Humidity color key at
  * the start (highest priority, never shrinks), the sensor's current values centered in the row
  * (also never shrinks), and the room name at the end in white, which is the one that gives up
@@ -50,7 +50,6 @@ class SensorHistoryChartView(private val context: Context) {
         textSize = 30f
         setTypeface(typeface, Typeface.BOLD)
         setTextColor(ColorUtils.setAlphaComponent(ContextCompat.getColor(context, R.color.text_secondary), WATERMARK_ALPHA))
-        layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
     }
 
     private val chart = LineChart(context).apply {
@@ -65,18 +64,18 @@ class SensorHistoryChartView(private val context: Context) {
         LineChartSetup.configure(chart, context, description = null, xAxisValueFormatter)
         chart.axisLeft.apply {
             valueFormatter = object : ValueFormatter() {
-                override fun getFormattedValue(value: Float): String = "${value.toInt()}°"
+                override fun getFormattedValue(value: Float): String = "${value.toInt()}%"
             }
-            textColor = ContextCompat.getColor(context, R.color.accent_warm)
+            textColor = ContextCompat.getColor(context, R.color.accent_cool)
         }
         LineChartSetup.enableRightAxis(
             chart,
-            textColor = ContextCompat.getColor(context, R.color.accent_cool),
+            textColor = ContextCompat.getColor(context, R.color.accent_warm),
             valueFormatter = object : ValueFormatter() {
-                override fun getFormattedValue(value: Float): String = "${value.toInt()}%"
+                override fun getFormattedValue(value: Float): String = "${value.toInt()}°"
             }
         )
-        LineChartSetup.setThresholdLines(chart, context, listOf(100f to R.color.white, 32f to R.color.blue2))
+        LineChartSetup.setThresholdLines(chart, context, listOf(100f to R.color.white, 32f to R.color.blue2), axis = chart.axisRight)
         // The legend row built below replaces MPAndroidChart's own built-in legend with
         // Temp/Humidity key + current values + room name, so the chart's legend stays disabled
         // here (LineChartSetup.configure already turns it off by default).
@@ -84,9 +83,25 @@ class SensorHistoryChartView(private val context: Context) {
         val chartFrame = FrameLayout(context).apply {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
         }
-        // Watermark added first so it sits behind the chart, which has a transparent
-        // background and shows the watermark through its own empty space.
-        chartFrame.addView(watermark)
+        // Watermark added first (inside its own bias-positioned ConstraintLayout wrapper) so it
+        // sits behind the chart, which has a transparent background and shows the watermark
+        // through its own empty space. Biased toward the top third rather than dead center -
+        // center is where the y-axis auto-scaling and the "no history yet" empty-state message
+        // both already sit.
+        val watermarkOverlay = ConstraintLayout(context).apply {
+            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+            addView(
+                watermark,
+                ConstraintLayout.LayoutParams(ConstraintLayout.LayoutParams.WRAP_CONTENT, ConstraintLayout.LayoutParams.WRAP_CONTENT).apply {
+                    startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+                    endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+                    topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+                    bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+                    verticalBias = WATERMARK_VERTICAL_BIAS
+                }
+            )
+        }
+        chartFrame.addView(watermarkOverlay)
         chartFrame.addView(chart)
 
         val (legendRow, builtValuesText, builtNameText) = buildLegendRow()
@@ -191,12 +206,12 @@ class SensorHistoryChartView(private val context: Context) {
         LineChartSetup.renderDualAxis(
             chart,
             context,
-            leftSeries = smoothIfFlat(tempPoints),
-            leftColorRes = R.color.accent_warm,
-            leftLabel = "Temp",
-            rightSeries = smoothIfFlat(humidityPoints),
-            rightColorRes = R.color.accent_cool,
-            rightLabel = "Humidity"
+            leftSeries = smoothIfFlat(humidityPoints),
+            leftColorRes = R.color.accent_cool,
+            leftLabel = "Humidity",
+            rightSeries = smoothIfFlat(tempPoints),
+            rightColorRes = R.color.accent_warm,
+            rightLabel = "Temp"
         )
     }
 
@@ -239,5 +254,10 @@ class SensorHistoryChartView(private val context: Context) {
         /** 80% opacity - fully opaque read as too bold/distracting sitting behind the plotted
          *  lines, but ~29% (alpha 75) wasn't visible enough either. */
         private const val WATERMARK_ALPHA = 204
+
+        /** Keeps the watermark's vertical center within the chart's top third instead of dead
+         *  center, where it competed with the y-axis auto-scaling and the "no history yet"
+         *  empty-state message. Matches [ForecastGraphsPanel]'s equivalent watermarks. */
+        private const val WATERMARK_VERTICAL_BIAS = 0.15f
     }
 }

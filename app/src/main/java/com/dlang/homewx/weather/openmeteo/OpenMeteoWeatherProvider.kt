@@ -144,7 +144,9 @@ class OpenMeteoWeatherProvider : WeatherProvider {
 
         return (0 until times.length()).map { i ->
             DailyForecastEntry(
-                dateMillis = parseTimeMillis(times.getString(i), dayTimeFormat),
+                // Open-Meteo's daily times are midnight of each day - shifted to noon so the
+                // point plots in the middle of the day it represents, not at its very start.
+                dateMillis = parseTimeMillis(times.getString(i), dayTimeFormat) + TimeUnit.HOURS.toMillis(12),
                 highF = highs?.optDoubleOrNull(i),
                 lowF = lows?.optDoubleOrNull(i),
                 windMaxMph = windMax?.optDoubleOrNull(i),

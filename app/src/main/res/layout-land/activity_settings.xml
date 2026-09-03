@@ -153,6 +153,25 @@
                         </LinearLayout>
                     </LinearLayout>
 
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            style="@style/settings_label"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:text="@string/settings_daily_spline_switch" />
+
+                        <Switch
+                            android:id="@+id/dailySplineSwitch"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
+
                     <View style="@style/settings_divider" />
 
                     <!-- DISPLAY: the three slider controls, grouped together -->
