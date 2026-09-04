@@ -1,7 +1,7 @@
 package com.dlang.homewx.settings
 
+import android.content.Intent
 import android.os.Bundle
-import android.view.Gravity
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.CheckBox
@@ -39,6 +39,7 @@ class SettingsActivity : AppCompatActivity() {
     private val riverGaugeRepository = RiverGaugeRepository()
     private var riverGaugeCandidates: List<GaugeSite> = emptyList()
     private var riverGaugeCheckBoxes: List<CheckBox> = emptyList()
+    private var riverGaugeLabelEditTexts: List<EditText> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,6 +65,8 @@ class SettingsActivity : AppCompatActivity() {
         setUpBackgroundDarkenSlider()
         setUpLightThresholdSlider()
         setUpRiverGaugesSection()
+        setUpCollapsibleSection(binding.sensorsSectionHeader, binding.sensorsSectionContent, getString(R.string.settings_section_sensors))
+        setUpCollapsibleSection(binding.riversSectionHeader, binding.riversSectionContent, getString(R.string.settings_section_rivers))
         bindCurrentValues()
 
         binding.tempOverrideSwitch.setOnCheckedChangeListener { _, checked ->
@@ -71,6 +74,22 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         binding.undoButton.setOnClickListener { bindCurrentValues() }
+
+        binding.errorsButton.setOnClickListener { startActivity(Intent(this, ErrorLogActivity::class.java)) }
+        // Collected live (not just bound once on open) since HomeWxMonitorService keeps polling
+        // in the background and can log a new error while this screen is sitting in the foreground.
+        lifecycleScope.launch {
+            AppState.uiState.collect { state -> updateErrorsButton(state.errorLog.size) }
+        }
+    }
+
+    private fun updateErrorsButton(errorCount: Int) {
+        binding.errorsButton.isEnabled = errorCount > 0
+        binding.errorsButton.text = if (errorCount > 0) {
+            getString(R.string.settings_errors_button, errorCount)
+        } else {
+            getString(R.string.settings_errors_button_empty)
+        }
     }
 
     /** Settings auto-save on close instead of requiring an explicit Save tap; onPause covers
@@ -85,6 +104,63 @@ class SettingsActivity : AppCompatActivity() {
      *  decorFitsSystemWindows(false) the window never resizes on its own, so without this the
      *  keyboard simply overlaps whatever EditText is focused instead of the ScrollView shrinking
      *  to scroll it into view. */
+    /** Wires [header] as a tap target that shows/hides [content], starting collapsed - shared
+     *  by the Sensors and Rivers sections, since both grow with however many devices are
+     *  configured and were what pushed Errors/Undo below the fold before those moved to a fixed
+     *  footer. A trailing chevron on the header reflects the current state. */
+    private fun setUpCollapsibleSection(header: TextView, content: View, title: String) {
+        content.visibility = View.GONE
+        header.text = "$title  ▸"
+        header.setOnClickListener {
+            val expanding = content.visibility != View.VISIBLE
+            content.visibility = if (expanding) View.VISIBLE else View.GONE
+            header.text = if (expanding) "$title  ▾" else "$title  ▸"
+        }
+    }
+
+    /** One item's row in both the Sensors and Rivers lists: a checkbox with the item's full
+     *  (sometimes long - USGS station names especially) name, then a custom-name field on its
+     *  own row underneath, indented to align under the checkbox's label. Splitting the name and
+     *  the edit field across two rows (rather than side by side) keeps the long official names
+     *  from squeezing the edit field, and reads better on a narrower screen. */
+    private fun addLabeledCheckRow(
+        container: LinearLayout,
+        checkBoxText: String,
+        tag: String,
+        isChecked: Boolean,
+        currentLabel: String?
+    ): Pair<CheckBox, EditText> {
+        val indentPx = (36 * resources.displayMetrics.density).toInt()
+        val bottomMarginPx = (12 * resources.displayMetrics.density).toInt()
+
+        val checkBox = CheckBox(this).apply {
+            text = checkBoxText
+            this.tag = tag
+            this.isChecked = isChecked
+            setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text_primary))
+        }
+        val labelEditText = EditText(this).apply {
+            this.tag = tag
+            hint = getString(R.string.settings_sensor_label_hint)
+            setText(currentLabel)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text_primary))
+            setHintTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text_secondary))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                marginStart = indentPx
+                bottomMargin = bottomMarginPx
+            }
+        }
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+        column.addView(checkBox)
+        column.addView(labelEditText)
+        container.addView(column)
+        return checkBox to labelEditText
+    }
+
     private fun applySystemBarInsetPadding(view: View) {
         val baseLeft = view.paddingLeft
         val baseTop = view.paddingTop
@@ -144,41 +220,17 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         val hiddenIds = AppSettings.getHiddenSensorIds(this)
-        val marginPx = (8 * resources.displayMetrics.density).toInt()
-        sensorVisibilityCheckBoxes = sensors.map { sensor ->
-            CheckBox(this).apply {
-                text = sensor.roomName
-                tag = sensor.id
-                isChecked = sensor.id !in hiddenIds
-                setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text_primary))
-            }
+        val rows = sensors.map { sensor ->
+            addLabeledCheckRow(
+                container = container,
+                checkBoxText = sensor.roomName,
+                tag = sensor.id,
+                isChecked = sensor.id !in hiddenIds,
+                currentLabel = AppSettings.getSensorLabel(this, sensor.id)
+            )
         }
-        sensorLabelEditTexts = sensors.map { sensor ->
-            EditText(this).apply {
-                tag = sensor.id
-                hint = getString(R.string.settings_sensor_label_hint)
-                setText(AppSettings.getSensorLabel(this@SettingsActivity, sensor.id))
-                inputType = android.text.InputType.TYPE_CLASS_TEXT
-                setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text_primary))
-                setHintTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text_secondary))
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    marginStart = marginPx
-                }
-            }
-        }
-        sensorVisibilityCheckBoxes.zip(sensorLabelEditTexts).forEach { (checkBox, labelEditText) ->
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            }
-            row.addView(checkBox)
-            row.addView(labelEditText)
-            container.addView(row)
-        }
+        sensorVisibilityCheckBoxes = rows.map { it.first }
+        sensorLabelEditTexts = rows.map { it.second }
     }
 
     private fun setUpScreenBrightnessSlider() {
@@ -261,15 +313,20 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun rebuildRiverGaugeCheckBoxes(gauges: List<GaugeSite>, checkedSiteIds: Set<String>) {
         binding.riverGaugeCheckboxContainer.removeAllViews()
-        riverGaugeCheckBoxes = gauges.map { gauge ->
-            CheckBox(this).apply {
-                text = riverGaugeLabel(gauge)
-                tag = gauge.siteId
-                isChecked = gauge.siteId in checkedSiteIds
-                setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text_primary))
-            }
+        // The official USGS station names (shown on the checkbox itself, for context while
+        // picking) are long and not very readable at a glance - addLabeledCheckRow lets each
+        // selected gauge get a short custom name on its own row, same as indoor sensors already can.
+        val rows = gauges.map { gauge ->
+            addLabeledCheckRow(
+                container = binding.riverGaugeCheckboxContainer,
+                checkBoxText = riverGaugeLabel(gauge),
+                tag = gauge.siteId,
+                isChecked = gauge.siteId in checkedSiteIds,
+                currentLabel = RiverGaugeSettings.getGaugeLabel(this, gauge.siteId)
+            )
         }
-        riverGaugeCheckBoxes.forEach { binding.riverGaugeCheckboxContainer.addView(it) }
+        riverGaugeCheckBoxes = rows.map { it.first }
+        riverGaugeLabelEditTexts = rows.map { it.second }
     }
 
     private fun riverGaugeLabel(gauge: GaugeSite): String {
@@ -396,5 +453,8 @@ class SettingsActivity : AppCompatActivity() {
         RiverGaugeSettings.setZipCode(this, binding.riverZipEditText.text.toString().trim().takeIf { it.isNotBlank() })
         val checkedSiteIds = riverGaugeCheckBoxes.filter { it.isChecked }.map { it.tag as String }.toSet()
         RiverGaugeSettings.setSelectedGauges(this, riverGaugeCandidates.filter { it.siteId in checkedSiteIds })
+        riverGaugeLabelEditTexts.forEach { labelEditText ->
+            RiverGaugeSettings.setGaugeLabel(this, labelEditText.tag as String, labelEditText.text.toString())
+        }
     }
 }

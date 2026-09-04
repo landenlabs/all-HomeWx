@@ -362,17 +362,126 @@
 
             <View style="@style/settings_divider" />
 
-            <!-- SENSORS -->
+            <!-- SENSORS: collapsed by default (see SettingsActivity#setUpCollapsibleSection) -
+                 together with RIVERS right below it, this is what pushed Errors/Undo below the
+                 fold, since both lists grow with however many devices are configured. -->
             <TextView
+                android:id="@+id/sensorsSectionHeader"
                 style="@style/settings_section_header"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
                 android:text="@string/settings_section_sensors" />
 
             <LinearLayout
-                android:id="@+id/sensorVisibilityContainer"
+                android:id="@+id/sensorsSectionContent"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="vertical" />
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:id="@+id/sensorVisibilityContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="vertical" />
+            </LinearLayout>
+
+            <View style="@style/settings_divider" />
+
+            <!-- RIVERS: placed right after SENSORS (same checkbox + custom-name-on-its-own-row
+                 pattern, same collapse behavior) rather than down by Article Viewer. -->
+            <TextView
+                android:id="@+id/riversSectionHeader"
+                style="@style/settings_section_header"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                android:text="@string/settings_section_rivers" />
+
+            <LinearLayout
+                android:id="@+id/riversSectionContent"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:orientation="horizontal"
+                    android:baselineAligned="false">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            style="@style/settings_label"
+                            android:text="@string/settings_rivers_enabled_switch" />
+
+                        <Switch
+                            android:id="@+id/riverGaugesEnabledSwitch"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="16dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            style="@style/settings_label"
+                            android:text="@string/settings_rivers_zip_label" />
+
+                        <EditText
+                            android:id="@+id/riverZipEditText"
+                            android:layout_width="120dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:autofillHints=""
+                            android:inputType="number"
+                            android:maxLength="5"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16sp"
+                            tools:text="03079" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/findGaugesButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="start"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/settings_rivers_find_button" />
+
+                <TextView
+                    android:id="@+id/riverSearchStatusText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    tools:text="Searching for nearby gauges…" />
+
+                <LinearLayout
+                    android:id="@+id/riverGaugeCheckboxContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="vertical" />
+            </LinearLayout>
 
             <View style="@style/settings_divider" />
 
@@ -409,94 +518,32 @@
                 android:textSize="12sp"
                 tools:text="Log file: /data/user/0/com.dlang.homewx/files/webview_request_domains.log" />
 
-            <View style="@style/settings_divider" />
-
-            <!-- RIVERS -->
-            <TextView
-                style="@style/settings_section_header"
-                android:text="@string/settings_section_rivers" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:orientation="horizontal"
-                android:baselineAligned="false">
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        style="@style/settings_label"
-                        android:text="@string/settings_rivers_enabled_switch" />
-
-                    <Switch
-                        android:id="@+id/riverGaugesEnabledSwitch"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="16dp"
-                    android:orientation="vertical">
-
-                    <TextView
-                        style="@style/settings_label"
-                        android:text="@string/settings_rivers_zip_label" />
-
-                    <EditText
-                        android:id="@+id/riverZipEditText"
-                        android:layout_width="120dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:autofillHints=""
-                        android:inputType="number"
-                        android:maxLength="5"
-                        android:textColor="@color/text_primary"
-                        android:textSize="16sp"
-                        tools:text="03079" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <Button
-                android:id="@+id/findGaugesButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="start"
-                android:layout_marginTop="12dp"
-                android:text="@string/settings_rivers_find_button" />
-
-            <TextView
-                android:id="@+id/riverSearchStatusText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp"
-                tools:text="Searching for nearby gauges…" />
-
-            <LinearLayout
-                android:id="@+id/riverGaugeCheckboxContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="vertical" />
-
-            <Button
-                android:id="@+id/undoButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="start"
-                android:layout_marginTop="32dp"
-                android:text="@string/settings_undo" />
-
         </LinearLayout>
     </ScrollView>
+
+    <View style="@style/settings_divider" />
+
+    <!-- Fixed footer: stays visible without scrolling regardless of how long the Sensors/Rivers
+         lists get or whether their sections are expanded. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingStart="24dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp">
+
+        <Button
+            android:id="@+id/errorsButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_errors_button_empty" />
+
+        <Button
+            android:id="@+id/undoButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="@string/settings_undo" />
+    </LinearLayout>
 </LinearLayout>

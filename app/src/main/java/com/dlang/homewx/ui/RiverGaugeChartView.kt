@@ -1,20 +1,13 @@
 package com.dlang.homewx.ui
 
 import android.content.Context
-import android.graphics.Color
-import android.graphics.Typeface
 import android.text.Spannable
 import android.text.SpannableStringBuilder
-import android.text.TextUtils
 import android.text.style.ForegroundColorSpan
-import android.view.Gravity
 import android.view.View
-import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
-import androidx.core.graphics.ColorUtils
 import com.dlang.homewx.R
 import com.dlang.homewx.rivers.GaugeReading
 import com.github.mikephil.charting.charts.LineChart
@@ -27,31 +20,21 @@ import kotlin.math.roundToInt
 /**
  * One river gauge's level+flow history chart - a gauge-name watermark behind the plot, dual-
  * axis level (left, blue) / flow (right, purple) lines, and a legend row below - same shape as
- * [SensorHistoryChartView]'s Temp/Humidity layout, with Level/Flow instead. A gauge that only
- * reports one of the two parameters just plots a single line; the other axis stays present but
- * empty (harmless - [LineChartSetup.renderDualAxis] already skips a series with fewer than 2 points).
+ * [SensorHistoryChartView]'s Temp/Humidity layout, with Level/Flow instead. The watermark+chart
+ * frame and legend row shells come from [LineChartSetup], shared with [SensorHistoryChartView]
+ * so a change to that shell only needs to happen once. A gauge that only reports one of the two
+ * parameters just plots a single line; the other axis stays present but empty (harmless -
+ * [LineChartSetup.renderDualAxis] already skips a series with fewer than 2 points).
  */
 class RiverGaugeChartView(private val context: Context) {
 
-    private val density = context.resources.displayMetrics.density
     private val hourOnlyFormat = SimpleDateFormat("h a", Locale.getDefault())
     private val xAxisValueFormatter = object : ValueFormatter() {
         override fun getFormattedValue(value: Float): String = hourOnlyFormat.format(Date(value.toLong() * 1000L))
     }
 
-    private val watermark = TextView(context).apply {
-        gravity = Gravity.CENTER
-        maxLines = 2
-        textSize = 30f
-        setTypeface(typeface, Typeface.BOLD)
-        setTextColor(ColorUtils.setAlphaComponent(ContextCompat.getColor(context, R.color.text_secondary), WATERMARK_ALPHA))
-        layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-    }
-
-    private val chart = LineChart(context).apply {
-        layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-    }
-
+    private val chart = LineChart(context)
+    private val watermark: TextView
     private val valuesText: TextView
     private val nameText: TextView
     val view: View
@@ -72,14 +55,13 @@ class RiverGaugeChartView(private val context: Context) {
             }
         )
 
-        val chartFrame = FrameLayout(context).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
-        }
-        // Watermark added first so it sits behind the chart, same as SensorHistoryChartView.
-        chartFrame.addView(watermark)
-        chartFrame.addView(chart)
+        val (chartFrame, builtWatermark) = LineChartSetup.buildWatermarkedChartFrame(context, chart)
+        watermark = builtWatermark
 
-        val (legendRow, builtValuesText, builtNameText) = buildLegendRow()
+        val (legendRow, builtValuesText, builtNameText) = LineChartSetup.buildLegendRow(
+            context,
+            listOf(R.color.accent_cool to "Level", R.color.accent_purple to "Flow")
+        )
         valuesText = builtValuesText
         nameText = builtNameText
 
@@ -88,74 +70,6 @@ class RiverGaugeChartView(private val context: Context) {
             addView(chartFrame)
             addView(legendRow)
         }
-    }
-
-    private fun buildLegendRow(): Triple<View, TextView, TextView> {
-        val row = ConstraintLayout(context).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                topMargin = (4 * density).toInt()
-            }
-        }
-
-        fun legendSwatch(colorRes: Int): View {
-            val sizePx = (10 * density).toInt()
-            return View(context).apply {
-                layoutParams = LinearLayout.LayoutParams(sizePx, sizePx).apply { marginEnd = (4 * density).toInt() }
-                setBackgroundColor(ContextCompat.getColor(context, colorRes))
-            }
-        }
-
-        fun legendLabel(text: String): TextView = TextView(context).apply {
-            this.text = text
-            textSize = 12f
-            setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
-            setPadding(0, 0, (12 * density).toInt(), 0)
-        }
-
-        val legend = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            addView(legendSwatch(R.color.accent_cool))
-            addView(legendLabel("Level"))
-            addView(legendSwatch(R.color.accent_purple))
-            addView(legendLabel("Flow"))
-            layoutParams = ConstraintLayout.LayoutParams(ConstraintLayout.LayoutParams.WRAP_CONTENT, ConstraintLayout.LayoutParams.WRAP_CONTENT).apply {
-                startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-                topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-                bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-            }
-        }
-
-        val valuesText = TextView(context).apply {
-            id = View.generateViewId()
-            textSize = 13f
-            layoutParams = ConstraintLayout.LayoutParams(ConstraintLayout.LayoutParams.WRAP_CONTENT, ConstraintLayout.LayoutParams.WRAP_CONTENT).apply {
-                startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-                endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-                topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-                bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-            }
-        }
-
-        val nameText = TextView(context).apply {
-            setTextColor(Color.WHITE)
-            textSize = 12f
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
-            gravity = Gravity.END
-            layoutParams = ConstraintLayout.LayoutParams(0, ConstraintLayout.LayoutParams.WRAP_CONTENT).apply {
-                startToEnd = valuesText.id
-                endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-                topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-                bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-                marginStart = (8 * density).toInt()
-            }
-        }
-
-        row.addView(legend)
-        row.addView(valuesText)
-        row.addView(nameText)
-        return Triple(row, valuesText, nameText)
     }
 
     /** Cheap to call often (e.g. every state tick) - updates the watermark, the legend row's
@@ -188,9 +102,5 @@ class RiverGaugeChartView(private val context: Context) {
             rightColorRes = R.color.accent_purple,
             rightLabel = "Flow"
         )
-    }
-
-    companion object {
-        private const val WATERMARK_ALPHA = 204
     }
 }

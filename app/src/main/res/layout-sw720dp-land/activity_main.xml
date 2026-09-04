@@ -58,7 +58,7 @@
         android:layout_width="28dp"
         android:layout_height="28dp"
         android:layout_marginEnd="24dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
+        android:background="@drawable/bg_settings_gear"
         android:contentDescription="@string/settings_title"
         android:padding="2dp"
         android:src="@drawable/ic_settings"
@@ -189,6 +189,21 @@
         <TextView android:id="@+id/lyMaxLabelText" style="@style/wx_label" android:text="@string/wx_lbl_ly_max" />
         <TextView android:id="@+id/lyMaxValueText" style="@style/wx_value" />
     </GridLayout>
+
+    <!-- Small attribution badge for the active weather source (Open-Meteo/WxData) - source
+         images are 180x180 square logos, sized down here; alpha keeps it from competing with
+         the actual weather data above it. -->
+    <ImageView
+        android:id="@+id/weatherSourceBadge"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_margin="12dp"
+        android:alpha="0.85"
+        android:contentDescription="@null"
+        android:scaleType="fitCenter"
+        app:layout_constraintBottom_toBottomOf="@id/weatherBackgroundImage"
+        app:layout_constraintEnd_toEndOf="@id/weatherBackgroundImage"
+        tools:src="@drawable/wx_source_wxdata" />
 
     <!-- SENSORS SECTION -->
     <View

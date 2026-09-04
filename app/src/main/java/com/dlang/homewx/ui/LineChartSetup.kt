@@ -2,7 +2,16 @@ package com.dlang.homewx.ui
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Typeface
+import android.text.TextUtils
+import android.view.Gravity
+import android.view.View
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
 import com.dlang.homewx.R
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.LimitLine
@@ -259,5 +268,130 @@ object LineChartSetup {
         }
         chart.data = LineData(dataSets)
         chart.invalidate()
+    }
+
+    /** 80% opacity for a watermark sitting behind a plotted line - fully opaque reads as too
+     *  bold/distracting, ~29% (alpha 75) wasn't visible enough. Shared by every "N stacked
+     *  per-entity dual-axis history chart" card in the app. */
+    private const val WATERMARK_ALPHA = 204
+
+    /** Keeps a chart-card watermark's vertical center within the top third of the chart instead
+     *  of dead center, where it competes with the y-axis auto-scaling and any "no history yet"
+     *  empty-state message. */
+    private const val WATERMARK_VERTICAL_BIAS = 0.15f
+
+    /**
+     * Builds the watermark-behind-chart frame shared by every "one card per entity" dual-axis
+     * history chart in the app (indoor sensors' Temp/Humidity via [SensorHistoryChartView],
+     * river gauges' Level/Flow via [RiverGaugeChartView]) - this is the one piece those two
+     * classes had each built by hand, and the watermark's vertical position (top third, not
+     * dead center) drifted out of sync between them as a result. Extracting it here means a
+     * future change to this shell only needs to happen once. [chart] is added on top of (and
+     * must already have a transparent background so the watermark shows through empty space).
+     */
+    fun buildWatermarkedChartFrame(context: Context, chart: LineChart, entityNameTextSizeSp: Float = 30f): Pair<FrameLayout, TextView> {
+        val watermark = TextView(context).apply {
+            gravity = Gravity.CENTER
+            maxLines = 2
+            textSize = entityNameTextSizeSp
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(ColorUtils.setAlphaComponent(ContextCompat.getColor(context, R.color.text_secondary), WATERMARK_ALPHA))
+        }
+        val watermarkOverlay = ConstraintLayout(context).apply {
+            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+            addView(
+                watermark,
+                ConstraintLayout.LayoutParams(ConstraintLayout.LayoutParams.WRAP_CONTENT, ConstraintLayout.LayoutParams.WRAP_CONTENT).apply {
+                    startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+                    endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+                    topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+                    bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+                    verticalBias = WATERMARK_VERTICAL_BIAS
+                }
+            )
+        }
+        val chartFrame = FrameLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        }
+        // Watermark overlay added first so it sits behind the chart.
+        chartFrame.addView(watermarkOverlay)
+        chartFrame.addView(chart)
+        return chartFrame to watermark
+    }
+
+    /**
+     * Builds the legend row shared by every "one card per entity" dual-axis history chart card:
+     * a color-key swatch+label per entry in [legendEntries] (highest priority, never shrinks),
+     * the entity's current values centered in the row (also never shrinks), and the entity's
+     * name at the end in white, which is the one that gives up space and ellipsizes if the row
+     * is too narrow for all three.
+     */
+    fun buildLegendRow(context: Context, legendEntries: List<Pair<Int, String>>): Triple<View, TextView, TextView> {
+        val density = context.resources.displayMetrics.density
+        val row = ConstraintLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = (4 * density).toInt()
+            }
+        }
+
+        fun legendSwatch(colorRes: Int): View {
+            val sizePx = (10 * density).toInt()
+            return View(context).apply {
+                layoutParams = LinearLayout.LayoutParams(sizePx, sizePx).apply { marginEnd = (4 * density).toInt() }
+                setBackgroundColor(ContextCompat.getColor(context, colorRes))
+            }
+        }
+
+        fun legendLabel(text: String): TextView = TextView(context).apply {
+            this.text = text
+            textSize = 12f
+            setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
+            setPadding(0, 0, (12 * density).toInt(), 0)
+        }
+
+        val legend = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            legendEntries.forEach { (colorRes, label) ->
+                addView(legendSwatch(colorRes))
+                addView(legendLabel(label))
+            }
+            layoutParams = ConstraintLayout.LayoutParams(ConstraintLayout.LayoutParams.WRAP_CONTENT, ConstraintLayout.LayoutParams.WRAP_CONTENT).apply {
+                startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+                topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+                bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+            }
+        }
+
+        val valuesText = TextView(context).apply {
+            id = View.generateViewId()
+            textSize = 13f
+            layoutParams = ConstraintLayout.LayoutParams(ConstraintLayout.LayoutParams.WRAP_CONTENT, ConstraintLayout.LayoutParams.WRAP_CONTENT).apply {
+                startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+                endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+                topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+                bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+            }
+        }
+
+        val nameText = TextView(context).apply {
+            setTextColor(Color.WHITE)
+            textSize = 12f
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            gravity = Gravity.END
+            layoutParams = ConstraintLayout.LayoutParams(0, ConstraintLayout.LayoutParams.WRAP_CONTENT).apply {
+                startToEnd = valuesText.id
+                endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+                topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+                bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+                marginStart = (8 * density).toInt()
+            }
+        }
+
+        row.addView(legend)
+        row.addView(valuesText)
+        row.addView(nameText)
+        return Triple(row, valuesText, nameText)
     }
 }

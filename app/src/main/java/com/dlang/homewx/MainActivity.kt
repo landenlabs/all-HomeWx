@@ -186,6 +186,17 @@ class MainActivity : AppCompatActivity() {
         screenPowerController.refresh()
         sensorAdapter.submit(visibleSensors(AppState.uiState.value.sensors))
         updateRiverTabVisibility()
+        updateWeatherSourceBadge()
+    }
+
+    /** The active weather source only changes while this activity is paused (Settings is a
+     *  separate Activity), so re-checking here on every resume is enough, no need to watch AppState. */
+    private fun updateWeatherSourceBadge() {
+        val badgeRes = when (WeatherSourceConfig.getActiveSource(this)) {
+            WeatherSourceId.OPEN_METEO -> R.drawable.wx_source_open_meteo
+            WeatherSourceId.WXDATA -> R.drawable.wx_source_wxdata
+        }
+        binding.weatherSourceBadge.setImageResource(badgeRes)
     }
 
     /** The Rivers tab only shows once the feature is enabled and gauges are selected in
@@ -282,6 +293,13 @@ class MainActivity : AppCompatActivity() {
                     getColor(if (state.networkReachable) R.color.bg_panel_bottom else R.color.red)
                 )
                 updateWeatherDateTimeBackground(state)
+
+                // Stays red until the Errors panel is opened and cleared, independent of whether
+                // the live network/weather problem that caused them has since recovered - so a
+                // transient failure isn't lost the moment the date/time bar goes back to normal.
+                binding.settingsButton.imageTintList = ColorStateList.valueOf(
+                    getColor(if (state.errorLog.isNotEmpty()) R.color.red_dark else R.color.text_secondary)
+                )
             }
         }
     }
@@ -486,10 +504,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Red overrides the current/forecast/past mode color whenever the device is offline or the
-     *  last weather fetch failed, so the title row itself flags the problem instead of only the
-     *  (larger, easier-to-miss) tab bar - and instead of dumping the raw error into the weather display. */
+     *  most recent fetch failed on any of the network-backed endpoints (weather, sensors, or
+     *  rivers if enabled), so the title row itself flags the problem instead of only the
+     *  (larger, easier-to-miss) tab bar - and instead of dumping the raw error into the weather
+     *  display. Every one of these fields is cleared back to null on that endpoint's very next
+     *  successful poll (see HomeWxMonitorService), so this reverts to the normal background on
+     *  its own the moment everything is healthy again - no separate "recovered" step needed. */
     private fun updateWeatherDateTimeBackground(state: UiState = AppState.uiState.value) {
-        val networkFailing = !state.networkReachable || state.weatherError != null
+        val riversFailing = RiverGaugeSettings.isEnabled(this) && state.riverError != null
+        val networkFailing = !state.networkReachable ||
+            state.weatherError != null ||
+            state.lastError != null ||
+            riversFailing
         val colorRes = if (networkFailing) {
             R.color.red
         } else when {
@@ -649,7 +675,9 @@ class MainActivity : AppCompatActivity() {
      *  [refreshSensorGraphs]. Current values come from [AppState] (already in memory); history
      *  needs an async DB read per gauge. */
     private fun refreshRiverGraphs() {
-        val gauges = RiverGaugeSettings.getSelectedGauges(this)
+        val gauges = RiverGaugeSettings.getSelectedGauges(this).map { gauge ->
+            RiverGaugeSettings.getGaugeLabel(this, gauge.siteId)?.let { gauge.copy(name = it) } ?: gauge
+        }
         riverGraphsPanel.setGauges(gauges, AppState.uiState.value.riverReadings)
         lifecycleScope.launch {
             val sinceMillis = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(48)

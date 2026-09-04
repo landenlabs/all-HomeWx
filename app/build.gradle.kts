@@ -70,7 +70,10 @@ dependencies {
     // WxData (see wxdata-integration-notes.md) - a local .aar carries no dependency metadata of
     // its own, so every one of its own dependencies must be declared here explicitly too, even
     // the ones it marks "implementation" rather than "api".
-    implementation(files("libs/WxData-debug-2.26.0903.aar"))
+    // 2.26.0903b: same-day hotfix for two races in WxCurrentFetcher/WxDailyFetcher/
+    // WxHourlyFetcher/WxAlmanacDailyFetcher introduced by the 2.26.0903 Retrofit/RxJava removal -
+    // see max-auto-android-wxdata commit history for details.
+    implementation(files("libs/WxData-debug-2.26.0903b.aar"))
     implementation("com.squareup.okhttp3:logging-interceptor:5.5.0")
     implementation("com.google.code.gson:gson:2.14.0")
     implementation("org.greenrobot:eventbus:3.3.1")

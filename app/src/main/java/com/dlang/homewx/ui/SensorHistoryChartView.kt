@@ -1,20 +1,13 @@
 package com.dlang.homewx.ui
 
 import android.content.Context
-import android.graphics.Color
-import android.graphics.Typeface
 import android.text.Spannable
 import android.text.SpannableStringBuilder
-import android.text.TextUtils
 import android.text.style.ForegroundColorSpan
-import android.view.Gravity
 import android.view.View
-import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
-import androidx.core.graphics.ColorUtils
 import com.dlang.homewx.R
 import com.dlang.homewx.settings.AppSettings
 import com.github.mikephil.charting.charts.LineChart
@@ -28,9 +21,10 @@ import kotlin.math.roundToInt
  * One sensor's temperature+humidity history chart: a room-name watermark behind the plot,
  * dual-axis humidity (left, blue) / temp (right, yellow) lines with green day dividers, and a
  * legend row below standing in for MPAndroidChart's own legend - a Temp/Humidity color key at
- * the start (highest priority, never shrinks), the sensor's current values centered in the row
- * (also never shrinks), and the room name at the end in white, which is the one that gives up
- * space and ellipsizes if the row is too narrow for all three.
+ * the start, the sensor's current values centered in the row, and the room name at the end.
+ * The watermark+chart frame and legend row shells come from [LineChartSetup] - shared with
+ * [RiverGaugeChartView] (Level/Flow instead of Temp/Humidity), so a change to that shell (e.g.
+ * the watermark's vertical position) only needs to happen once.
  *
  * Shared by [SensorGraphsPanel] (one instance per currently-visible sensor) and
  * [SensorChartPanel] (one instance, for whichever sensor row was tapped on the weather panel).
@@ -38,24 +32,13 @@ import kotlin.math.roundToInt
  */
 class SensorHistoryChartView(private val context: Context) {
 
-    private val density = context.resources.displayMetrics.density
     private val hourOnlyFormat = SimpleDateFormat("h a", Locale.getDefault())
     private val xAxisValueFormatter = object : ValueFormatter() {
         override fun getFormattedValue(value: Float): String = hourOnlyFormat.format(Date(value.toLong() * 1000L))
     }
 
-    private val watermark = TextView(context).apply {
-        gravity = Gravity.CENTER
-        maxLines = 2
-        textSize = 30f
-        setTypeface(typeface, Typeface.BOLD)
-        setTextColor(ColorUtils.setAlphaComponent(ContextCompat.getColor(context, R.color.text_secondary), WATERMARK_ALPHA))
-    }
-
-    private val chart = LineChart(context).apply {
-        layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-    }
-
+    private val chart = LineChart(context)
+    private val watermark: TextView
     private val valuesText: TextView
     private val nameText: TextView
     val view: View
@@ -80,31 +63,13 @@ class SensorHistoryChartView(private val context: Context) {
         // Temp/Humidity key + current values + room name, so the chart's legend stays disabled
         // here (LineChartSetup.configure already turns it off by default).
 
-        val chartFrame = FrameLayout(context).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
-        }
-        // Watermark added first (inside its own bias-positioned ConstraintLayout wrapper) so it
-        // sits behind the chart, which has a transparent background and shows the watermark
-        // through its own empty space. Biased toward the top third rather than dead center -
-        // center is where the y-axis auto-scaling and the "no history yet" empty-state message
-        // both already sit.
-        val watermarkOverlay = ConstraintLayout(context).apply {
-            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-            addView(
-                watermark,
-                ConstraintLayout.LayoutParams(ConstraintLayout.LayoutParams.WRAP_CONTENT, ConstraintLayout.LayoutParams.WRAP_CONTENT).apply {
-                    startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-                    endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-                    topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-                    bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-                    verticalBias = WATERMARK_VERTICAL_BIAS
-                }
-            )
-        }
-        chartFrame.addView(watermarkOverlay)
-        chartFrame.addView(chart)
+        val (chartFrame, builtWatermark) = LineChartSetup.buildWatermarkedChartFrame(context, chart)
+        watermark = builtWatermark
 
-        val (legendRow, builtValuesText, builtNameText) = buildLegendRow()
+        val (legendRow, builtValuesText, builtNameText) = LineChartSetup.buildLegendRow(
+            context,
+            listOf(R.color.accent_warm to "Temp", R.color.accent_cool to "Humidity")
+        )
         valuesText = builtValuesText
         nameText = builtNameText
 
@@ -113,74 +78,6 @@ class SensorHistoryChartView(private val context: Context) {
             addView(chartFrame)
             addView(legendRow)
         }
-    }
-
-    private fun buildLegendRow(): Triple<View, TextView, TextView> {
-        val row = ConstraintLayout(context).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                topMargin = (4 * density).toInt()
-            }
-        }
-
-        fun legendSwatch(colorRes: Int): View {
-            val sizePx = (10 * density).toInt()
-            return View(context).apply {
-                layoutParams = LinearLayout.LayoutParams(sizePx, sizePx).apply { marginEnd = (4 * density).toInt() }
-                setBackgroundColor(ContextCompat.getColor(context, colorRes))
-            }
-        }
-
-        fun legendLabel(text: String): TextView = TextView(context).apply {
-            this.text = text
-            textSize = 12f
-            setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
-            setPadding(0, 0, (12 * density).toInt(), 0)
-        }
-
-        val legend = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            addView(legendSwatch(R.color.accent_warm))
-            addView(legendLabel("Temp"))
-            addView(legendSwatch(R.color.accent_cool))
-            addView(legendLabel("Humidity"))
-            layoutParams = ConstraintLayout.LayoutParams(ConstraintLayout.LayoutParams.WRAP_CONTENT, ConstraintLayout.LayoutParams.WRAP_CONTENT).apply {
-                startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-                topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-                bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-            }
-        }
-
-        val valuesText = TextView(context).apply {
-            id = View.generateViewId()
-            textSize = 13f
-            layoutParams = ConstraintLayout.LayoutParams(ConstraintLayout.LayoutParams.WRAP_CONTENT, ConstraintLayout.LayoutParams.WRAP_CONTENT).apply {
-                startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-                endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-                topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-                bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-            }
-        }
-
-        val nameText = TextView(context).apply {
-            setTextColor(Color.WHITE)
-            textSize = 12f
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
-            gravity = Gravity.END
-            layoutParams = ConstraintLayout.LayoutParams(0, ConstraintLayout.LayoutParams.WRAP_CONTENT).apply {
-                startToEnd = valuesText.id
-                endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-                topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-                bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-                marginStart = (8 * density).toInt()
-            }
-        }
-
-        row.addView(legend)
-        row.addView(valuesText)
-        row.addView(nameText)
-        return Triple(row, valuesText, nameText)
     }
 
     /** Cheap to call often (e.g. every state tick) - updates the watermark, the legend row's
@@ -248,16 +145,5 @@ class SensorHistoryChartView(private val context: Context) {
             val smoothedValue = if (localRange < flatRangeThreshold) window.average() else value
             timeMillis to smoothedValue
         }
-    }
-
-    companion object {
-        /** 80% opacity - fully opaque read as too bold/distracting sitting behind the plotted
-         *  lines, but ~29% (alpha 75) wasn't visible enough either. */
-        private const val WATERMARK_ALPHA = 204
-
-        /** Keeps the watermark's vertical center within the chart's top third instead of dead
-         *  center, where it competed with the y-axis auto-scaling and the "no history yet"
-         *  empty-state message. Matches [ForecastGraphsPanel]'s equivalent watermarks. */
-        private const val WATERMARK_VERTICAL_BIAS = 0.15f
     }
 }

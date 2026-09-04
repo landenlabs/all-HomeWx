@@ -10,6 +10,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
@@ -74,13 +75,30 @@ class HomeWxMonitorService : LifecycleService() {
     private var sensorFailureCountsDay: Long? = null
 
     private val connectivityManager by lazy { getSystemService(ConnectivityManager::class.java) }
+    /** onAvailable/onLost alone can miss a transition (e.g. a fast flap where the default
+     *  network is replaced, or a capability-only change with no onLost/onAvailable pair at
+     *  all) and leave UiState.networkReachable stuck on the wrong value indefinitely - that's
+     *  the "red bar never clears" bug. onCapabilitiesChanged narrows the flag to the network's
+     *  actual internet+validated state, and the watchdog loop below re-asserts ground truth on
+     *  a timer regardless of what the callback last said, so a missed event can't stick forever. */
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
+            Log.i(TAG, "networkCallback: onAvailable $network")
             AppState.uiState.update { it.copy(networkReachable = true) }
         }
 
         override fun onLost(network: Network) {
+            Log.w(TAG, "networkCallback: onLost $network")
             AppState.uiState.update { it.copy(networkReachable = false) }
+        }
+
+        override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+            val reachable = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            if (AppState.uiState.value.networkReachable != reachable) {
+                Log.i(TAG, "networkCallback: onCapabilitiesChanged reachable=$reachable $network")
+            }
+            AppState.uiState.update { it.copy(networkReachable = reachable) }
         }
     }
 
@@ -102,6 +120,21 @@ class HomeWxMonitorService : LifecycleService() {
         lightSensorMonitor.start()
         AppState.uiState.update { it.copy(networkReachable = isNetworkCurrentlyReachable()) }
         connectivityManager.registerDefaultNetworkCallback(networkCallback)
+
+        // Ground-truth watchdog: reconciles networkReachable against an actual query on a
+        // timer, independent of networkCallback. This is what actually fixes the "stuck"
+        // symptom - even if a callback event is ever missed, this self-corrects within one tick
+        // instead of leaving the red bar stuck until the app is restarted.
+        lifecycleScope.launch {
+            while (true) {
+                val reachable = isNetworkCurrentlyReachable()
+                if (AppState.uiState.value.networkReachable != reachable) {
+                    Log.w(TAG, "Network watchdog correcting stale reachable flag to $reachable")
+                }
+                AppState.uiState.update { it.copy(networkReachable = reachable) }
+                delay(NETWORK_WATCHDOG_INTERVAL_MS)
+            }
+        }
 
         lifecycleScope.launch {
             while (true) {
@@ -147,7 +180,10 @@ class HomeWxMonitorService : LifecycleService() {
                     applyTempSensorOverrideToCurrentConditions()
                     refreshDailyExtremes()
                 } catch (e: Exception) {
-                    AppState.uiState.update { it.copy(lastError = e.message ?: "Govee refresh failed") }
+                    val message = e.message ?: "Govee refresh failed"
+                    Log.e(TAG, "Govee refresh failed", e)
+                    AppState.recordError("Govee", e)
+                    AppState.uiState.update { it.copy(lastError = message) }
                 }
                 val intervalMs = if (AppState.uiState.value.lightMode == LightMode.QUIET) {
                     QUIET_POLL_INTERVAL_MS
@@ -159,6 +195,7 @@ class HomeWxMonitorService : LifecycleService() {
         }
 
         lifecycleScope.launch {
+            var consecutiveFailures = 0
             while (true) {
                 try {
                     val current = weatherRepository.getCurrentConditions()
@@ -179,14 +216,26 @@ class HomeWxMonitorService : LifecycleService() {
                             weatherError = null
                         )
                     }
+                    consecutiveFailures = 0
                     applyTempSensorOverrideToCurrentConditions()
                     refreshDailyExtremes()
                     refreshHistoricalAverageIfNewDay()
                     saveTodaySnapshot()
                 } catch (e: Exception) {
-                    AppState.uiState.update { it.copy(weatherError = e.message ?: "Weather refresh failed") }
+                    consecutiveFailures++
+                    val message = e.message ?: "Weather refresh failed"
+                    Log.e(
+                        TAG,
+                        "Weather refresh failed (attempt $consecutiveFailures, " +
+                            "source=${WeatherSourceConfig.getActiveSource(applicationContext)}, " +
+                            "networkReachable=${AppState.uiState.value.networkReachable})",
+                        e
+                    )
+                    AppState.recordError("Weather", e)
+                    AppState.uiState.update { it.copy(weatherError = message) }
                 }
-                delay(AppSettings.getWeatherSampleIntervalMinutes(applicationContext) * 60_000L)
+                val normalIntervalMs = AppSettings.getWeatherSampleIntervalMinutes(applicationContext) * 60_000L
+                delay(retryDelayMs(consecutiveFailures, normalIntervalMs))
             }
         }
 
@@ -194,7 +243,11 @@ class HomeWxMonitorService : LifecycleService() {
             while (true) {
                 // Each source is fetched independently so one feed failing doesn't blank out the other.
                 val items = NewsSourceId.values().associateWith { source ->
-                    runCatching { newsRepository.fetchFeed(source) }.getOrElse { emptyList() }
+                    runCatching { newsRepository.fetchFeed(source) }.getOrElse { e ->
+                        Log.w(TAG, "News feed $source failed", e)
+                        AppState.recordError("News:$source", e)
+                        emptyList()
+                    }
                 }
                 AppState.uiState.update { it.copy(newsItemsBySource = items) }
                 delay(NEWS_POLL_INTERVAL_MS)
@@ -202,6 +255,7 @@ class HomeWxMonitorService : LifecycleService() {
         }
 
         lifecycleScope.launch {
+            var consecutiveFailures = 0
             while (true) {
                 val gauges = RiverGaugeSettings.getSelectedGauges(applicationContext)
                 if (RiverGaugeSettings.isEnabled(applicationContext) && gauges.isNotEmpty()) {
@@ -228,11 +282,18 @@ class HomeWxMonitorService : LifecycleService() {
                         AppState.uiState.update {
                             it.copy(riverReadings = latest, riverReadingsUpdatedAtMillis = System.currentTimeMillis(), riverError = null)
                         }
+                        consecutiveFailures = 0
                     } catch (e: Exception) {
-                        AppState.uiState.update { it.copy(riverError = e.message ?: "River gauge refresh failed") }
+                        consecutiveFailures++
+                        val message = e.message ?: "River gauge refresh failed"
+                        Log.e(TAG, "River gauge refresh failed (attempt $consecutiveFailures)", e)
+                        AppState.recordError("River", e)
+                        AppState.uiState.update { it.copy(riverError = message) }
                     }
+                } else {
+                    consecutiveFailures = 0
                 }
-                delay(RIVER_POLL_INTERVAL_MS)
+                delay(retryDelayMs(consecutiveFailures, RIVER_POLL_INTERVAL_MS))
             }
         }
     }
@@ -248,14 +309,31 @@ class HomeWxMonitorService : LifecycleService() {
 
     override fun onDestroy() {
         lightSensorMonitor.stop()
-        connectivityManager.unregisterNetworkCallback(networkCallback)
+        try {
+            connectivityManager.unregisterNetworkCallback(networkCallback)
+        } catch (e: IllegalArgumentException) {
+            // onCreate can bail out (stopSelf()) before registering the callback - e.g. the
+            // ForegroundServiceStartNotAllowedException path above - in which case this callback
+            // was never registered and unregistering it would otherwise crash onDestroy.
+        }
         super.onDestroy()
     }
 
     private fun isNetworkCurrentlyReachable(): Boolean {
         val network = connectivityManager.activeNetwork ?: return false
-        return connectivityManager.getNetworkCapabilities(network)
-            ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }
+
+    /** Backs off quickly on repeated failure instead of waiting out the full poll interval, so
+     *  recovery (network coming back, a transient upstream 5xx) shows up within seconds to a
+     *  couple minutes rather than up to a full interval later. Resets to [normalIntervalMs] as
+     *  soon as [consecutiveFailures] returns to 0. */
+    private fun retryDelayMs(consecutiveFailures: Int, normalIntervalMs: Long): Long {
+        if (consecutiveFailures <= 0) return normalIntervalMs
+        val backoff = RETRY_BASE_MS * (1L shl (consecutiveFailures - 1).coerceAtMost(6))
+        return backoff.coerceAtMost(normalIntervalMs)
     }
 
     /** When the sensor override is on, the selected sensor's own temp/humidity replace the weather provider's in the live display. */
@@ -364,6 +442,8 @@ class HomeWxMonitorService : LifecycleService() {
             historicalAverageFetchedForDay = today
         } catch (e: Exception) {
             // leave the flag unset so we retry on the next weather poll
+            Log.w(TAG, "Historical average refresh failed, will retry next weather poll", e)
+            AppState.recordError("HistoricalAverage", e)
         }
     }
 
@@ -395,6 +475,7 @@ class HomeWxMonitorService : LifecycleService() {
     }
 
     companion object {
+        private const val TAG = "HomeWxMonitor"
         private const val CHANNEL_ID = "homewx_monitor"
         private const val NOTIFICATION_ID = 1
         private const val ACTIVE_POLL_INTERVAL_MS = 2 * 60 * 1000L
@@ -404,6 +485,8 @@ class HomeWxMonitorService : LifecycleService() {
         private const val NEWS_POLL_INTERVAL_MS = 10 * 60 * 1000L
         private const val RIVER_POLL_INTERVAL_MS = 15 * 60 * 1000L
         private const val RIVER_BACKFILL_MILLIS = 7 * 24 * 60 * 60 * 1000L
+        private const val NETWORK_WATCHDOG_INTERVAL_MS = 30 * 1000L
+        private const val RETRY_BASE_MS = 20 * 1000L
 
         fun start(context: Context) {
             val intent = Intent(context, HomeWxMonitorService::class.java)

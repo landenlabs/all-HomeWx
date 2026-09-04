@@ -42,5 +42,6 @@ data class UiState(
     val networkReachable: Boolean = true,
     val riverReadings: Map<String, GaugeReading> = emptyMap(),
     val riverReadingsUpdatedAtMillis: Long? = null,
-    val riverError: String? = null
+    val riverError: String? = null,
+    val errorLog: List<AppErrorEntry> = emptyList()
 )

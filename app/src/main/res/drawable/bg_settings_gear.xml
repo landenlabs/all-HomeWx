@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Permanent dark halo behind the settings gear, visible on both the default title bar
+     background and the red "network failing" one, so the icon (and its red error tint) never
+     blends into either. The ripple keeps the usual touch-feedback effect on top of it. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#40FFFFFF">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#59000000" />
+        </shape>
+    </item>
+</ripple>

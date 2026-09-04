@@ -42,6 +42,11 @@
             android:theme="@style/Theme.HomeWx"
             android:windowSoftInputMode="adjustResize" />
 
+        <activity
+            android:name=".settings.ErrorLogActivity"
+            android:exported="false"
+            android:theme="@style/Theme.HomeWx" />
+
         <service
             android:name=".service.HomeWxMonitorService"
             android:enabled="true"

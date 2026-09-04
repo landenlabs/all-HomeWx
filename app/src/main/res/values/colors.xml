@@ -18,5 +18,9 @@
     <color name="black">#000000</color>
     <color name="blue2">#3F9EFF</color>
     <color name="red">#FF3B30</color>
+    <!-- Darker than @color/red on purpose: the settings gear can sit on top of the title bar's
+         own @color/red background when the network is failing, so it needs a color that still
+         reads as distinct against it, not just against the default dark background. -->
+    <color name="red_dark">#8B0000</color>
     <color name="icon_white">@color/white</color>
 </resources>

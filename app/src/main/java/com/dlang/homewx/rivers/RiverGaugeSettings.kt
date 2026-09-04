@@ -16,6 +16,7 @@ object RiverGaugeSettings {
     private const val KEY_ENABLED = "river_gauges_enabled"
     private const val KEY_ZIP_CODE = "river_gauges_zip_code"
     private const val KEY_SELECTED_GAUGES = "river_gauges_selected"
+    private const val KEY_GAUGE_LABEL_PREFIX = "river_gauge_label_"
 
     fun isEnabled(context: Context): Boolean =
         prefs(context).getBoolean(KEY_ENABLED, false)
@@ -66,6 +67,17 @@ object RiverGaugeSettings {
             )
         }
         prefs(context).edit { putString(KEY_SELECTED_GAUGES, array.toString()) }
+    }
+
+    /** Custom display name for a gauge (the official USGS station names are long and not very
+     *  readable at a glance), or null to fall back to [GaugeSite.name]. */
+    fun getGaugeLabel(context: Context, siteId: String): String? =
+        prefs(context).getString(KEY_GAUGE_LABEL_PREFIX + siteId, null)?.takeIf { it.isNotBlank() }
+
+    fun setGaugeLabel(context: Context, siteId: String, label: String?) {
+        prefs(context).edit {
+            if (label.isNullOrBlank()) remove(KEY_GAUGE_LABEL_PREFIX + siteId) else putString(KEY_GAUGE_LABEL_PREFIX + siteId, label)
+        }
     }
 
     private fun prefs(context: Context) =
