@@ -44,9 +44,11 @@ import com.dlang.homewx.weather.isSameDay
 import com.dlang.homewx.weather.startOfDay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Runs for as long as the app is installed: watches the ambient light sensor
@@ -84,12 +86,12 @@ class HomeWxMonitorService : LifecycleService() {
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
             Log.i(TAG, "networkCallback: onAvailable $network")
-            AppState.uiState.update { it.copy(networkReachable = true) }
+            setNetworkReachable(true)
         }
 
         override fun onLost(network: Network) {
             Log.w(TAG, "networkCallback: onLost $network")
-            AppState.uiState.update { it.copy(networkReachable = false) }
+            setNetworkReachable(false)
         }
 
         override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
@@ -98,7 +100,20 @@ class HomeWxMonitorService : LifecycleService() {
             if (AppState.uiState.value.networkReachable != reachable) {
                 Log.i(TAG, "networkCallback: onCapabilitiesChanged reachable=$reachable $network")
             }
-            AppState.uiState.update { it.copy(networkReachable = reachable) }
+            setNetworkReachable(reachable)
+        }
+    }
+
+    /** Updates the reachability flag and, on an unreachable-to-reachable transition, pings
+     *  [AppState.networkRecovered] so the poll loops below wake up immediately instead of
+     *  sitting out their remaining failure backoff (up to [normalIntervalMs] worth) - this is
+     *  what actually fixes the "network's back but the app is still stale" symptom. */
+    private fun setNetworkReachable(reachable: Boolean) {
+        val wasReachable = AppState.uiState.value.networkReachable
+        AppState.uiState.update { it.copy(networkReachable = reachable) }
+        if (reachable && !wasReachable) {
+            Log.i(TAG, "Network recovered - waking pollers early")
+            AppState.notifyNetworkRecovered()
         }
     }
 
@@ -131,7 +146,7 @@ class HomeWxMonitorService : LifecycleService() {
                 if (AppState.uiState.value.networkReachable != reachable) {
                     Log.w(TAG, "Network watchdog correcting stale reachable flag to $reachable")
                 }
-                AppState.uiState.update { it.copy(networkReachable = reachable) }
+                setNetworkReachable(reachable)
                 delay(NETWORK_WATCHDOG_INTERVAL_MS)
             }
         }
@@ -235,7 +250,7 @@ class HomeWxMonitorService : LifecycleService() {
                     AppState.uiState.update { it.copy(weatherError = message) }
                 }
                 val normalIntervalMs = AppSettings.getWeatherSampleIntervalMinutes(applicationContext) * 60_000L
-                delay(retryDelayMs(consecutiveFailures, normalIntervalMs))
+                waitForNextPoll(consecutiveFailures, normalIntervalMs)
             }
         }
 
@@ -293,7 +308,7 @@ class HomeWxMonitorService : LifecycleService() {
                 } else {
                     consecutiveFailures = 0
                 }
-                delay(retryDelayMs(consecutiveFailures, RIVER_POLL_INTERVAL_MS))
+                waitForNextPoll(consecutiveFailures, RIVER_POLL_INTERVAL_MS)
             }
         }
     }
@@ -334,6 +349,19 @@ class HomeWxMonitorService : LifecycleService() {
         if (consecutiveFailures <= 0) return normalIntervalMs
         val backoff = RETRY_BASE_MS * (1L shl (consecutiveFailures - 1).coerceAtMost(6))
         return backoff.coerceAtMost(normalIntervalMs)
+    }
+
+    /** Waits out the backoff from [retryDelayMs], but only while currently failing - if
+     *  [consecutiveFailures] is 0 this is a plain delay. While failing, it races that delay
+     *  against [AppState.networkRecovered] so a poller wakes the instant the network is back
+     *  rather than however much of its backoff (up to [normalIntervalMs]) was still left. */
+    private suspend fun waitForNextPoll(consecutiveFailures: Int, normalIntervalMs: Long) {
+        val delayMs = retryDelayMs(consecutiveFailures, normalIntervalMs)
+        if (consecutiveFailures > 0) {
+            withTimeoutOrNull(delayMs) { AppState.networkRecovered.first() }
+        } else {
+            delay(delayMs)
+        }
     }
 
     /** When the sensor override is on, the selected sensor's own temp/humidity replace the weather provider's in the live display. */

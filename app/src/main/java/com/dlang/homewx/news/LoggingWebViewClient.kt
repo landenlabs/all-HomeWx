@@ -11,7 +11,7 @@ import com.dlang.homewx.settings.AppSettings
  * Logs the domain of every request the article WebView makes, gated by a settings toggle -
  * this is reconnaissance for building an ad-domain blocklist, it doesn't block anything yet.
  */
-class LoggingWebViewClient(private val context: Context) : WebViewClient() {
+open class LoggingWebViewClient(private val context: Context) : WebViewClient() {
 
     override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
         if (AppSettings.isWebViewRequestLoggingEnabled(context)) {

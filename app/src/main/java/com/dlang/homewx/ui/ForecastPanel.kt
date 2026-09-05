@@ -8,21 +8,28 @@ import androidx.recyclerview.widget.RecyclerView
 import com.dlang.homewx.R
 import com.dlang.homewx.data.WeatherMetricsPoint
 import com.dlang.homewx.databinding.PanelForecastBinding
+import com.dlang.homewx.weather.DailyForecastEntry
 import com.dlang.homewx.weather.WeatherForecast
 import com.google.android.material.tabs.TabLayout
 
 /** Forecast panel: a 2nd tab bar (Past/Hourly/Daily) plus a cards/graph toggle shared across all
  *  3 ranges. Cards flow into as many columns as fit the available width. Inflates itself into
- *  [container]. */
-class ForecastPanel(container: ViewGroup) {
+ *  [container]. Tapping a Past or Daily card previews that card's data in the main weather
+ *  panel via [onPastCardClick]/[onDailyCardClick] - this panel only forwards the tap, the
+ *  preview binding and auto-revert timer live in [com.dlang.homewx.MainActivity]. */
+class ForecastPanel(
+    container: ViewGroup,
+    onPastCardClick: (WeatherMetricsPoint) -> Unit,
+    onDailyCardClick: (DailyForecastEntry) -> Unit
+) {
 
     private val context = container.context
     private val binding = PanelForecastBinding.inflate(LayoutInflater.from(context), container, false)
     val root: View get() = binding.root
     private val recyclerView: RecyclerView = binding.forecastCardsRecyclerView
 
-    private val pastAdapter = PastForecastAdapter()
-    private val dailyAdapter = DailyForecastAdapter()
+    private val pastAdapter = PastForecastAdapter(onPastCardClick)
+    private val dailyAdapter = DailyForecastAdapter(onDailyCardClick)
     private val hourlyAdapter = HourlyForecastAdapter()
     private val layoutManager = GridLayoutManager(context, 1)
     private val cardMinWidthPx = (CARD_MIN_WIDTH_DP * context.resources.displayMetrics.density).toInt()

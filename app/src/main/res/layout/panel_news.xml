@@ -45,20 +45,56 @@
 
     <!-- Shows the US Drought Monitor NH map when the "Drought" sub-tab is selected -
          visibility toggled with newsRecyclerView above, never both visible at once. -->
-    <WebView
-        android:id="@+id/droughtMonitorWebView"
+    <FrameLayout
+        android:id="@+id/droughtMonitorContainer"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:visibility="gone" />
+        android:visibility="gone">
+
+        <WebView
+            android:id="@+id/droughtMonitorWebView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <TextView
+            android:id="@+id/droughtErrorText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:padding="24dp"
+            android:textColor="@color/text_secondary"
+            android:textSize="16sp"
+            android:visibility="gone" />
+
+    </FrameLayout>
 
     <!-- Shows the TradingView Market Overview widget when the "Stocks" sub-tab is selected -
          visibility toggled alongside the other two views above, never more than one visible. -->
-    <WebView
-        android:id="@+id/stocksWebView"
+    <FrameLayout
+        android:id="@+id/stocksContainer"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:visibility="gone" />
+        android:visibility="gone">
+
+        <WebView
+            android:id="@+id/stocksWebView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <TextView
+            android:id="@+id/stocksErrorText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:padding="24dp"
+            android:textColor="@color/text_secondary"
+            android:textSize="16sp"
+            android:visibility="gone" />
+
+    </FrameLayout>
 
 </LinearLayout>

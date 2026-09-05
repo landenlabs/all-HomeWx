@@ -14,19 +14,19 @@ import com.wsi.wxdata.WxAlmanacDailyFetcher
 import com.wsi.wxdata.WxCurrentConditions
 import com.wsi.wxdata.WxCurrentFetcher
 import com.wsi.wxdata.WxData
-import com.wsi.wxdata.WxDailyFetcher
-import com.wsi.wxdata.WxDailyForecast
 import com.wsi.wxdata.WxDataInitializationException
 import com.wsi.wxdata.WxHourlyFetcher
 import com.wsi.wxdata.WxHourlyForecast
 import com.wsi.wxdata.WxLocation
 import com.wsi.wxdata.WxTime
 import com.wsi.wxdata.WxUnit
+import com.wsi.wxdata.WxWeatherSample
 import java.util.Calendar
 import java.util.Date
 import java.util.TimeZone
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -57,21 +57,44 @@ class WxDataWeatherProvider : WeatherProvider {
         return await(fetcher.getFetchFuture()).toCurrentConditions()
     }
 
+    /**
+     * Daily entries are derived from this same hourly response rather than a separate
+     * `WxDailyFetcher` call - the daily forecast API's DayPart data has no pressure field at
+     * all, and only one humidity/wind value per day-or-night half, whereas the hourly data has
+     * all of these per hour and lets a real daily min/max/avg be computed (see
+     * [WxHourlyForecast.toDailyEntries]). Fixed at [DAILY_DERIVATION_DAYS], not [forecastDays] -
+     * that's the range this derivation is built for, independent of the app's (Open-Meteo-
+     * oriented) forecast-length setting.
+     */
     override fun getForecast(location: GeoLocation, forecastDays: Int): WeatherForecast {
         val wxLocation = location.toWxLocation()
         val hourlyFetcher = WxHourlyFetcher().apply {
             setLocation(wxLocation)
             setUnit(WxUnit.Imperial)
-            setTime(WxTime.comingHours(forecastDays * 24))
-        }
-        val dailyFetcher = WxDailyFetcher().apply {
-            setLocation(wxLocation)
-            setUnit(WxUnit.Imperial)
-            setTime(WxTime.comingDays(forecastDays))
+            setTime(WxTime.comingHours(DAILY_DERIVATION_DAYS * 24))
         }
         val hourly = await(hourlyFetcher.getFetchFuture())
-        val daily = await(dailyFetcher.getFetchFuture())
-        return WeatherForecast(hourly = hourly.toHourlyEntries(), daily = daily.toDailyEntries())
+        val normals = fetchAlmanacNormals(wxLocation, DAILY_DERIVATION_DAYS)
+        return WeatherForecast(hourly = hourly.toHourlyEntries(), daily = hourly.toDailyEntries(normals))
+    }
+
+    /** Climate-normal high/low for each of the next [days] calendar days, keyed by month*100+day
+     *  (year-independent, matching [com.wsi.wxdata.WxAlmanacDaily.almanacRecordDate]) so a daily
+     *  entry can look its normal up by calendar day instead of by array index. */
+    private fun fetchAlmanacNormals(wxLocation: WxLocation, days: Int): Map<Int, NormalRange> {
+        val fetcher = WxAlmanacDailyFetcher().apply {
+            setLocation(wxLocation)
+            setUnit(WxUnit.Imperial)
+            setTime(WxTime.daysFromStartDay(WxTime.today(), days))
+        }
+        val almanac = await(fetcher.getFetchFuture())
+        val normals = mutableMapOf<Int, NormalRange>()
+        almanac.almanacRecordDate.orEmpty().forEachIndexed { i, monthDay ->
+            val high = almanac.temperatureAverageMax?.getOrNull(i)?.toDouble()
+            val low = almanac.temperatureAverageMin?.getOrNull(i)?.toDouble()
+            if (high != null && low != null) normals[monthDay] = NormalRange(high, low)
+        }
+        return normals
     }
 
     override fun getHistoricalDailyAverage(location: GeoLocation, startMillis: Long, endMillis: Long): HistoricalTempAverage? {
@@ -110,6 +133,7 @@ class WxDataWeatherProvider : WeatherProvider {
 
     companion object {
         private const val FETCH_TIMEOUT_SECONDS = 20L
+        private const val DAILY_DERIVATION_DAYS = 7
 
         /**
          * Must be called once at app startup, before any [WxDataWeatherProvider] call - see
@@ -194,20 +218,76 @@ private fun WxHourlyForecast.toHourlyEntries(): List<HourlyForecastEntry> =
         )
     }
 
-private fun WxDailyForecast.toDailyEntries(): List<DailyForecastEntry> =
-    validTimeUtc.orEmpty().indices.mapNotNull { i ->
-        val sample = getSample(i, null) ?: return@mapNotNull null
-        DailyForecastEntry(
-            // Shifted to noon so the point plots in the middle of the day it represents, not at
-            // its very start - matches OpenMeteoWeatherProvider's daily mapping.
-            dateMillis = validTimeUtc[i] * 1000L + TimeUnit.HOURS.toMillis(12),
-            highF = sample.highTemperature.finiteOrNull(),
-            lowF = sample.lowTemperature.finiteOrNull(),
-            windMaxMph = sample.windSpeed.finiteOrNull(),
-            precipitationChancePct = sample.precipPercent.takeIf { !it.isNaN() }?.roundToInt(),
-            conditionText = sample.weatherNarrative ?: "",
-            // A whole-day forecast has no day/night distinction of its own - use the day icon
-            // variant, matching OpenMeteoWeatherProvider's daily mapping.
-            iconKey = iconKeyFor(sample.iconCode, "D")
-        )
+/** Climate-normal high/low for one calendar day, from [com.wsi.wxdata.WxAlmanacDaily]. */
+private data class NormalRange(val highF: Double, val lowF: Double)
+
+/** Groups this hourly forecast's samples by local calendar day and aggregates each day into one
+ *  [DailyForecastEntry] - see the comment on [com.dlang.homewx.weather.wxdata.WxDataWeatherProvider.getForecast]
+ *  for why this replaced a separate daily-forecast fetch. */
+private fun WxHourlyForecast.toDailyEntries(normals: Map<Int, NormalRange>): List<DailyForecastEntry> {
+    val calendar = Calendar.getInstance()
+    val byDay = LinkedHashMap<Int, MutableList<Pair<Long, WxWeatherSample>>>()
+    validTimeUtc.orEmpty().indices.forEach { i ->
+        val sample = getSample(i) ?: return@forEach
+        val timeMillis = validTimeUtc[i] * 1000L
+        calendar.timeInMillis = timeMillis
+        val dayKey = calendar.get(Calendar.YEAR) * 1000 + calendar.get(Calendar.DAY_OF_YEAR)
+        byDay.getOrPut(dayKey) { mutableListOf() }.add(timeMillis to sample)
     }
+    return byDay.values.map { it.toDailyEntry(calendar, normals) }
+}
+
+/** Aggregates one day's hourly samples into a [DailyForecastEntry]: min/max temperature, min/max
+ *  wind speed (max with the time it first occurs) and its day-average, max humidity, max
+ *  precipitation chance (with the time it first occurs), average pressure, and the icon/
+ *  condition from the sample nearest local noon. [maxByOrNull] keeps the first element it sees
+ *  among ties, which is what makes "first occurs" correct here since the list is chronological. */
+private fun List<Pair<Long, WxWeatherSample>>.toDailyEntry(
+    calendar: Calendar,
+    normals: Map<Int, NormalRange>
+): DailyForecastEntry {
+    val temps = mapNotNull { (_, s) -> s.temperature.finiteOrNull() }
+    val winds = mapNotNull { (t, s) -> s.windSpeed.finiteOrNull()?.let { t to it } }
+    val humidities = mapNotNull { (_, s) -> s.relativeHumidity.finiteOrNull() }
+    val precipChances = mapNotNull { (t, s) -> s.precipPercent.takeIf { !it.isNaN() }?.let { t to it.toDouble() } }
+    // pressureAltimeter is flagged "Restricted" in the wxdata source - this API key's plan
+    // doesn't return it for the Hourly Forecast endpoint (it comes back NaN every hour), so
+    // fall back to pressureMeanSeaLevel, which isn't restricted and is actually populated.
+    val pressures = mapNotNull { (_, s) -> s.pressureAltimeter.finiteOrNull() ?: s.pressureMeanSeaLevel.finiteOrNull() }
+
+    val maxWind = winds.maxByOrNull { it.second }
+    val minWind = winds.minByOrNull { it.second }
+    val maxPrecip = precipChances.maxByOrNull { it.second }
+
+    calendar.timeInMillis = first().first
+    calendar.set(Calendar.HOUR_OF_DAY, 12)
+    calendar.set(Calendar.MINUTE, 0)
+    calendar.set(Calendar.SECOND, 0)
+    calendar.set(Calendar.MILLISECOND, 0)
+    val noonMillis = calendar.timeInMillis
+    val noonSample = minByOrNull { (t, _) -> abs(t - noonMillis) }?.second ?: first().second
+
+    calendar.timeInMillis = noonMillis
+    val monthDay = (calendar.get(Calendar.MONTH) + 1) * 100 + calendar.get(Calendar.DAY_OF_MONTH)
+    val normal = normals[monthDay]
+
+    return DailyForecastEntry(
+        dateMillis = noonMillis,
+        highF = temps.maxOrNull(),
+        lowF = temps.minOrNull(),
+        windMaxMph = maxWind?.second,
+        precipitationChancePct = maxPrecip?.second?.roundToInt(),
+        conditionText = noonSample.weatherNarrative ?: "",
+        // A whole-day forecast has no day/night distinction of its own - use the day icon
+        // variant, matching OpenMeteoWeatherProvider's daily mapping.
+        iconKey = iconKeyFor(noonSample.iconCode, "D"),
+        windMaxAtMillis = maxWind?.first,
+        windMinMph = minWind?.second,
+        windAvgMph = winds.map { it.second }.takeIf { it.isNotEmpty() }?.average(),
+        humidityMaxPct = humidities.maxOrNull(),
+        precipitationChanceAtMillis = maxPrecip?.first,
+        pressureAvgInHg = pressures.takeIf { it.isNotEmpty() }?.average(),
+        normalHighF = normal?.highF,
+        normalLowF = normal?.lowF
+    )
+}

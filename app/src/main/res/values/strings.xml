@@ -8,6 +8,8 @@
     <string name="news_no_data">No data available</string>
     <string name="news_no_data_with_wifi">No data available using Wifi %1$s</string>
     <string name="strip_chart_no_data">Not enough history yet</string>
+    <string name="webview_load_failed">Couldn\'t load - no network. Will retry automatically.</string>
+    <string name="radar_load_failed">No radar data - no network</string>
     <string name="tab_news_title">News</string>
     <string name="news_tab_drought">Drought</string>
     <string name="news_tab_stocks">Stocks</string>

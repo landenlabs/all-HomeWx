@@ -37,4 +37,18 @@
         android:textColor="@color/text_secondary"
         android:textSize="12sp" />
 
+    <TextView
+        android:id="@+id/radarNoDataText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_margin="8dp"
+        android:background="@color/red"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="4dp"
+        android:text="@string/radar_load_failed"
+        android:textColor="@color/text_primary"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
 </FrameLayout>

@@ -8,12 +8,16 @@ import android.view.ViewGroup
 import androidx.lifecycle.LifecycleCoroutineScope
 import com.dlang.homewx.R
 import com.dlang.homewx.databinding.PanelRadarBinding
+import com.dlang.homewx.state.AppState
 import com.dlang.homewx.weather.HomeLocation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -121,6 +125,16 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
 
         binding.radarPlayButton.setOnClickListener {
             if (animationJob == null) startAnimation() else stopAnimation()
+        }
+
+        // Base map + radar tiles are both network-dependent, and osmdroid doesn't surface a
+        // per-tile failure callback we can hook cleanly - the network's own reachable flag
+        // (already tracked in HomeWxMonitorService) is a simpler, reliable proxy for "this map
+        // has nothing new to show right now" than trying to infer it from tile load failures.
+        lifecycleScope.launch {
+            AppState.uiState.map { it.networkReachable }.distinctUntilChanged().collect { reachable ->
+                binding.radarNoDataText.visibility = if (reachable) View.GONE else View.VISIBLE
+            }
         }
 
         container.addView(root)

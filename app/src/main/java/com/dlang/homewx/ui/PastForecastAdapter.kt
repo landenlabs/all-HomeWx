@@ -17,7 +17,7 @@ import kotlin.math.roundToInt
  *  pressure. Older rows recorded before the history store tracked temperature/icon will have
  *  nulls for those - render as best-effort ("--" / the fallback icon) rather than hiding the
  *  whole card. */
-class PastForecastAdapter : RecyclerView.Adapter<PastForecastAdapter.ViewHolder>() {
+class PastForecastAdapter(private val onItemClick: (WeatherMetricsPoint) -> Unit) : RecyclerView.Adapter<PastForecastAdapter.ViewHolder>() {
 
     private var points: List<WeatherMetricsPoint> = emptyList()
     private val timeFormat = SimpleDateFormat("EEE h:mm a", Locale.getDefault())
@@ -33,7 +33,7 @@ class PastForecastAdapter : RecyclerView.Adapter<PastForecastAdapter.ViewHolder>
         return ViewHolder(binding, timeFormat)
     }
 
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) = holder.bind(points[position])
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) = holder.bind(points[position], onItemClick)
 
     override fun getItemCount(): Int = points.size
 
@@ -42,7 +42,8 @@ class PastForecastAdapter : RecyclerView.Adapter<PastForecastAdapter.ViewHolder>
         private val timeFormat: SimpleDateFormat
     ) : RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(point: WeatherMetricsPoint) {
+        fun bind(point: WeatherMetricsPoint, onItemClick: (WeatherMetricsPoint) -> Unit) {
+            binding.root.setOnClickListener { onItemClick(point) }
             binding.pastCardTimeText.text = timeFormat.format(Date(point.timestampMillis))
             binding.pastCardIcon.setImageResource(
                 point.iconKey?.let { binding.pastCardIcon.context.weatherIconRes(it) } ?: R.drawable.wx_sun_44d

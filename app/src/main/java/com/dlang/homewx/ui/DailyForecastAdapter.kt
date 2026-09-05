@@ -17,7 +17,7 @@ import kotlin.math.roundToInt
  *  get a blue border. Failing that, cards tied for the highest high temp get yellow high-temp
  *  text plus a yellow border. Failing that, cards tied for the lowest low temp get purple
  *  low-temp text plus a purple border. Only the first matching condition's border is drawn. */
-class DailyForecastAdapter : RecyclerView.Adapter<DailyForecastAdapter.ViewHolder>() {
+class DailyForecastAdapter(private val onItemClick: (DailyForecastEntry) -> Unit) : RecyclerView.Adapter<DailyForecastAdapter.ViewHolder>() {
 
     private var days: List<DailyForecastEntry> = emptyList()
     private var maxHighRounded: Int? = null
@@ -40,7 +40,7 @@ class DailyForecastAdapter : RecyclerView.Adapter<DailyForecastAdapter.ViewHolde
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) =
-        holder.bind(days[position], maxHighRounded, minLowRounded, maxPrecipPct)
+        holder.bind(days[position], maxHighRounded, minLowRounded, maxPrecipPct, onItemClick)
 
     override fun getItemCount(): Int = days.size
 
@@ -49,8 +49,15 @@ class DailyForecastAdapter : RecyclerView.Adapter<DailyForecastAdapter.ViewHolde
         private val dayFormat: SimpleDateFormat
     ) : RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(entry: DailyForecastEntry, maxHighRounded: Int?, minLowRounded: Int?, maxPrecipPct: Int?) {
+        fun bind(
+            entry: DailyForecastEntry,
+            maxHighRounded: Int?,
+            minLowRounded: Int?,
+            maxPrecipPct: Int?,
+            onItemClick: (DailyForecastEntry) -> Unit
+        ) {
             val context = binding.root.context
+            binding.root.setOnClickListener { onItemClick(entry) }
             binding.forecastCardDateText.text = dayFormat.format(Date(entry.dateMillis))
             binding.forecastCardIcon.setImageResource(context.weatherIconRes(entry.iconKey))
 

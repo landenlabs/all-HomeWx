@@ -39,7 +39,22 @@ data class DailyForecastEntry(
     val precipitationChancePct: Int?,
     val conditionText: String,
     /** Drawable resource name (no extension) in res/drawable-nodpi, e.g. "wx_sun_30d". */
-    val iconKey: String
+    val iconKey: String,
+    /** The rest of these are only populated by [com.dlang.homewx.weather.wxdata.WxDataWeatherProvider],
+     *  which derives the whole daily entry from a day's worth of hourly samples - Open-Meteo's
+     *  daily API has no humidity/pressure fields and doesn't report when an extreme occurred,
+     *  so these stay null there. */
+    val windMaxAtMillis: Long? = null,
+    val windMinMph: Double? = null,
+    val windAvgMph: Double? = null,
+    val humidityMaxPct: Double? = null,
+    val precipitationChanceAtMillis: Long? = null,
+    val pressureAvgInHg: Double? = null,
+    /** Climate-normal high/low for this calendar day (10-30yr NCDC average), from
+     *  [com.wsi.wxdata.WxAlmanacDailyFetcher] - see [com.dlang.homewx.MainActivity]'s
+     *  source-dependent "Normal max/min" label. */
+    val normalHighF: Double? = null,
+    val normalLowF: Double? = null
 )
 
 data class WeatherForecast(

@@ -24,6 +24,7 @@ import com.dlang.homewx.data.DailySnapshot
 import com.dlang.homewx.data.DailySnapshotStore
 import com.dlang.homewx.data.SensorHistoryStore
 import com.dlang.homewx.data.WeatherMetricsHistoryStore
+import com.dlang.homewx.data.WeatherMetricsPoint
 import com.dlang.homewx.databinding.ActivityMainBinding
 import com.dlang.homewx.model.LightMode
 import com.dlang.homewx.model.SensorReading
@@ -107,6 +108,15 @@ class MainActivity : AppCompatActivity() {
      * positive = that many days into the forecast (a [DailyForecastEntry]).
      */
     private var viewingDayOffset = 0
+    /** Set when a "Past" card is tapped in the forecast panel - a specific recorded instant
+     *  rather than a whole calendar day, so it can't be represented by [viewingDayOffset]. Takes
+     *  priority over it whenever non-null; the two are always kept mutually exclusive. */
+    private var viewingPastPoint: WeatherMetricsPoint? = null
+    /** Running while a tapped Past/Daily card is being previewed in the weather panel; reverts
+     *  to live weather after [FORECAST_PREVIEW_TIMEOUT_MS] of no interaction anywhere in the
+     *  app (restarted from [onUserInteraction], same pattern as [wakeOverrideJob]). Null when no
+     *  preview is active, which is also what tells [onUserInteraction] there's nothing to extend. */
+    private var forecastPreviewRevertJob: Job? = null
     /** True while a tap-to-wake override is forcing the screen ACTIVE despite the light sensor saying QUIET. */
     private var wakeOverrideActive = false
     private var wakeOverrideJob: Job? = null
@@ -153,10 +163,14 @@ class MainActivity : AppCompatActivity() {
         binding.weatherBackgroundImage.setOnTouchListener { _, event -> weatherGestureDetector.onTouchEvent(event) }
         binding.settingsButton.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
 
-        newsPanel = NewsPanel(binding.infoPanelContainer, onArticleClick = ::showNewsArticle)
+        newsPanel = NewsPanel(binding.infoPanelContainer, lifecycleScope, onArticleClick = ::showNewsArticle)
         sensorChartPanel = SensorChartPanel(binding.infoPanelContainer)
         articlePanel = ArticlePanel(binding.infoPanelContainer, onBack = ::closeArticle)
-        forecastPanel = ForecastPanel(binding.infoPanelContainer)
+        forecastPanel = ForecastPanel(
+            binding.infoPanelContainer,
+            onPastCardClick = ::showTappedPastPoint,
+            onDailyCardClick = ::showTappedForecastDay
+        )
         sensorGraphsPanel = SensorGraphsPanel(binding.infoPanelContainer)
         radarPanel = RadarPanel(binding.infoPanelContainer, lifecycleScope)
         riverGraphsPanel = RiverGraphsPanel(binding.infoPanelContainer)
@@ -210,11 +224,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** A tap anywhere on screen while QUIET wakes the display and holds it ACTIVE for a few minutes. */
+    /** A tap anywhere on screen while QUIET wakes the display and holds it ACTIVE for a few
+     *  minutes; a tap anywhere while a Past/Daily card preview is showing extends its revert
+     *  countdown instead of letting it lapse mid-interaction. */
     override fun onUserInteraction() {
         super.onUserInteraction()
         if (AppState.uiState.value.lightMode == LightMode.QUIET) {
             startWakeOverride()
+        }
+        if (forecastPreviewRevertJob != null) {
+            scheduleForecastPreviewRevert()
         }
     }
 
@@ -362,6 +381,10 @@ class MainActivity : AppCompatActivity() {
         binding.tempTrendText.text = if (liveConditions != null) formatSignedDelta(state.tempTrendNextHourF, "°F/1hr") else ""
         binding.tempTrend4hText.text = if (liveConditions != null) formatSignedDelta(state.tempTrendNext4HourF, "°F/4hr") else ""
 
+        // No live reading (never loaded, or stale past the threshold above): hide the whole
+        // data grid instead of filling it with "--" placeholders - a wall of dashes reads as
+        // data that's technically present but empty, when what's actually true is "unavailable."
+        binding.weatherDetailsGrid.visibility = if (liveConditions != null) View.VISIBLE else View.GONE
         if (liveConditions != null) {
             binding.weatherIcon.setImageResource(weatherIconRes(liveConditions.iconKey))
             binding.weatherBackgroundImage.setImageResource(weatherBackgroundRes(liveConditions.iconKey, liveConditions.windSpeedMph))
@@ -371,13 +394,6 @@ class MainActivity : AppCompatActivity() {
             binding.windDirectionValueText.text = formatWindDirection(liveConditions.windDirectionDeg)
             binding.precipitationValueText.text = liveConditions.precipitationIn?.let { "%.2f in".format(it) } ?: "--"
             binding.pressureValueText.text = formatPressure(liveConditions.pressureInHg, state.pressureTrend6hInHg)
-        } else {
-            binding.conditionValueText.text = if (isStale) getString(R.string.weather_unavailable) else "--"
-            binding.humidityValueText.text = "--"
-            binding.windSpeedValueText.text = "--"
-            binding.windDirectionValueText.text = "--"
-            binding.precipitationValueText.text = "--"
-            binding.pressureValueText.text = "--"
         }
 
         val extremes = state.dailyExtremes
@@ -407,6 +423,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bindSnapshotWeather(snapshot: DailySnapshot) {
+        // [bindLiveWeather] hides this grid when there's no live reading - undo that here since
+        // a snapshot always has at least placeholder values worth showing.
+        binding.weatherDetailsGrid.visibility = View.VISIBLE
         binding.weatherIcon.setImageResource(weatherIconRes(snapshot.iconKey ?: "wx_sun_44d"))
         binding.weatherBackgroundImage.setImageResource(weatherBackgroundRes(snapshot.iconKey ?: "wx_sun_44d", snapshot.windSpeedMph))
         binding.currentTempText.text = snapshot.tempF?.roundToInt()?.let { "$it°F" } ?: "--"
@@ -428,20 +447,56 @@ class MainActivity : AppCompatActivity() {
 
     /** Only the weather provider's own forecast fields are used here - no sensor override, unlike [bindLiveWeather]. */
     private fun bindForecastWeather(entry: DailyForecastEntry) {
+        // See [bindSnapshotWeather] - same undo of [bindLiveWeather]'s no-data grid hiding.
+        binding.weatherDetailsGrid.visibility = View.VISIBLE
         binding.weatherIcon.setImageResource(weatherIconRes(entry.iconKey))
         binding.weatherBackgroundImage.setImageResource(weatherBackgroundRes(entry.iconKey, windSpeedMph = null))
         binding.currentTempText.text = entry.highF?.roundToInt()?.let { "$it°F" } ?: "--"
         binding.tempTrendText.text = entry.lowF?.roundToInt()?.let { "Low $it°F" } ?: ""
         binding.conditionValueText.text = entry.conditionText
-        binding.humidityValueText.text = "--"
-        binding.windSpeedValueText.text = "--"
+        binding.humidityValueText.text = entry.humidityMaxPct?.roundToInt()?.let { "$it%" } ?: "--"
+        binding.windSpeedValueText.text = entry.windAvgMph?.roundToInt()?.let { "$it mph" } ?: "--"
         binding.windDirectionValueText.text = "--"
-        binding.precipitationValueText.text = entry.precipitationChancePct?.let { "$it% chance" } ?: "--"
-        binding.pressureValueText.text = "--"
+        // With a time (WxData): "60% (3pm)", matching the current-conditions extremes' style.
+        // Without one (Open-Meteo, which has no per-hour timestamp for this): plain "60%".
+        binding.precipitationValueText.text = toExtreme(entry.precipitationChancePct?.toDouble(), entry.precipitationChanceAtMillis)
+            ?.let { formatExtreme(it, "%") }
+            ?: entry.precipitationChancePct?.let { "$it%" } ?: "--"
+        binding.pressureValueText.text = entry.pressureAvgInHg?.let { "%.2f in".format(it) } ?: "--"
         binding.tempHighValueText.text = entry.highF?.roundToInt()?.let { "$it°F" } ?: "--"
         binding.tempLowValueText.text = entry.lowF?.roundToInt()?.let { "$it°F" } ?: "--"
-        binding.windHighValueText.text = entry.windMaxMph?.roundToInt()?.let { "$it mph" } ?: "--"
+        binding.windHighValueText.text = toExtreme(entry.windMaxMph, entry.windMaxAtMillis)
+            ?.let { formatExtreme(it, " mph") }
+            ?: entry.windMaxMph?.roundToInt()?.let { "$it mph" } ?: "--"
+        binding.windLowValueText.text = entry.windMinMph?.roundToInt()?.let { "$it mph" } ?: "--"
+        updateLastYearLabel()
+        binding.lyMaxValueText.text = entry.normalHighF?.roundToInt()?.let { "$it°F" } ?: "--"
+        binding.lyMinValueText.text = entry.normalLowF?.roundToInt()?.let { "$it°F" } ?: "--"
+    }
+
+    /** A tapped "Past" card - [WeatherMetricsPoint] only carries temp/wind/precip/pressure/icon
+     *  (recorded per-poll history, not a full conditions snapshot), so condition/humidity/wind
+     *  direction and the high-low/normal rows - none of which this data has - show "--" rather
+     *  than something misleading. */
+    private fun bindPastPoint(point: WeatherMetricsPoint) {
+        // See [bindSnapshotWeather] - same undo of [bindLiveWeather]'s no-data grid hiding.
+        binding.weatherDetailsGrid.visibility = View.VISIBLE
+        binding.weatherIcon.setImageResource(weatherIconRes(point.iconKey ?: "wx_sun_44d"))
+        binding.weatherBackgroundImage.setImageResource(weatherBackgroundRes(point.iconKey ?: "wx_sun_44d", point.windSpeedMph))
+        binding.currentTempText.text = point.temperatureF?.roundToInt()?.let { "$it°F" } ?: "--"
+        binding.tempTrendText.text = ""
+        binding.tempTrend4hText.text = ""
+        binding.conditionValueText.text = "--"
+        binding.humidityValueText.text = "--"
+        binding.windSpeedValueText.text = point.windSpeedMph?.roundToInt()?.let { "$it mph" } ?: "--"
+        binding.windDirectionValueText.text = "--"
+        binding.precipitationValueText.text = point.precipitationIn?.let { "%.2f in".format(it) } ?: "--"
+        binding.pressureValueText.text = point.pressureInHg?.let { "%.2f in".format(it) } ?: "--"
+        binding.tempHighValueText.text = "--"
+        binding.tempLowValueText.text = "--"
+        binding.windHighValueText.text = "--"
         binding.windLowValueText.text = "--"
+        updateLastYearLabel()
         binding.lyMaxValueText.text = "--"
         binding.lyMinValueText.text = "--"
     }
@@ -455,6 +510,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun goToOlderDay() {
+        cancelForecastPreviewRevert()
+        viewingPastPoint = null
         viewingDayOffset -= 1
         loadViewedDay()
     }
@@ -465,8 +522,52 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "No forecast data available", Toast.LENGTH_SHORT).show()
             return
         }
+        cancelForecastPreviewRevert()
+        viewingPastPoint = null
         viewingDayOffset = nextOffset
         loadViewedDay()
+    }
+
+    /** A "Daily" card tapped in the forecast panel - reuses the same [viewingDayOffset]/
+     *  [loadViewedDay] plumbing swiping the weather panel uses, so it renders identically to
+     *  swiping to that day, but additionally arms the 10-minute auto-revert since (unlike a
+     *  swipe) a card tap is a passing "peek" rather than deliberate day-by-day navigation. */
+    private fun showTappedForecastDay(entry: DailyForecastEntry) {
+        viewingPastPoint = null
+        viewingDayOffset = ((startOfDay(entry.dateMillis) - startOfDay(System.currentTimeMillis())) / DAY_MILLIS).toInt()
+        loadViewedDay()
+        scheduleForecastPreviewRevert()
+    }
+
+    /** A "Past" card tapped in the forecast panel - a specific recorded instant, not a whole
+     *  calendar day, so it's shown via [viewingPastPoint] instead of [viewingDayOffset]. Same
+     *  auto-revert as [showTappedForecastDay]. */
+    private fun showTappedPastPoint(point: WeatherMetricsPoint) {
+        viewingDayOffset = 0
+        viewingPastPoint = point
+        bindPastPoint(point)
+        binding.weatherDateTimeText.text = "${weatherDateTimeFormat.format(Date(point.timestampMillis))} (recorded)"
+        updateWeatherDateTimeBackground()
+        scheduleForecastPreviewRevert()
+    }
+
+    /** (Re)starts the countdown back to live weather; [onUserInteraction] calls this again on
+     *  every touch anywhere in the app while it's running, so it only actually fires after
+     *  [FORECAST_PREVIEW_TIMEOUT_MS] with no interaction at all. */
+    private fun scheduleForecastPreviewRevert() {
+        forecastPreviewRevertJob?.cancel()
+        forecastPreviewRevertJob = lifecycleScope.launch {
+            delay(FORECAST_PREVIEW_TIMEOUT_MS)
+            forecastPreviewRevertJob = null
+            viewingPastPoint = null
+            viewingDayOffset = 0
+            loadViewedDay()
+        }
+    }
+
+    private fun cancelForecastPreviewRevert() {
+        forecastPreviewRevertJob?.cancel()
+        forecastPreviewRevertJob = null
     }
 
     private fun loadViewedDay() {
@@ -519,6 +620,7 @@ class MainActivity : AppCompatActivity() {
         val colorRes = if (networkFailing) {
             R.color.red
         } else when {
+            viewingPastPoint != null -> R.color.weather_title_bg_past
             viewingDayOffset > 0 -> R.color.weather_title_bg_forecast
             viewingDayOffset < 0 -> R.color.weather_title_bg_past
             else -> R.color.weather_title_bg_current
@@ -721,6 +823,7 @@ class MainActivity : AppCompatActivity() {
         private const val DAY_MILLIS = 24 * 60 * 60 * 1000L
         private const val STALE_WEATHER_THRESHOLD_MS = 60 * 60 * 1000L
         private const val WAKE_OVERRIDE_DURATION_MS = 5 * 60 * 1000L
+        private const val FORECAST_PREVIEW_TIMEOUT_MS = 10 * 60 * 1000L
         private const val AUTO_CYCLE_INTERVAL_MS = 5 * 60 * 1000L
         private val AUTO_CYCLE_TABS = listOf(
             InfoPanelView.NEWS, InfoPanelView.FORECAST, InfoPanelView.SENSOR_GRAPHS
