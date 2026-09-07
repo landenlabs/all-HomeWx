@@ -31,6 +31,9 @@
     <string name="forecast_switch_to_card_view">Switch to card view</string>
     <string name="forecast_graph_temperature">Temperature (°F)</string>
     <string name="forecast_graph_precipitation_chance">Precipitation Chance (%)</string>
+    <string name="forecast_hourly_period_all">All</string>
+    <string name="forecast_hourly_period_today">Today</string>
+    <string name="forecast_hourly_period_plus24">+24 Hours</string>
     <string name="forecast_no_wind">No wind expected</string>
     <string name="forecast_no_precipitation">No precipitation expected</string>
     <string name="forecast_no_wind_recorded">No wind recorded</string>

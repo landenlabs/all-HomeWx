@@ -19,6 +19,49 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
+    <!-- Hourly-only: which slice of the forecast hours the strip charts below plot. Hidden for
+         Past/Daily, which have no notion of "today"/"+24 hours". -->
+    <RadioGroup
+        android:id="@+id/forecastHourlyPeriodGroup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <RadioButton
+            android:id="@+id/forecastHourlyPeriodAll"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="20dp"
+            android:buttonTint="@color/accent_cool"
+            android:text="@string/forecast_hourly_period_all"
+            android:textColor="@color/text_primary"
+            android:textSize="13sp" />
+
+        <RadioButton
+            android:id="@+id/forecastHourlyPeriodToday"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="20dp"
+            android:buttonTint="@color/accent_cool"
+            android:checked="true"
+            android:text="@string/forecast_hourly_period_today"
+            android:textColor="@color/text_primary"
+            android:textSize="13sp" />
+
+        <RadioButton
+            android:id="@+id/forecastHourlyPeriodPlus24"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:buttonTint="@color/accent_cool"
+            android:text="@string/forecast_hourly_period_plus24"
+            android:textColor="@color/text_primary"
+            android:textSize="13sp" />
+
+    </RadioGroup>
+
     <LinearLayout
         android:id="@+id/forecastTempSection"
         android:layout_width="match_parent"

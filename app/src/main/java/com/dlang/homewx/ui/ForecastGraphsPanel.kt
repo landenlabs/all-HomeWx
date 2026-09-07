@@ -47,6 +47,16 @@ class ForecastGraphsPanel(container: ViewGroup) {
     private val dayFormat = SimpleDateFormat("EEE", Locale.getDefault())
     private val pastFormat = SimpleDateFormat("EEE h a", Locale.getDefault())
 
+    /** Which slice of the hourly forecast the strip charts plot - defaults to Today, matching
+     *  the radio button checked by default in the layout. Only consulted for [ForecastRange.HOURLY]. */
+    private var hourlyPeriod = HourlyGraphPeriod.TODAY
+
+    /** Args from the last [render] call, re-used to redraw when [hourlyPeriod] changes without
+     *  waiting for [com.dlang.homewx.ui.ForecastPanel] to push a fresh forecast. */
+    private var lastRange: ForecastRange? = null
+    private var lastForecast: WeatherForecast? = null
+    private var lastPastPoints: List<WeatherMetricsPoint> = emptyList()
+
     init {
         container.addView(root)
         // Titles live in their own TextView below each chart rather than MPAndroidChart's
@@ -68,9 +78,24 @@ class ForecastGraphsPanel(container: ViewGroup) {
             watermark.text = title.text
         }
         binding.forecastPrecipWatermarkText.setTextColor(watermarkTextColor)
+
+        binding.forecastHourlyPeriodGroup.setOnCheckedChangeListener { _, checkedId ->
+            hourlyPeriod = when (checkedId) {
+                binding.forecastHourlyPeriodAll.id -> HourlyGraphPeriod.ALL
+                binding.forecastHourlyPeriodPlus24.id -> HourlyGraphPeriod.PLUS_24
+                else -> HourlyGraphPeriod.TODAY
+            }
+            val forecast = lastForecast ?: return@setOnCheckedChangeListener
+            lastRange?.let { render(it, forecast, lastPastPoints) }
+        }
     }
 
     fun render(range: ForecastRange, forecast: WeatherForecast, pastPoints: List<WeatherMetricsPoint>) {
+        lastRange = range
+        lastForecast = forecast
+        lastPastPoints = pastPoints
+
+        binding.forecastHourlyPeriodGroup.visibility = if (range == ForecastRange.HOURLY) View.VISIBLE else View.GONE
         binding.forecastPressureSection.visibility = if (range == ForecastRange.PAST) View.VISIBLE else View.GONE
 
         binding.forecastPrecipTitleText.text = context.getString(
@@ -106,7 +131,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
 
         when (range) {
             ForecastRange.HOURLY -> {
-                val hours = forecast.hourly
+                val hours = filterHoursForPeriod(forecast.hourly, hourlyPeriod)
                 val dayBoundaries = dayBoundaryXValues(hours)
                 val noonLabels = noonDayOfWeekLabels(hours)
                 listOf(binding.forecastTempChartView, binding.forecastWindChartView, binding.forecastPrecipChartView).forEach { chart ->
@@ -199,6 +224,30 @@ class ForecastGraphsPanel(container: ViewGroup) {
                     R.string.forecast_no_pressure_data, allZeroMessageRes = null,
                     valueFormatter = pressureValueFormatter, spline = useSpline(pressurePoints)
                 )
+            }
+        }
+    }
+
+    /** Narrows the full hourly forecast down to the slice [period] asks for - ALL is a no-op
+     *  (matches the hourly cards view), TODAY keeps only hours within the device's current
+     *  calendar day, and PLUS_24 keeps the next 24 hours starting now. */
+    private fun filterHoursForPeriod(hours: List<HourlyForecastEntry>, period: HourlyGraphPeriod): List<HourlyForecastEntry> {
+        return when (period) {
+            HourlyGraphPeriod.ALL -> hours
+            HourlyGraphPeriod.TODAY -> {
+                val todayStart = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
+                val todayEnd = todayStart + DAY_MILLIS
+                hours.filter { it.timeMillis in todayStart until todayEnd }
+            }
+            HourlyGraphPeriod.PLUS_24 -> {
+                val now = System.currentTimeMillis()
+                val end = now + DAY_MILLIS
+                hours.filter { it.timeMillis in now..end }
             }
         }
     }
@@ -336,6 +385,9 @@ class ForecastGraphsPanel(container: ViewGroup) {
     }
 
     companion object {
+        /** Milliseconds in a day - used to bound the Today/+24-hour hourly graph filters. */
+        private const val DAY_MILLIS = 24 * 60 * 60 * 1000L
+
         /** A noon label within this fraction of either edge of the visible x-range is dropped -
          *  not enough room to draw it without crowding the chart's border. */
         private const val EDGE_MARGIN_FRACTION = 0.05
