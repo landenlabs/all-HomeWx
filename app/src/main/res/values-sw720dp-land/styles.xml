@@ -1,0 +1,28 @@
+<resources>
+    <!-- weatherDetailsGrid uses columnCount=2 on this screen bucket (see
+         layout-sw720dp-land/activity_main.xml comment) - at the base 24sp/2dp padding
+         the 12-row table overflows past weatherBackgroundImage into the sensor list
+         below. Smaller text + tighter row padding keeps it within bounds.
+         Full override, not textSize-only: resource qualifiers replace a style entirely,
+         they don't merge with the base definition. -->
+    <style name="wx_label">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/accent_cool</item>
+        <item name="android:textSize">18sp</item>
+        <item name="android:paddingTop">1dp</item>
+        <item name="android:paddingBottom">1dp</item>
+        <item name="android:paddingEnd">8dp</item>
+        <item name="android:layout_gravity">end</item>
+    </style>
+
+    <style name="wx_value">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">18sp</item>
+        <item name="android:paddingTop">1dp</item>
+        <item name="android:paddingBottom">1dp</item>
+        <item name="android:paddingEnd">16dp</item>
+    </style>
+</resources>

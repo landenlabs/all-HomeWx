@@ -184,10 +184,11 @@
         <TextView style="@style/wx_label" android:text="@string/wx_lbl_pressure" />
         <TextView android:id="@+id/pressureValueText" style="@style/wx_value" />
 
-        <TextView android:id="@+id/lyMinLabelText" style="@style/wx_label" android:text="@string/wx_lbl_ly_min" />
+        <!-- Single-column layout: min/max share one row ("LstYr  56°F/72°F") instead of the
+             separate label,value,label,value row the 4-column portrait/sw720dp-land grid
+             uses - see MainActivity.bindLastYearRow(). -->
+        <TextView android:id="@+id/lyMinLabelText" style="@style/wx_label" android:text="@string/wx_lbl_ly" />
         <TextView android:id="@+id/lyMinValueText" style="@style/wx_value" />
-        <TextView android:id="@+id/lyMaxLabelText" style="@style/wx_label" android:text="@string/wx_lbl_ly_max" />
-        <TextView android:id="@+id/lyMaxValueText" style="@style/wx_value" />
     </GridLayout>
 
     <!-- Small attribution badge for the active weather source (Open-Meteo/WxData) - source

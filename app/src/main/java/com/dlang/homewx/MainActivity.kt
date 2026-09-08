@@ -404,8 +404,7 @@ class MainActivity : AppCompatActivity() {
 
         val historicalAverage = state.historicalTempAverage
         updateLastYearLabel()
-        binding.lyMaxValueText.text = historicalAverage?.avgHighF?.roundToInt()?.let { "$it°F" } ?: "--"
-        binding.lyMinValueText.text = historicalAverage?.avgLowF?.roundToInt()?.let { "$it°F" } ?: "--"
+        bindLastYearRow(historicalAverage?.avgLowF, historicalAverage?.avgHighF)
     }
 
     /**
@@ -418,8 +417,29 @@ class MainActivity : AppCompatActivity() {
      */
     private fun updateLastYearLabel() {
         val isNormal = WeatherSourceConfig.getActiveSource(this) == WeatherSourceId.WXDATA
-        binding.lyMaxLabelText.setText(if (isNormal) R.string.wx_lbl_normal_max else R.string.wx_lbl_ly_max)
-        binding.lyMinLabelText.setText(if (isNormal) R.string.wx_lbl_normal_min else R.string.wx_lbl_ly_min)
+        if (binding.lyMaxLabelText != null) {
+            binding.lyMaxLabelText?.setText(if (isNormal) R.string.wx_lbl_normal_max else R.string.wx_lbl_ly_max)
+            binding.lyMinLabelText.setText(if (isNormal) R.string.wx_lbl_normal_min else R.string.wx_lbl_ly_min)
+        } else {
+            binding.lyMinLabelText.setText(if (isNormal) R.string.wx_lbl_normal else R.string.wx_lbl_ly)
+        }
+    }
+
+    /**
+     * Portrait/sw720dp-land's 4-column grid has separate lyMinLabelText/lyMaxLabelText rows
+     * (see [updateLastYearLabel]) so min and max show side by side already; the single-column
+     * landscape layouts drop the max row entirely and fold both values into lyMinValueText as
+     * "<min>/<max>" instead - lyMaxValueText is null there (view absent from that layout).
+     */
+    private fun bindLastYearRow(lowF: Double?, highF: Double?) {
+        val lowText = lowF?.roundToInt()?.let { "$it°F" } ?: "--"
+        val highText = highF?.roundToInt()?.let { "$it°F" } ?: "--"
+        if (binding.lyMaxValueText != null) {
+            binding.lyMinValueText.text = lowText
+            binding.lyMaxValueText?.text = highText
+        } else {
+            binding.lyMinValueText.text = if (lowF == null && highF == null) "--" else "$lowText/$highText"
+        }
     }
 
     private fun bindSnapshotWeather(snapshot: DailySnapshot) {
@@ -441,8 +461,7 @@ class MainActivity : AppCompatActivity() {
         binding.windHighValueText.text = formatExtreme(toExtreme(snapshot.windHighMph, snapshot.windHighAtMillis), " mph")
         binding.windLowValueText.text = formatExtreme(toExtreme(snapshot.windLowMph, snapshot.windLowAtMillis), " mph")
         updateLastYearLabel()
-        binding.lyMaxValueText.text = snapshot.lyAvgHighF?.roundToInt()?.let { "$it°F" } ?: "--"
-        binding.lyMinValueText.text = snapshot.lyAvgLowF?.roundToInt()?.let { "$it°F" } ?: "--"
+        bindLastYearRow(snapshot.lyAvgLowF, snapshot.lyAvgHighF)
     }
 
     /** Only the weather provider's own forecast fields are used here - no sensor override, unlike [bindLiveWeather]. */
@@ -470,8 +489,7 @@ class MainActivity : AppCompatActivity() {
             ?: entry.windMaxMph?.roundToInt()?.let { "$it mph" } ?: "--"
         binding.windLowValueText.text = entry.windMinMph?.roundToInt()?.let { "$it mph" } ?: "--"
         updateLastYearLabel()
-        binding.lyMaxValueText.text = entry.normalHighF?.roundToInt()?.let { "$it°F" } ?: "--"
-        binding.lyMinValueText.text = entry.normalLowF?.roundToInt()?.let { "$it°F" } ?: "--"
+        bindLastYearRow(entry.normalLowF, entry.normalHighF)
     }
 
     /** A tapped "Past" card - [WeatherMetricsPoint] only carries temp/wind/precip/pressure/icon
@@ -497,8 +515,7 @@ class MainActivity : AppCompatActivity() {
         binding.windHighValueText.text = "--"
         binding.windLowValueText.text = "--"
         updateLastYearLabel()
-        binding.lyMaxValueText.text = "--"
-        binding.lyMinValueText.text = "--"
+        bindLastYearRow(null, null)
     }
 
     private fun toExtreme(value: Double?, atMillis: Long?): DailyExtreme? =

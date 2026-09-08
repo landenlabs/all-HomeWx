@@ -143,9 +143,13 @@
         app:layout_constraintTop_toBottomOf="@id/tempTrendText"
         tools:text="+3°F/4hr" />
 
-    <!-- condition/humidity/wind/precip/pressure table: label,value,label,value per row
-         (4 columns - wide 10"+ tablets like the Tab S3 only; narrower landscape screens
-         use the 2-column layout-land variant instead).
+    <!-- condition/humidity/wind/precip/pressure table: label,value per row (2 columns,
+         same as layout-land). A 4-column layout was tried here (matching the half-screen
+         width's raw dp) but on the Tab S7's actual half-width (~400dp after the icon and
+         margins), the "(4 AM)"-style value strings don't leave room for a second
+         label/value pair per row at a readable size - the values column gets clipped.
+         2 columns + the smaller sw720dp-land wx_label/wx_value size (see values-sw720dp-land/
+         styles.xml) keeps this from overflowing into the sensor list below.
          Column widths size to content and center as a whole within weatherBackgroundImage. -->
     <GridLayout
         android:id="@+id/weatherDetailsGrid"
@@ -184,10 +188,11 @@
         <TextView style="@style/wx_label" android:text="@string/wx_lbl_pressure" />
         <TextView android:id="@+id/pressureValueText" style="@style/wx_value" />
 
-        <TextView android:id="@+id/lyMinLabelText" style="@style/wx_label" android:text="@string/wx_lbl_ly_min" />
+        <!-- Single-column layout: min/max share one row ("LstYr  56°F/72°F") instead of the
+             separate label,value,label,value row the 4-column portrait grid uses - see
+             MainActivity.bindLastYearRow(). -->
+        <TextView android:id="@+id/lyMinLabelText" style="@style/wx_label" android:text="@string/wx_lbl_ly" />
         <TextView android:id="@+id/lyMinValueText" style="@style/wx_value" />
-        <TextView android:id="@+id/lyMaxLabelText" style="@style/wx_label" android:text="@string/wx_lbl_ly_max" />
-        <TextView android:id="@+id/lyMaxValueText" style="@style/wx_value" />
     </GridLayout>
 
     <!-- Small attribution badge for the active weather source (Open-Meteo/WxData) - source
