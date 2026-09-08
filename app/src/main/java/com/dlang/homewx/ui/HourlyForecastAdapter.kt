@@ -126,6 +126,12 @@ class HourlyForecastAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         ) {
             val context = binding.root.context
             binding.hourlyCardTimeText.text = hourFormat.format(Date(entry.timeMillis))
+            binding.hourlyCardTimeText.setTextColor(
+                ContextCompat.getColor(
+                    context,
+                    if (isCurrentHour(entry.timeMillis)) R.color.accent_day_marker else R.color.accent_cool
+                )
+            )
             binding.hourlyCardIcon.setImageResource(context.weatherIconRes(entry.iconKey))
 
             val tempRounded = entry.temperatureF?.roundToInt()
@@ -161,6 +167,21 @@ class HourlyForecastAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             )
         }
     }
+}
+
+/** Whether [timeMillis] falls in the same calendar hour as now - the hourly card whose time text
+ *  gets the "current hour" green instead of the usual blue. */
+private fun isCurrentHour(timeMillis: Long): Boolean {
+    val calendar = Calendar.getInstance()
+    calendar.timeInMillis = System.currentTimeMillis()
+    val nowYear = calendar.get(Calendar.YEAR)
+    val nowDayOfYear = calendar.get(Calendar.DAY_OF_YEAR)
+    val nowHour = calendar.get(Calendar.HOUR_OF_DAY)
+
+    calendar.timeInMillis = timeMillis
+    return calendar.get(Calendar.YEAR) == nowYear &&
+        calendar.get(Calendar.DAY_OF_YEAR) == nowDayOfYear &&
+        calendar.get(Calendar.HOUR_OF_DAY) == nowHour
 }
 
 private fun dayBackgroundRes(dayParity: Int): Int =

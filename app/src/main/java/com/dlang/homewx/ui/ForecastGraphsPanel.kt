@@ -134,6 +134,8 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 val hours = filterHoursForPeriod(forecast.hourly, hourlyPeriod)
                 val dayBoundaries = dayBoundaryXValues(hours)
                 val noonLabels = noonDayOfWeekLabels(hours)
+                val nowMillis = System.currentTimeMillis()
+                val showNowMarker = hours.isNotEmpty() && nowMillis in hours.first().timeMillis..hours.last().timeMillis
                 listOf(binding.forecastTempChartView, binding.forecastWindChartView, binding.forecastPrecipChartView).forEach { chart ->
                     // The default hour-by-hour tick labels ("3 PM") land wherever MPAndroidChart's
                     // automatic grid computation happens to fall, which reads as near-random -
@@ -141,17 +143,20 @@ class ForecastGraphsPanel(container: ViewGroup) {
                     chart.xAxis.setDrawLabels(false)
                     LineChartSetup.setLimitLines(chart, context, dayBoundaries)
                     LineChartSetup.addAxisLabelMarkers(chart, context, noonLabels)
+                    if (showNowMarker) LineChartSetup.addCurrentTimeMarker(chart, context, nowMillis / 1000f)
                 }
 
                 renderSingleLineTemp(hours.mapNotNull { h -> h.temperatureF?.let { h.timeMillis to it } })
                 renderMetric(
                     binding.forecastWindSection, binding.forecastWindChartFrame, binding.forecastWindChartView, binding.forecastWindEmptyText, binding.forecastWindMaxValueText,
+                    binding.forecastWindWatermarkText, binding.forecastWindTitleText,
                     hours.mapNotNull { h -> h.windSpeedMph?.let { h.timeMillis to it } },
                     R.string.forecast_no_wind_data, R.string.forecast_no_wind,
                     valueFormatter = windValueFormatter
                 )
                 renderMetric(
                     binding.forecastPrecipSection, binding.forecastPrecipChartFrame, binding.forecastPrecipChartView, binding.forecastPrecipEmptyText, binding.forecastPrecipMaxValueText,
+                    binding.forecastPrecipWatermarkText, binding.forecastPrecipTitleText,
                     hours.mapNotNull { h -> h.precipitationChancePct?.let { h.timeMillis to it.toDouble() } },
                     R.string.forecast_no_precipitation_data, R.string.forecast_no_precipitation,
                     R.color.accent_cool, filled = true, valueFormatter = pctValueFormatter
@@ -176,12 +181,14 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 )
                 renderMetric(
                     binding.forecastWindSection, binding.forecastWindChartFrame, binding.forecastWindChartView, binding.forecastWindEmptyText, binding.forecastWindMaxValueText,
+                    binding.forecastWindWatermarkText, binding.forecastWindTitleText,
                     days.mapNotNull { d -> d.windMaxMph?.let { d.dateMillis to it } },
                     R.string.forecast_no_wind_data, R.string.forecast_no_wind,
                     spline = spline, valueFormatter = windValueFormatter
                 )
                 renderMetric(
                     binding.forecastPrecipSection, binding.forecastPrecipChartFrame, binding.forecastPrecipChartView, binding.forecastPrecipEmptyText, binding.forecastPrecipMaxValueText,
+                    binding.forecastPrecipWatermarkText, binding.forecastPrecipTitleText,
                     days.mapNotNull { d -> d.precipitationChancePct?.let { d.dateMillis to it.toDouble() } },
                     R.string.forecast_no_precipitation_data, R.string.forecast_no_precipitation,
                     R.color.accent_cool, filled = true, spline = spline, valueFormatter = pctValueFormatter
@@ -206,6 +213,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 val windPoints = pastPoints.mapNotNull { p -> p.windSpeedMph?.let { p.timestampMillis to it } }
                 renderMetric(
                     binding.forecastWindSection, binding.forecastWindChartFrame, binding.forecastWindChartView, binding.forecastWindEmptyText, binding.forecastWindMaxValueText,
+                    binding.forecastWindWatermarkText, binding.forecastWindTitleText,
                     windPoints,
                     R.string.forecast_no_wind_data, R.string.forecast_no_wind_recorded,
                     valueFormatter = windValueFormatter, spline = useSpline(windPoints)
@@ -213,6 +221,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 val precipPoints = pastPoints.mapNotNull { p -> p.precipitationIn?.let { p.timestampMillis to it } }
                 renderMetric(
                     binding.forecastPrecipSection, binding.forecastPrecipChartFrame, binding.forecastPrecipChartView, binding.forecastPrecipEmptyText, binding.forecastPrecipMaxValueText,
+                    binding.forecastPrecipWatermarkText, binding.forecastPrecipTitleText,
                     precipPoints,
                     R.string.forecast_no_precipitation_data, R.string.forecast_no_precipitation_recorded,
                     R.color.accent_cool, filled = true, valueFormatter = precipInValueFormatter, spline = useSpline(precipPoints)
@@ -220,6 +229,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 val pressurePoints = pastPoints.mapNotNull { p -> p.pressureInHg?.let { p.timestampMillis to it } }
                 renderMetric(
                     binding.forecastPressureSection, binding.forecastPressureChartFrame, binding.forecastPressureChartView, binding.forecastPressureEmptyText, binding.forecastPressureMaxValueText,
+                    binding.forecastPressureWatermarkText, binding.forecastPressureTitleText,
                     pressurePoints,
                     R.string.forecast_no_pressure_data, allZeroMessageRes = null,
                     valueFormatter = pressureValueFormatter, spline = useSpline(pressurePoints)
@@ -294,7 +304,10 @@ class ForecastGraphsPanel(container: ViewGroup) {
 
     private fun renderSingleLineTemp(points: List<Pair<Long, Double>>, spline: Boolean = false) {
         val collapse = points.size < 2
-        setSectionCollapsed(binding.forecastTempSection, binding.forecastTempChartFrame, binding.forecastTempEmptyText, collapse)
+        setSectionCollapsed(
+            binding.forecastTempSection, binding.forecastTempChartFrame, binding.forecastTempEmptyText,
+            binding.forecastTempWatermarkText, binding.forecastTempTitleText, collapse
+        )
         if (collapse) {
             binding.forecastTempChartView.visibility = View.GONE
             binding.forecastTempEmptyText.visibility = View.VISIBLE
@@ -310,7 +323,10 @@ class ForecastGraphsPanel(container: ViewGroup) {
 
     private fun renderDailyTemp(highs: List<Pair<Long, Double>>, lows: List<Pair<Long, Double>>, spline: Boolean = false) {
         val collapse = highs.size < 2 && lows.size < 2
-        setSectionCollapsed(binding.forecastTempSection, binding.forecastTempChartFrame, binding.forecastTempEmptyText, collapse)
+        setSectionCollapsed(
+            binding.forecastTempSection, binding.forecastTempChartFrame, binding.forecastTempEmptyText,
+            binding.forecastTempWatermarkText, binding.forecastTempTitleText, collapse
+        )
         if (collapse) {
             binding.forecastTempChartView.visibility = View.GONE
             binding.forecastTempEmptyText.visibility = View.VISIBLE
@@ -339,6 +355,8 @@ class ForecastGraphsPanel(container: ViewGroup) {
         chart: LineChart,
         emptyText: TextView,
         maxValueText: TextView,
+        watermarkText: TextView,
+        titleText: TextView,
         points: List<Pair<Long, Double>>,
         noDataMessageRes: Int,
         allZeroMessageRes: Int?,
@@ -350,7 +368,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
         val noData = points.size < 2
         val allZero = !noData && allZeroMessageRes != null && points.all { it.second == 0.0 }
         val collapse = noData || allZero
-        setSectionCollapsed(section, chartFrame, emptyText, collapse)
+        setSectionCollapsed(section, chartFrame, emptyText, watermarkText, titleText, collapse)
         if (collapse) {
             chart.visibility = View.GONE
             emptyText.visibility = View.VISIBLE
@@ -364,10 +382,19 @@ class ForecastGraphsPanel(container: ViewGroup) {
         }
     }
 
-    /** Shrinks [section]/[chartFrame] to just their title's height (giving up their share of the
-     *  panel's vertical space to the other sections) when [collapsed], or restores their normal
-     *  equal-weight sizing otherwise. */
-    private fun setSectionCollapsed(section: LinearLayout, chartFrame: FrameLayout, emptyText: TextView, collapsed: Boolean) {
+    /** Shrinks [section]/[chartFrame] to just their empty-state text's height (giving up their
+     *  share of the panel's vertical space to the other sections) when [collapsed], or restores
+     *  their normal equal-weight sizing otherwise. Collapsing also hides [watermarkText] and
+     *  [titleText] - with no chart drawn there's nothing for the watermark to sit behind and no
+     *  graph left to name, so only the empty-state message itself ("No wind data", etc.) shows. */
+    private fun setSectionCollapsed(
+        section: LinearLayout,
+        chartFrame: FrameLayout,
+        emptyText: TextView,
+        watermarkText: TextView,
+        titleText: TextView,
+        collapsed: Boolean
+    ) {
         val sectionParams = section.layoutParams as LinearLayout.LayoutParams
         sectionParams.height = if (collapsed) ViewGroup.LayoutParams.WRAP_CONTENT else 0
         sectionParams.weight = if (collapsed) 0f else 1f
@@ -382,6 +409,9 @@ class ForecastGraphsPanel(container: ViewGroup) {
         emptyTextParams.height = if (collapsed) ViewGroup.LayoutParams.WRAP_CONTENT else ViewGroup.LayoutParams.MATCH_PARENT
         emptyText.layoutParams = emptyTextParams
         emptyText.setPadding(emptyText.paddingLeft, collapsedEmptyTextPaddingPx.takeIf { collapsed } ?: 0, emptyText.paddingRight, collapsedEmptyTextPaddingPx.takeIf { collapsed } ?: 0)
+
+        watermarkText.visibility = if (collapsed) View.GONE else View.VISIBLE
+        titleText.visibility = if (collapsed) View.GONE else View.VISIBLE
     }
 
     companion object {

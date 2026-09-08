@@ -104,6 +104,19 @@ object LineChartSetup {
         }
     }
 
+    /** Draws a solid vertical "you are here" marker at [xValue] - the Hourly forecast graphs'
+     *  current-time line, redrawn every time those charts render. Solid (vs. [setLimitLines]'s
+     *  dashed day boundaries) so the two read as distinct; adds to whatever limit lines are
+     *  already on the chart rather than clearing them, so call this after [setLimitLines]. */
+    fun addCurrentTimeMarker(chart: LineChart, context: Context, xValue: Float) {
+        chart.xAxis.addLimitLine(
+            LimitLine(xValue).apply {
+                lineColor = ContextCompat.getColor(context, R.color.accent_day_marker)
+                lineWidth = 1.5f
+            }
+        )
+    }
+
     /** Draws fixed horizontal threshold lines on [axis] - e.g. wind speed's "high wind" line, or
      *  temperature's freezing line. Defaults to the left axis (every chart but the sensor
      *  graphs' dual-axis one is left-axis only); pass [chart]'s right axis for a series plotted

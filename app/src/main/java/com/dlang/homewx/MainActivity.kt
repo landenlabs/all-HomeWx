@@ -743,12 +743,18 @@ class MainActivity : AppCompatActivity() {
 
     /** Forecast panel's "Past" range shows the same recorded weather-metrics history the old
      *  top-level graphs tab used to - fetched here regardless of which of its 3 sub-tabs is
-     *  currently showing, same as [latestForecast] already is. */
+     *  currently showing, same as [latestForecast] already is. Older days beyond the short-term
+     *  detail buffer are backfilled from the permanent one-sample-per-day archive, so "Past" isn't
+     *  limited to the last 48h even though the fine-grained buffer is. */
     private fun refreshForecastPanel() {
         val forecast = latestForecast ?: return
         lifecycleScope.launch {
             val sinceMillis = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(48)
-            val pastPoints = withContext(Dispatchers.IO) { weatherMetricsHistoryStore.getHistorySince(sinceMillis) }
+            val pastPoints = withContext(Dispatchers.IO) {
+                val dailyPoints = weatherMetricsHistoryStore.getDailyHistoryBefore(sinceMillis)
+                val recentPoints = weatherMetricsHistoryStore.getHistorySince(sinceMillis)
+                dailyPoints + recentPoints
+            }
             if (currentInfoPanel != InfoPanelView.FORECAST) return@launch
             forecastPanel.render(forecast, pastPoints)
         }
