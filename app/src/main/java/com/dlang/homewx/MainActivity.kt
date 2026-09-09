@@ -122,8 +122,13 @@ class MainActivity : AppCompatActivity() {
     private var wakeOverrideJob: Job? = null
     /** Tracks the previous tick's light mode so a QUIET->ACTIVE transition can be detected in [observeState]. */
     private var lastLightMode: LightMode? = null
-    /** Running while auto-cycling tabs after a light-triggered wake; cancelled on any user tab tap. */
+    /** Running while auto-cycling tabs after a light-triggered wake; paused (see [autoCycleResumeJob])
+     *  on any tap anywhere on screen, and stopped outright on the way back to QUIET. */
     private var autoCycleJob: Job? = null
+    /** Running while the auto-cycle is paused after a tap on screen; fires [startAutoCycle] again
+     *  after [AUTO_CYCLE_PAUSE_MS] of no further taps. Restarted on every [onUserInteraction] call
+     *  so continued tapping keeps extending the pause, same pattern as [wakeOverrideJob]. */
+    private var autoCycleResumeJob: Job? = null
 
     private val weatherGestureDetector by lazy {
         GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
@@ -220,13 +225,14 @@ class MainActivity : AppCompatActivity() {
         val showRiversTab = RiverGaugeSettings.isEnabled(this) && RiverGaugeSettings.getSelectedGauges(this).isNotEmpty()
         binding.infoPanelTabBar.riversTabButton.visibility = if (showRiversTab) View.VISIBLE else View.GONE
         if (!showRiversTab && currentInfoPanel == InfoPanelView.RIVERS) {
-            selectTab(InfoPanelView.NEWS, isUserAction = false)
+            selectTab(InfoPanelView.NEWS)
         }
     }
 
     /** A tap anywhere on screen while QUIET wakes the display and holds it ACTIVE for a few
      *  minutes; a tap anywhere while a Past/Daily card preview is showing extends its revert
-     *  countdown instead of letting it lapse mid-interaction. */
+     *  countdown instead of letting it lapse mid-interaction; a tap anywhere while the tab
+     *  auto-cycle is running (or already paused) pauses/extends it too. */
     override fun onUserInteraction() {
         super.onUserInteraction()
         if (AppState.uiState.value.lightMode == LightMode.QUIET) {
@@ -234,6 +240,9 @@ class MainActivity : AppCompatActivity() {
         }
         if (forecastPreviewRevertJob != null) {
             scheduleForecastPreviewRevert()
+        }
+        if (autoCycleJob != null || autoCycleResumeJob != null) {
+            pauseAutoCycle()
         }
     }
 
@@ -332,7 +341,7 @@ class MainActivity : AppCompatActivity() {
         val previousMode = lastLightMode
         lastLightMode = newMode
         if (previousMode == LightMode.QUIET && newMode == LightMode.ACTIVE) {
-            selectTab(InfoPanelView.NEWS, isUserAction = false)
+            selectTab(InfoPanelView.NEWS)
             startAutoCycle()
         } else if (newMode == LightMode.QUIET) {
             stopAutoCycle()
@@ -346,7 +355,7 @@ class MainActivity : AppCompatActivity() {
             while (true) {
                 delay(AUTO_CYCLE_INTERVAL_MS)
                 index = (index + 1) % AUTO_CYCLE_TABS.size
-                selectTab(AUTO_CYCLE_TABS[index], isUserAction = false)
+                selectTab(AUTO_CYCLE_TABS[index])
             }
         }
     }
@@ -354,6 +363,21 @@ class MainActivity : AppCompatActivity() {
     private fun stopAutoCycle() {
         autoCycleJob?.cancel()
         autoCycleJob = null
+        autoCycleResumeJob?.cancel()
+        autoCycleResumeJob = null
+    }
+
+    /** Pauses the auto-cycle in response to a tap anywhere on screen ([onUserInteraction]),
+     *  then restarts it after [AUTO_CYCLE_PAUSE_MS] of no further taps. */
+    private fun pauseAutoCycle() {
+        autoCycleJob?.cancel()
+        autoCycleJob = null
+        autoCycleResumeJob?.cancel()
+        autoCycleResumeJob = lifecycleScope.launch {
+            delay(AUTO_CYCLE_PAUSE_MS)
+            autoCycleResumeJob = null
+            startAutoCycle()
+        }
     }
 
     /** Re-renders whichever chart-based panel is currently open, so its data doesn't go
@@ -710,10 +734,9 @@ class MainActivity : AppCompatActivity() {
             ColorStateList.valueOf(if (panel == InfoPanelView.RIVERS) selectedColor else unselectedColor)
     }
 
-    /** Switches the info panel to [panel]. [isUserAction] is false when the switch comes from
-     *  the auto-cycle timer rather than an actual tap, so it doesn't cancel its own cycle. */
-    private fun selectTab(panel: InfoPanelView, isUserAction: Boolean = true) {
-        if (isUserAction) stopAutoCycle()
+    /** Switches the info panel to [panel]. Tab-bar taps pause the auto-cycle via [onUserInteraction]
+     *  rather than this function - it's also called by the auto-cycle timer itself. */
+    private fun selectTab(panel: InfoPanelView) {
         activeSensorHistoryId = null
         showInfoPanel(panel)
         when (panel) {
@@ -848,6 +871,7 @@ class MainActivity : AppCompatActivity() {
         private const val WAKE_OVERRIDE_DURATION_MS = 5 * 60 * 1000L
         private const val FORECAST_PREVIEW_TIMEOUT_MS = 10 * 60 * 1000L
         private const val AUTO_CYCLE_INTERVAL_MS = 5 * 60 * 1000L
+        private const val AUTO_CYCLE_PAUSE_MS = 10 * 60 * 1000L
         private val AUTO_CYCLE_TABS = listOf(
             InfoPanelView.NEWS, InfoPanelView.FORECAST, InfoPanelView.SENSOR_GRAPHS
         )

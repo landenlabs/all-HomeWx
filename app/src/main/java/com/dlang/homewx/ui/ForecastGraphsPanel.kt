@@ -12,8 +12,10 @@ import com.dlang.homewx.R
 import com.dlang.homewx.data.WeatherMetricsPoint
 import com.dlang.homewx.settings.AppSettings
 import com.dlang.homewx.databinding.PanelForecastGraphsBinding
+import com.dlang.homewx.weather.DailyForecastEntry
 import com.dlang.homewx.weather.HourlyForecastEntry
 import com.dlang.homewx.weather.WeatherForecast
+import com.dlang.homewx.weather.isSameDay
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.formatter.ValueFormatter
 import java.text.SimpleDateFormat
@@ -164,13 +166,20 @@ class ForecastGraphsPanel(container: ViewGroup) {
             }
             ForecastRange.DAILY -> {
                 val days = forecast.daily
-                // Each entry here is already one full calendar day apart, so the shared
-                // day-boundary detector (built for hourly's many-points-per-day case) places a
-                // marker at every entry but the first - exactly the dividers between days.
-                val dayBoundaries = LineChartSetup.dayBoundaryXValues(days.map { it.dateMillis })
+                // Each entry's dateMillis is noon of that day (matching where the data itself
+                // gets plotted), so feeding it straight into the shared day-boundary detector
+                // would draw the green divider at noon, right on top of the data, instead of at
+                // the midnight transition between days. Shift back half a day first so the
+                // detector's per-entry timestamp lands on midnight of that same calendar day.
+                val dayBoundaries = LineChartSetup.dayBoundaryXValues(days.map { it.dateMillis - DAY_MILLIS / 2 })
+                val dayLabels = dayOfWeekLabels(days)
                 listOf(binding.forecastTempChartView, binding.forecastWindChartView, binding.forecastPrecipChartView).forEach { chart ->
-                    chart.xAxis.setDrawLabels(true)
+                    // As with Hourly's noon labels, the default per-tick axis labels can't be
+                    // colored individually, so they're replaced with explicit markers to
+                    // highlight today's label in green.
+                    chart.xAxis.setDrawLabels(false)
                     LineChartSetup.setLimitLines(chart, context, dayBoundaries)
+                    LineChartSetup.addAxisLabelMarkers(chart, context, dayLabels)
                 }
 
                 val spline = AppSettings.isDailyWeatherSplineEnabled(context)
@@ -271,17 +280,19 @@ class ForecastGraphsPanel(container: ViewGroup) {
     /** One (x, "Mon") label per calendar day in [hours], positioned at that day's noon - only
      *  when noon actually falls within the covered data range, and skipped near the very start
      *  or end of that range where there's not enough width for the label to sit without
-     *  crowding the chart edge. */
-    private fun noonDayOfWeekLabels(hours: List<HourlyForecastEntry>): List<Pair<Float, String>> {
+     *  crowding the chart edge. The label for today (if present) is [LineChartSetup.AxisLabel.highlighted]
+     *  so it draws in the "current" green accent. */
+    private fun noonDayOfWeekLabels(hours: List<HourlyForecastEntry>): List<LineChartSetup.AxisLabel> {
         if (hours.isEmpty()) return emptyList()
         val dataMinMillis = hours.first().timeMillis
         val dataMaxMillis = hours.last().timeMillis
         val totalRangeMillis = (dataMaxMillis - dataMinMillis).toDouble()
         if (totalRangeMillis <= 0) return emptyList()
 
+        val now = System.currentTimeMillis()
         val calendar = Calendar.getInstance()
         val seenDayKeys = mutableSetOf<Int>()
-        val labels = mutableListOf<Pair<Float, String>>()
+        val labels = mutableListOf<LineChartSetup.AxisLabel>()
         for (entry in hours) {
             calendar.timeInMillis = entry.timeMillis
             val dayKey = calendar.get(Calendar.YEAR) * 1000 + calendar.get(Calendar.DAY_OF_YEAR)
@@ -297,9 +308,20 @@ class ForecastGraphsPanel(container: ViewGroup) {
             val edgeFraction = (noonMillis - dataMinMillis) / totalRangeMillis
             if (edgeFraction < EDGE_MARGIN_FRACTION || edgeFraction > 1.0 - EDGE_MARGIN_FRACTION) continue
 
-            labels.add((noonMillis / 1000f) to dayFormat.format(Date(noonMillis)))
+            labels.add(
+                LineChartSetup.AxisLabel(noonMillis / 1000f, dayFormat.format(Date(noonMillis)), isSameDay(noonMillis, now))
+            )
         }
         return labels
+    }
+
+    /** One (x, "Mon") label per entry in [days], positioned at that day's dateMillis (noon,
+     *  matching where the data itself is plotted) - today's label is highlighted green. */
+    private fun dayOfWeekLabels(days: List<DailyForecastEntry>): List<LineChartSetup.AxisLabel> {
+        val now = System.currentTimeMillis()
+        return days.map { d ->
+            LineChartSetup.AxisLabel(d.dateMillis / 1000f, dayFormat.format(Date(d.dateMillis)), isSameDay(d.dateMillis, now))
+        }
     }
 
     private fun renderSingleLineTemp(points: List<Pair<Long, Double>>, spline: Boolean = false) {

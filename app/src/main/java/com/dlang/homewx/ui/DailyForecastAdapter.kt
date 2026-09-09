@@ -9,6 +9,7 @@ import com.dlang.homewx.R
 import com.dlang.homewx.databinding.ItemForecastCardBinding
 import com.dlang.homewx.weather.DailyForecastEntry
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -59,6 +60,12 @@ class DailyForecastAdapter(private val onItemClick: (DailyForecastEntry) -> Unit
             val context = binding.root.context
             binding.root.setOnClickListener { onItemClick(entry) }
             binding.forecastCardDateText.text = dayFormat.format(Date(entry.dateMillis))
+            binding.forecastCardDateText.setTextColor(
+                ContextCompat.getColor(
+                    context,
+                    if (isCurrentDay(entry.dateMillis)) R.color.accent_day_marker else R.color.accent_cool
+                )
+            )
             binding.forecastCardIcon.setImageResource(context.weatherIconRes(entry.iconKey))
 
             val highRounded = entry.highF?.roundToInt()
@@ -92,4 +99,18 @@ class DailyForecastAdapter(private val onItemClick: (DailyForecastEntry) -> Unit
             )
         }
     }
+}
+
+/** Whether [dateMillis] falls on the same calendar day as now - the daily card whose date text
+ *  gets the "current day" green instead of the usual blue, matching [isCurrentHour]'s hourly
+ *  equivalent. */
+private fun isCurrentDay(dateMillis: Long): Boolean {
+    val calendar = Calendar.getInstance()
+    calendar.timeInMillis = System.currentTimeMillis()
+    val nowYear = calendar.get(Calendar.YEAR)
+    val nowDayOfYear = calendar.get(Calendar.DAY_OF_YEAR)
+
+    calendar.timeInMillis = dateMillis
+    return calendar.get(Calendar.YEAR) == nowYear &&
+        calendar.get(Calendar.DAY_OF_YEAR) == nowDayOfYear
 }

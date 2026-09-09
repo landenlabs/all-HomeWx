@@ -134,19 +134,28 @@ object LineChartSetup {
         }
     }
 
-    /** Adds an invisible limit line per (x, text) pair purely to get its text label drawn near
-     *  the x-axis at that x-value - used instead of the axis's own auto-placed tick labels when
-     *  we want labels at specific x-values (e.g. noon of each day) rather than wherever
-     *  MPAndroidChart's "nice interval" grid computation happens to land. Adds to whatever limit
+    /** One text label to draw on an x-axis at [x] (seconds-since-epoch) - [highlighted] draws it
+     *  in the "current" green accent (today's day, or the current hour) instead of the usual
+     *  secondary text color. Shared by every graph that marks "now" on its x-axis: [ForecastGraphsPanel]'s
+     *  Hourly (current day-of-week) and Daily (current day) graphs. */
+    data class AxisLabel(val x: Float, val text: String, val highlighted: Boolean = false)
+
+    /** Adds an invisible limit line per [AxisLabel] purely to get its text label drawn near the
+     *  x-axis at that x-value - used instead of the axis's own auto-placed tick labels when we
+     *  want labels at specific x-values (e.g. noon of each day) rather than wherever
+     *  MPAndroidChart's "nice interval" grid computation happens to land, and so each label can
+     *  get its own color (see [AxisLabel.highlighted]) - the axis itself only has one uniform
+     *  textColor, so highlighting a single tick isn't otherwise possible. Adds to whatever limit
      *  lines are already on the chart (e.g. from [setLimitLines]) rather than clearing them, so
      *  call this after [setLimitLines], not before. */
-    fun addAxisLabelMarkers(chart: LineChart, context: Context, labels: List<Pair<Float, String>>) {
+    fun addAxisLabelMarkers(chart: LineChart, context: Context, labels: List<AxisLabel>) {
         val axisTextColor = ContextCompat.getColor(context, R.color.text_secondary)
-        labels.forEach { (x, text) ->
+        val highlightColor = ContextCompat.getColor(context, R.color.accent_day_marker)
+        labels.forEach { label ->
             chart.xAxis.addLimitLine(
-                LimitLine(x, text).apply {
+                LimitLine(label.x, label.text).apply {
                     lineColor = Color.TRANSPARENT
-                    textColor = axisTextColor
+                    textColor = if (label.highlighted) highlightColor else axisTextColor
                     textSize = 12f
                     labelPosition = LimitLine.LimitLabelPosition.RIGHT_BOTTOM
                 }
@@ -176,7 +185,7 @@ object LineChartSetup {
             lineWidth = 2f
             setDrawCircles(false)
             setDrawValues(false)
-            mode = if (spline) LineDataSet.Mode.CUBIC_BEZIER else LineDataSet.Mode.LINEAR
+            mode = if (spline) LineDataSet.Mode.HORIZONTAL_BEZIER else LineDataSet.Mode.LINEAR
             if (filled) {
                 setDrawFilled(true)
                 fillColor = color
@@ -272,7 +281,7 @@ object LineChartSetup {
                 lineWidth = 2f
                 setDrawCircles(false)
                 setDrawValues(false)
-                mode = if (spline) LineDataSet.Mode.CUBIC_BEZIER else LineDataSet.Mode.LINEAR
+                mode = if (spline) LineDataSet.Mode.HORIZONTAL_BEZIER else LineDataSet.Mode.LINEAR
             }
         }
         if (dataSets.isEmpty()) {
