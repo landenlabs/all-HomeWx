@@ -1,16 +1,59 @@
-# all-HomeWx
+<table border="0">
+  <tr>
+    <td>
+      <!-- VERSION -->v6.08.21<br>
+      <!-- DATE -->24-Aug-2026<br>
+      Android (Kotlin)<br>
+      <a href="https://github.com/landenlabs/all-HomeWx">Repo</a>
+    </td>
+    <td>
+      <a href="https://landenlabs.com">
+        <img src="screens/landenlabs_400.webp" width="300" alt="LanDen Labs">
+      </a>
+    </td>
+  </tr>
+</table>
 
-Development in progress
+# HomeWx
+
+Android (Kotlin) dashboard app for an always-on, wall/shelf-mounted tablet.
+It shows current outdoor weather plus hourly and daily forecasts (cards or
+graphs), a radar map, drought monitor, nearby river gauges, RSS news, and
+indoor temperature/humidity from Govee sensors — all in one continuously
+running, swipeable panel. An ambient light sensor dims the screen at night
+and brightens it again when the room lights come back on, so it needs no
+manual on/off.
+
+**By [LanDen Labs](https://github.com/landenlabs) (2026)**
+
+---
 
 ### Screenshots
 
-| | |
-|---|---|
-| **Forecast** ![Forecast](screens/forecast-wx.png) | **Hourly - Cards** ![Hourly Cards](screens/hourly-cards.png) |
-| **Hourly - Graph** ![Hourly Graph](screens/hourly-graph.png) | **Daily - Cards** ![Daily Cards](screens/daily-cards.png) |
-| **Daily - Graph** ![Daily Graph](screens/daily-graph.png) | **Drought Monitor** ![Drought](screens/drought.png) |
-| **Radar Map** ![Radar Map](screens/radar-map.png) | **River Gauges** ![River Gauges](screens/river-gauges.png) |
-| **RSS Feeds** ![RSS Feeds](screens/rss-feeds.png) | **Indoor Sensor Graph** ![Sensor Graph](screens/sensor-graph.png) |
+<table>
+  <tr>
+    <td><b>Forecast</b><br><img src="screens/forecast-wx.png" width="100%" alt="Forecast"></td>
+    <td><b>Hourly - Cards</b><br><img src="screens/hourly-cards.png" width="100%" alt="Hourly Cards"></td>
+  </tr>
+  <tr>
+    <td><b>Hourly - Graph</b><br><img src="screens/hourly-graph.png" width="100%" alt="Hourly Graph"></td>
+    <td><b>Daily - Cards</b><br><img src="screens/daily-cards.png" width="100%" alt="Daily Cards"></td>
+  </tr>
+  <tr>
+    <td><b>Daily - Graph</b><br><img src="screens/daily-graph.png" width="100%" alt="Daily Graph"></td>
+    <td><b>Drought Monitor</b><br><img src="screens/drought.png" width="100%" alt="Drought"></td>
+  </tr>
+  <tr>
+    <td><b>Radar Map</b><br><img src="screens/radar-map.png" width="100%" alt="Radar Map"></td>
+    <td><b>River Gauges</b><br><img src="screens/river-gauges.png" width="100%" alt="River Gauges"></td>
+  </tr>
+  <tr>
+    <td><b>RSS Feeds</b><br><img src="screens/rss-feeds.png" width="100%" alt="RSS Feeds"></td>
+    <td><b>Indoor Sensor Graph</b><br><img src="screens/sensor-graph.png" width="100%" alt="Sensor Graph"></td>
+  </tr>
+</table>
+
+---
 
 ### License
 
