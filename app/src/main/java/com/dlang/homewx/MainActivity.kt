@@ -336,14 +336,21 @@ class MainActivity : AppCompatActivity() {
      * Forces the info panel to News and starts the 5-minute tab auto-cycle whenever the room
      * light wakes the tablet from QUIET; stops the cycle on the way back to QUIET so a later
      * wake always starts a fresh rotation instead of resuming a stale one.
+     *
+     * Both directions are skipped while [autoCycleResumeJob] is running: a light-sensor blip
+     * (e.g. a hand shadowing the sensor while tapping the screen) can flip the mode to QUIET
+     * and back to ACTIVE within seconds, and without this guard that flip would blow away an
+     * in-progress tap-pause and jump the tab back to News mid-interaction.
      */
     private fun handleLightModeTransition(newMode: LightMode) {
         val previousMode = lastLightMode
         lastLightMode = newMode
         if (previousMode == LightMode.QUIET && newMode == LightMode.ACTIVE) {
-            selectTab(InfoPanelView.NEWS)
-            startAutoCycle()
-        } else if (newMode == LightMode.QUIET) {
+            if (autoCycleResumeJob == null) {
+                selectTab(InfoPanelView.NEWS)
+                startAutoCycle()
+            }
+        } else if (newMode == LightMode.QUIET && autoCycleResumeJob == null) {
             stopAutoCycle()
         }
     }
@@ -414,6 +421,7 @@ class MainActivity : AppCompatActivity() {
             binding.weatherBackgroundImage.setImageResource(weatherBackgroundRes(liveConditions.iconKey, liveConditions.windSpeedMph))
             binding.conditionValueText.text = liveConditions.conditionText
             binding.humidityValueText.text = liveConditions.humidityPct?.roundToInt()?.let { "$it%" } ?: "--"
+            setWindSpeedDirectionRowVisible(true)
             binding.windSpeedValueText.text = liveConditions.windSpeedMph?.roundToInt()?.let { "$it mph" } ?: "--"
             binding.windDirectionValueText.text = formatWindDirection(liveConditions.windDirectionDeg)
             binding.precipitationValueText.text = liveConditions.precipitationIn?.let { "%.2f in".format(it) } ?: "--"
@@ -466,6 +474,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Current wind speed/direction only means something for an actual observation (live or a
+     *  past point) - a forecast day has no single "current" wind, just the low/high/average
+     *  already shown elsewhere, so [bindForecastWeather] hides this row instead of filling it
+     *  with an average speed and an always-"--" direction. */
+    private fun setWindSpeedDirectionRowVisible(visible: Boolean) {
+        val visibility = if (visible) View.VISIBLE else View.GONE
+        binding.windSpeedLabelText.visibility = visibility
+        binding.windSpeedValueText.visibility = visibility
+        binding.windDirectionLabelText.visibility = visibility
+        binding.windDirectionValueText.visibility = visibility
+    }
+
     private fun bindSnapshotWeather(snapshot: DailySnapshot) {
         // [bindLiveWeather] hides this grid when there's no live reading - undo that here since
         // a snapshot always has at least placeholder values worth showing.
@@ -476,6 +496,7 @@ class MainActivity : AppCompatActivity() {
         binding.tempTrendText.text = ""
         binding.conditionValueText.text = snapshot.conditionText ?: "--"
         binding.humidityValueText.text = snapshot.humidityPct?.roundToInt()?.let { "$it%" } ?: "--"
+        setWindSpeedDirectionRowVisible(true)
         binding.windSpeedValueText.text = snapshot.windSpeedMph?.roundToInt()?.let { "$it mph" } ?: "--"
         binding.windDirectionValueText.text = formatWindDirection(snapshot.windDirectionDeg)
         binding.precipitationValueText.text = snapshot.precipitationIn?.let { "%.2f in".format(it) } ?: "--"
@@ -497,15 +518,14 @@ class MainActivity : AppCompatActivity() {
         binding.currentTempText.text = entry.highF?.roundToInt()?.let { "$it°F" } ?: "--"
         binding.tempTrendText.text = entry.lowF?.roundToInt()?.let { "Low $it°F" } ?: ""
         binding.conditionValueText.text = entry.conditionText
-        binding.humidityValueText.text = entry.humidityMaxPct?.roundToInt()?.let { "$it%" } ?: "--"
-        binding.windSpeedValueText.text = entry.windAvgMph?.roundToInt()?.let { "$it mph" } ?: "--"
-        binding.windDirectionValueText.text = "--"
+        binding.humidityValueText.text = entry.humidityAvgPct?.roundToInt()?.let { "$it%" } ?: "--"
+        setWindSpeedDirectionRowVisible(false)
         // With a time (WxData): "60% (3pm)", matching the current-conditions extremes' style.
         // Without one (Open-Meteo, which has no per-hour timestamp for this): plain "60%".
         binding.precipitationValueText.text = toExtreme(entry.precipitationChancePct?.toDouble(), entry.precipitationChanceAtMillis)
             ?.let { formatExtreme(it, "%") }
             ?: entry.precipitationChancePct?.let { "$it%" } ?: "--"
-        binding.pressureValueText.text = entry.pressureAvgInHg?.let { "%.2f in".format(it) } ?: "--"
+        binding.pressureValueText.text = entry.pressureAtNoonInHg?.let { "%.2f in".format(it) } ?: "--"
         binding.tempHighValueText.text = entry.highF?.roundToInt()?.let { "$it°F" } ?: "--"
         binding.tempLowValueText.text = entry.lowF?.roundToInt()?.let { "$it°F" } ?: "--"
         binding.windHighValueText.text = toExtreme(entry.windMaxMph, entry.windMaxAtMillis)
@@ -530,6 +550,7 @@ class MainActivity : AppCompatActivity() {
         binding.tempTrend4hText.text = ""
         binding.conditionValueText.text = "--"
         binding.humidityValueText.text = "--"
+        setWindSpeedDirectionRowVisible(true)
         binding.windSpeedValueText.text = point.windSpeedMph?.roundToInt()?.let { "$it mph" } ?: "--"
         binding.windDirectionValueText.text = "--"
         binding.precipitationValueText.text = point.precipitationIn?.let { "%.2f in".format(it) } ?: "--"
@@ -763,7 +784,7 @@ class MainActivity : AppCompatActivity() {
     private fun refreshSensorChart(sensorId: String) {
         // Live values (and the room name, in case it's since changed in Settings) refresh
         // synchronously from the current state; the history plot needs an async DB read.
-        AppState.uiState.value.sensors.firstOrNull { it.id == sensorId }?.let { reading ->
+        visibleSensors(AppState.uiState.value.sensors).firstOrNull { it.id == sensorId }?.let { reading ->
             sensorChartPanel.setSensor(reading.roomName, reading.tempF, reading.humidityPct)
         }
         lifecycleScope.launch {

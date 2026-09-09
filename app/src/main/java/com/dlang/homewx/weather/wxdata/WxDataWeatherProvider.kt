@@ -238,10 +238,10 @@ private fun WxHourlyForecast.toDailyEntries(normals: Map<Int, NormalRange>): Lis
 }
 
 /** Aggregates one day's hourly samples into a [DailyForecastEntry]: min/max temperature, min/max
- *  wind speed (max with the time it first occurs) and its day-average, max humidity, max
- *  precipitation chance (with the time it first occurs), average pressure, and the icon/
- *  condition from the sample nearest local noon. [maxByOrNull] keeps the first element it sees
- *  among ties, which is what makes "first occurs" correct here since the list is chronological. */
+ *  wind speed (max with the time it first occurs) and its day-average, average humidity, max
+ *  precipitation chance (with the time it first occurs), noon pressure, and the icon/condition
+ *  from the sample nearest local noon. [maxByOrNull] keeps the first element it sees among ties,
+ *  which is what makes "first occurs" correct here since the list is chronological. */
 private fun List<Pair<Long, WxWeatherSample>>.toDailyEntry(
     calendar: Calendar,
     normals: Map<Int, NormalRange>
@@ -250,10 +250,6 @@ private fun List<Pair<Long, WxWeatherSample>>.toDailyEntry(
     val winds = mapNotNull { (t, s) -> s.windSpeed.finiteOrNull()?.let { t to it } }
     val humidities = mapNotNull { (_, s) -> s.relativeHumidity.finiteOrNull() }
     val precipChances = mapNotNull { (t, s) -> s.precipPercent.takeIf { !it.isNaN() }?.let { t to it.toDouble() } }
-    // pressureAltimeter is flagged "Restricted" in the wxdata source - this API key's plan
-    // doesn't return it for the Hourly Forecast endpoint (it comes back NaN every hour), so
-    // fall back to pressureMeanSeaLevel, which isn't restricted and is actually populated.
-    val pressures = mapNotNull { (_, s) -> s.pressureAltimeter.finiteOrNull() ?: s.pressureMeanSeaLevel.finiteOrNull() }
 
     val maxWind = winds.maxByOrNull { it.second }
     val minWind = winds.minByOrNull { it.second }
@@ -266,6 +262,10 @@ private fun List<Pair<Long, WxWeatherSample>>.toDailyEntry(
     calendar.set(Calendar.MILLISECOND, 0)
     val noonMillis = calendar.timeInMillis
     val noonSample = minByOrNull { (t, _) -> abs(t - noonMillis) }?.second ?: first().second
+    // pressureAltimeter is flagged "Restricted" in the wxdata source - this API key's plan
+    // doesn't return it for the Hourly Forecast endpoint (it comes back NaN every hour), so
+    // fall back to pressureMeanSeaLevel, which isn't restricted and is actually populated.
+    val noonPressure = noonSample.pressureAltimeter.finiteOrNull() ?: noonSample.pressureMeanSeaLevel.finiteOrNull()
 
     calendar.timeInMillis = noonMillis
     val monthDay = (calendar.get(Calendar.MONTH) + 1) * 100 + calendar.get(Calendar.DAY_OF_MONTH)
@@ -284,9 +284,9 @@ private fun List<Pair<Long, WxWeatherSample>>.toDailyEntry(
         windMaxAtMillis = maxWind?.first,
         windMinMph = minWind?.second,
         windAvgMph = winds.map { it.second }.takeIf { it.isNotEmpty() }?.average(),
-        humidityMaxPct = humidities.maxOrNull(),
+        humidityAvgPct = humidities.takeIf { it.isNotEmpty() }?.average(),
         precipitationChanceAtMillis = maxPrecip?.first,
-        pressureAvgInHg = pressures.takeIf { it.isNotEmpty() }?.average(),
+        pressureAtNoonInHg = noonPressure,
         normalHighF = normal?.highF,
         normalLowF = normal?.lowF
     )

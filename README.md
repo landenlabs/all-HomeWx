@@ -2,6 +2,16 @@
 
 Development in progress
 
+### Screenshots
+
+| | |
+|---|---|
+| **Forecast** ![Forecast](screens/forecast-wx.png) | **Hourly - Cards** ![Hourly Cards](screens/hourly-cards.png) |
+| **Hourly - Graph** ![Hourly Graph](screens/hourly-graph.png) | **Daily - Cards** ![Daily Cards](screens/daily-cards.png) |
+| **Daily - Graph** ![Daily Graph](screens/daily-graph.png) | **Drought Monitor** ![Drought](screens/drought.png) |
+| **Radar Map** ![Radar Map](screens/radar-map.png) | **River Gauges** ![River Gauges](screens/river-gauges.png) |
+| **RSS Feeds** ![RSS Feeds](screens/rss-feeds.png) | **Indoor Sensor Graph** ![Sensor Graph](screens/sensor-graph.png) |
+
 ### License
 
 ```

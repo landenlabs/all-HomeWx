@@ -251,7 +251,7 @@ class NewsPanel(
               <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js" async>
               {
                 "colorTheme": "dark",
-                "dateRange": "12M",
+                "dateRange": "1M",
                 "showChart": true,
                 "locale": "en",
                 "largeChartUrl": "",

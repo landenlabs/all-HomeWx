@@ -173,9 +173,9 @@
         <TextView style="@style/wx_label" android:text="@string/wx_lbl_wind_high" />
         <TextView android:id="@+id/windHighValueText" style="@style/wx_value" />
 
-        <TextView style="@style/wx_label" android:text="@string/wx_lbl_wind_speed" />
+        <TextView android:id="@+id/windSpeedLabelText" style="@style/wx_label" android:text="@string/wx_lbl_wind_speed" />
         <TextView android:id="@+id/windSpeedValueText" style="@style/wx_value" />
-        <TextView style="@style/wx_label" android:text="@string/wx_lbl_wind_direction" />
+        <TextView android:id="@+id/windDirectionLabelText" style="@style/wx_label" android:text="@string/wx_lbl_wind_direction" />
         <TextView android:id="@+id/windDirectionValueText" style="@style/wx_value" />
 
         <TextView style="@style/wx_label" android:text="@string/wx_lbl_precipitation" />

@@ -47,9 +47,9 @@ data class DailyForecastEntry(
     val windMaxAtMillis: Long? = null,
     val windMinMph: Double? = null,
     val windAvgMph: Double? = null,
-    val humidityMaxPct: Double? = null,
+    val humidityAvgPct: Double? = null,
     val precipitationChanceAtMillis: Long? = null,
-    val pressureAvgInHg: Double? = null,
+    val pressureAtNoonInHg: Double? = null,
     /** Climate-normal high/low for this calendar day (10-30yr NCDC average), from
      *  [com.wsi.wxdata.WxAlmanacDailyFetcher] - see [com.dlang.homewx.MainActivity]'s
      *  source-dependent "Normal max/min" label. */
