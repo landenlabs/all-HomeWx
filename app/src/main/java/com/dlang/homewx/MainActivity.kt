@@ -206,6 +206,11 @@ class MainActivity : AppCompatActivity() {
         sensorAdapter.submit(visibleSensors(AppState.uiState.value.sensors))
         updateRiverTabVisibility()
         updateWeatherSourceBadge()
+        // Coming back to the foreground (e.g. the device waking after a long screen-off
+        // stretch) is exactly when stale data is most likely and most visible - force the
+        // weather poll loop to check in now instead of waiting out whatever's left of its
+        // normal interval. See [AppState.notifyRefreshRequested].
+        AppState.notifyRefreshRequested()
     }
 
     /** The active weather source only changes while this activity is paused (Settings is a
@@ -407,8 +412,14 @@ class MainActivity : AppCompatActivity() {
             System.currentTimeMillis() - conditions.observedAtMillis > STALE_WEATHER_THRESHOLD_MS
         val liveConditions = conditions.takeUnless { isStale }
 
-        binding.currentTempText.text = liveConditions?.temperatureF?.roundToInt()?.let { "$it°F" }
-            ?: getString(if (isStale) R.string.weather_unavailable else R.string.weather_placeholder)
+        // No live reading (never loaded, or stale past the threshold above): rather than a
+        // status message crammed into this 44sp display (it doesn't fit and reads as a
+        // truncated fragment), hide the temperature entirely and swap the icon for the
+        // "Not Available" art - same fallback already used for an unrecognized condition code.
+        binding.currentTempText.visibility = if (liveConditions != null) View.VISIBLE else View.GONE
+        binding.tempTrendText.visibility = if (liveConditions != null) View.VISIBLE else View.GONE
+        binding.tempTrend4hText.visibility = if (liveConditions != null) View.VISIBLE else View.GONE
+        binding.currentTempText.text = liveConditions?.temperatureF?.roundToInt()?.let { "$it°F" } ?: ""
         binding.tempTrendText.text = if (liveConditions != null) formatSignedDelta(state.tempTrendNextHourF, "°F/1hr") else ""
         binding.tempTrend4hText.text = if (liveConditions != null) formatSignedDelta(state.tempTrendNext4HourF, "°F/4hr") else ""
 
@@ -424,8 +435,10 @@ class MainActivity : AppCompatActivity() {
             setWindSpeedDirectionRowVisible(true)
             binding.windSpeedValueText.text = liveConditions.windSpeedMph?.roundToInt()?.let { "$it mph" } ?: "--"
             binding.windDirectionValueText.text = formatWindDirection(liveConditions.windDirectionDeg)
-            binding.precipitationValueText.text = liveConditions.precipitationIn?.let { "%.2f in".format(it) } ?: "--"
+            binding.precipitationValueText.text = formatPrecipitation(liveConditions.precipitationIn, System.currentTimeMillis())
             binding.pressureValueText.text = formatPressure(liveConditions.pressureInHg, state.pressureTrend6hInHg)
+        } else {
+            binding.weatherIcon.setImageResource(R.drawable.wx_sun_44d)
         }
 
         val extremes = state.dailyExtremes
@@ -499,7 +512,7 @@ class MainActivity : AppCompatActivity() {
         setWindSpeedDirectionRowVisible(true)
         binding.windSpeedValueText.text = snapshot.windSpeedMph?.roundToInt()?.let { "$it mph" } ?: "--"
         binding.windDirectionValueText.text = formatWindDirection(snapshot.windDirectionDeg)
-        binding.precipitationValueText.text = snapshot.precipitationIn?.let { "%.2f in".format(it) } ?: "--"
+        binding.precipitationValueText.text = formatPrecipitation(snapshot.precipitationIn, snapshot.dayStartMillis)
         binding.pressureValueText.text = snapshot.pressureInHg?.let { "%.2f in".format(it) } ?: "--"
         binding.tempHighValueText.text = formatExtreme(toExtreme(snapshot.tempHighF, snapshot.tempHighAtMillis), "°F")
         binding.tempLowValueText.text = formatExtreme(toExtreme(snapshot.tempLowF, snapshot.tempLowAtMillis), "°F")
@@ -553,7 +566,7 @@ class MainActivity : AppCompatActivity() {
         setWindSpeedDirectionRowVisible(true)
         binding.windSpeedValueText.text = point.windSpeedMph?.roundToInt()?.let { "$it mph" } ?: "--"
         binding.windDirectionValueText.text = "--"
-        binding.precipitationValueText.text = point.precipitationIn?.let { "%.2f in".format(it) } ?: "--"
+        binding.precipitationValueText.text = formatPrecipitation(point.precipitationIn, point.timestampMillis)
         binding.pressureValueText.text = point.pressureInHg?.let { "%.2f in".format(it) } ?: "--"
         binding.tempHighValueText.text = "--"
         binding.tempLowValueText.text = "--"
@@ -713,6 +726,18 @@ class MainActivity : AppCompatActivity() {
         if (extreme == null) return "--"
         val hour = hourOnlyFormat.format(Date(extreme.atMillis))
         return shrinkParenthetical("${extreme.value.roundToInt()}$unit ($hour)")
+    }
+
+    /** Rain actually falling is more informative than a forecast guess, so a non-zero measured
+     *  amount wins; otherwise neither provider exposes a real "chance right now", so this falls
+     *  back to the highest hourly chance of rain forecast for [forDayMillis]'s calendar day. */
+    private fun formatPrecipitation(precipitationIn: Double?, forDayMillis: Long): String {
+        if (precipitationIn != null && precipitationIn > 0) return "%.2f in".format(precipitationIn)
+        val maxChancePct = latestForecast?.hourly
+            ?.filter { isSameDay(it.timeMillis, forDayMillis) }
+            ?.mapNotNull { it.precipitationChancePct }
+            ?.maxOrNull()
+        return maxChancePct?.let { "$it%" } ?: "--"
     }
 
     /** Renders a trailing "(...)" annotation at 75% of the surrounding text size. */

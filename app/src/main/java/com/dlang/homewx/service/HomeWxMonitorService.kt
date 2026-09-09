@@ -45,6 +45,7 @@ import com.dlang.homewx.weather.startOfDay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -355,12 +356,16 @@ class HomeWxMonitorService : LifecycleService() {
      *  [consecutiveFailures] is 0 this is a plain delay. While failing, it races that delay
      *  against [AppState.networkRecovered] so a poller wakes the instant the network is back
      *  rather than however much of its backoff (up to [normalIntervalMs]) was still left. */
+    /** Always races the interval against [AppState.refreshRequested] (not just the
+     *  failure-backoff path) - a plain `delay()` alone can end up sleeping well past
+     *  [normalIntervalMs] after a long screen-off/idle stretch, leaving stale data on screen
+     *  until the app is brought back to the foreground; see [AppState.notifyRefreshRequested]. */
     private suspend fun waitForNextPoll(consecutiveFailures: Int, normalIntervalMs: Long) {
         val delayMs = retryDelayMs(consecutiveFailures, normalIntervalMs)
         if (consecutiveFailures > 0) {
-            withTimeoutOrNull(delayMs) { AppState.networkRecovered.first() }
+            withTimeoutOrNull(delayMs) { merge(AppState.networkRecovered, AppState.refreshRequested).first() }
         } else {
-            delay(delayMs)
+            withTimeoutOrNull(delayMs) { AppState.refreshRequested.first() }
         }
     }
 

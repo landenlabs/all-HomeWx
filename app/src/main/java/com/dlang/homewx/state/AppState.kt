@@ -23,6 +23,19 @@ object AppState {
         _networkRecovered.tryEmit(Unit)
     }
 
+    private val _refreshRequested = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** Fires whenever the app is brought back to the foreground. The weather poll loop races
+     *  its normal interval against this so a long stretch with the screen off/idle - during
+     *  which the OS can defer a plain `delay()` well past its normal wake time - doesn't leave
+     *  stale data on screen for however long is left of that interval once someone is actually
+     *  looking again; see [com.dlang.homewx.service.HomeWxMonitorService.waitForNextPoll]. */
+    val refreshRequested: SharedFlow<Unit> get() = _refreshRequested
+
+    fun notifyRefreshRequested() {
+        _refreshRequested.tryEmit(Unit)
+    }
+
     private const val MAX_ERROR_LOG_ENTRIES = 5
 
     /** Rolling log of the most recent failures across every poller (newest first), capped at

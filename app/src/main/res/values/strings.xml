@@ -4,7 +4,6 @@
     <string name="monitor_service_notification_title">HomeWx is watching your home</string>
     <string name="monitor_service_notification_text">Weather and sensor updates running in the background</string>
     <string name="weather_placeholder">Loading weather…</string>
-    <string name="weather_unavailable">Weather unavailable</string>
     <string name="news_no_data">No data available</string>
     <string name="news_no_data_with_wifi">No data available using Wifi %1$s</string>
     <string name="strip_chart_no_data">Not enough history yet</string>
