@@ -14,6 +14,7 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleCoroutineScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.dlang.homewx.BuildConfig
 import com.dlang.homewx.R
 import com.dlang.homewx.databinding.PanelNewsBinding
 import com.dlang.homewx.news.LoggingWebViewClient
@@ -22,6 +23,7 @@ import com.dlang.homewx.news.NewsSourceId
 import com.dlang.homewx.state.AppState
 import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 /** Null unless ACCESS_FINE_LOCATION is granted - Android ties real WiFi SSID lookups to location
  *  permission, returning "<unknown ssid>" without it. */
@@ -45,14 +47,14 @@ private fun loadTrackingClient(
     context: Context,
     errorText: TextView,
     isRelevantFailure: (WebResourceRequest) -> Boolean,
-    onFinished: () -> Unit,
+    onFinished: (url: String?) -> Unit,
     onFailed: () -> Unit
 ): LoggingWebViewClient = object : LoggingWebViewClient(context) {
     override fun onPageFinished(view: WebView, url: String?) {
         super.onPageFinished(view, url)
         errorText.visibility = View.GONE
         view.visibility = View.VISIBLE
-        onFinished()
+        onFinished(url)
     }
 
     override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
@@ -72,14 +74,18 @@ private object DroughtTabTag
 /** Tab-tag sentinel for the Stocks sub-tab, same purpose as [DroughtTabTag]. */
 private object StocksTabTag
 
+/** Tab-tag sentinel for the Wyze sub-tab, same purpose as [DroughtTabTag]. */
+private object WyzeTabTag
+
 /** Tracks whether a lazily-loaded WebView tab has never been loaded, is showing content, or
  *  failed to load - [FAILED] is what lets a network-recovery signal or a later tab visit retry
  *  it, instead of the load-once flag this replaced getting permanently stuck after a failure. */
 private enum class WebViewLoadState { NOT_LOADED, LOADED, FAILED }
 
-/** News tabs + list, plus two extra sub-tabs: "Drought" shows the US Drought Monitor NH map,
- *  and "Stocks" shows a TradingView Market Overview widget, both in a WebView instead of a
- *  news source. Inflates itself into [container] and owns its own tab/adapter/WebView wiring. */
+/** News tabs + list, plus three extra sub-tabs: "Drought" shows the US Drought Monitor NH map,
+ *  "Stocks" shows a TradingView Market Overview widget, and "Wyze" auto-logs into the Wyze
+ *  camera portal, all in a WebView instead of a news source. Inflates itself into [container]
+ *  and owns its own tab/adapter/WebView wiring. */
 class NewsPanel(
     container: ViewGroup,
     private val lifecycleScope: LifecycleCoroutineScope,
@@ -94,6 +100,12 @@ class NewsPanel(
     private var latestItemsBySource: Map<NewsSourceId, List<NewsItem>> = emptyMap()
     private var droughtState = WebViewLoadState.NOT_LOADED
     private var stocksState = WebViewLoadState.NOT_LOADED
+    private var wyzeState = WebViewLoadState.NOT_LOADED
+
+    /** Guards against re-submitting the Wyze login form on every onPageFinished within the same
+     *  load attempt (e.g. the auth page firing more than once) - reset each time [loadWyze] starts
+     *  a fresh attempt. */
+    private var wyzeLoginSubmitted = false
 
     init {
         container.addView(root)
@@ -133,13 +145,29 @@ class NewsPanel(
             onFailed = { stocksState = WebViewLoadState.FAILED }
         )
 
-        // Retries whichever of these two ever failed to load, the moment the network comes back
-        // - without this, a failure during an outage left the WebView stuck on its error page
+        binding.wyzeWebView.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+        }
+        binding.wyzeWebView.webViewClient = loadTrackingClient(
+            context = container.context,
+            errorText = binding.wyzeErrorText,
+            isRelevantFailure = { it.isForMainFrame },
+            onFinished = { url ->
+                wyzeState = WebViewLoadState.LOADED
+                handleWyzePageFinished(url)
+            },
+            onFailed = { wyzeState = WebViewLoadState.FAILED }
+        )
+
+        // Retries whichever of these ever failed to load, the moment the network comes back -
+        // without this, a failure during an outage left the WebView stuck on its error page
         // forever, since nothing else ever calls loadUrl/loadDataWithBaseURL again.
         lifecycleScope.launch {
             AppState.networkRecovered.collect {
                 if (droughtState == WebViewLoadState.FAILED) loadDroughtMonitor()
                 if (stocksState == WebViewLoadState.FAILED) loadStocks()
+                if (wyzeState == WebViewLoadState.FAILED) loadWyze()
             }
         }
 
@@ -152,6 +180,7 @@ class NewsPanel(
                     }
                     DroughtTabTag -> showDroughtMonitor()
                     StocksTabTag -> showStocks()
+                    WyzeTabTag -> showWyze()
                 }
             }
             override fun onTabUnselected(tab: TabLayout.Tab) = Unit
@@ -166,6 +195,9 @@ class NewsPanel(
         binding.newsTabLayout.addTab(
             binding.newsTabLayout.newTab().setText(R.string.news_tab_stocks).apply { tag = StocksTabTag }
         )
+        binding.newsTabLayout.addTab(
+            binding.newsTabLayout.newTab().setText(R.string.news_tab_wyze).apply { tag = WyzeTabTag }
+        )
     }
 
     fun onStateUpdated(itemsBySource: Map<NewsSourceId, List<NewsItem>>) {
@@ -177,6 +209,7 @@ class NewsPanel(
         binding.newsListContainer.visibility = View.VISIBLE
         binding.droughtMonitorContainer.visibility = View.GONE
         binding.stocksContainer.visibility = View.GONE
+        binding.wyzeContainer.visibility = View.GONE
         refresh()
     }
 
@@ -188,6 +221,7 @@ class NewsPanel(
         binding.newsListContainer.visibility = View.GONE
         binding.droughtMonitorContainer.visibility = View.VISIBLE
         binding.stocksContainer.visibility = View.GONE
+        binding.wyzeContainer.visibility = View.GONE
         if (droughtState != WebViewLoadState.LOADED) loadDroughtMonitor()
     }
 
@@ -198,7 +232,19 @@ class NewsPanel(
         binding.newsListContainer.visibility = View.GONE
         binding.droughtMonitorContainer.visibility = View.GONE
         binding.stocksContainer.visibility = View.VISIBLE
+        binding.wyzeContainer.visibility = View.GONE
         if (stocksState != WebViewLoadState.LOADED) loadStocks()
+    }
+
+    /** Loads the Wyze portal once on first successful visit, same rationale as
+     *  [showDroughtMonitor]. The camera portal keeps its own session alive once logged in, so a
+     *  reload isn't needed on every revisit - only after a failure or a network recovery. */
+    private fun showWyze() {
+        binding.newsListContainer.visibility = View.GONE
+        binding.droughtMonitorContainer.visibility = View.GONE
+        binding.stocksContainer.visibility = View.GONE
+        binding.wyzeContainer.visibility = View.VISIBLE
+        if (wyzeState != WebViewLoadState.LOADED) loadWyze()
     }
 
     private fun loadDroughtMonitor() {
@@ -219,6 +265,29 @@ class NewsPanel(
         )
     }
 
+    private fun loadWyze() {
+        wyzeLoginSubmitted = false
+        binding.wyzeErrorText.visibility = View.GONE
+        binding.wyzeWebView.visibility = View.VISIBLE
+        binding.wyzeWebView.loadUrl(BuildConfig.WYZE_LOGIN)
+    }
+
+    /** Drives the two-step Wyze sign-in: fill+submit the login form once it finishes loading,
+     *  then - if login succeeds but leaves the WebView parked on the auth domain instead of
+     *  auto-redirecting - explicitly open the camera page as the second step. */
+    private fun handleWyzePageFinished(url: String?) {
+        val currentUrl = url ?: return
+        when {
+            currentUrl.startsWith(BuildConfig.WYZE_LOGIN) && !wyzeLoginSubmitted -> {
+                wyzeLoginSubmitted = true
+                binding.wyzeWebView.evaluateJavascript(wyzeAutofillScript(), null)
+            }
+            wyzeLoginSubmitted && currentUrl.contains("auth.wyze.com") -> {
+                binding.wyzeWebView.loadUrl(BuildConfig.WYZE_CAMERAS)
+            }
+        }
+    }
+
     private fun refresh() {
         val items = latestItemsBySource[selectedSource].orEmpty()
         adapter.submit(items)
@@ -229,6 +298,33 @@ class NewsPanel(
                 context.getString(R.string.news_no_data_with_wifi, it)
             } ?: context.getString(R.string.news_no_data)
         }
+    }
+
+    /** Builds the JS injected into the Wyze login page to fill and submit the sign-in form.
+     *  Sets values through the native setter rather than the plain `.value` property - Wyze's
+     *  login page is a React app, and React intercepts the `value` property setter to keep its
+     *  own state in sync, so a plain assignment gets silently overwritten back to empty. */
+    private fun wyzeAutofillScript(): String {
+        val email = JSONObject.quote(BuildConfig.WYZE_USER)
+        val password = JSONObject.quote(BuildConfig.WYZE_PWD)
+        return """
+            (function() {
+                function setNativeValue(el, value) {
+                    if (!el) return;
+                    var proto = Object.getPrototypeOf(el);
+                    var setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+                    setter.call(el, value);
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                var emailField = document.querySelector('input[type="email"], input[name="email"], #email');
+                var passwordField = document.querySelector('input[type="password"], input[name="password"], #password');
+                setNativeValue(emailField, $email);
+                setNativeValue(passwordField, $password);
+                var submitButton = document.querySelector('button[type="submit"]');
+                if (submitButton) submitButton.click();
+            })();
+        """.trimIndent()
     }
 
     companion object {

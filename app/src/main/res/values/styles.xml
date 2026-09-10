@@ -63,4 +63,105 @@
         <item name="android:paddingTop">1dp</item>
         <item name="android:paddingBottom">1dp</item>
     </style>
+
+    <!-- Data-period picker shown above a graph panel's charts (panel_forecast_graphs.xml,
+         panel_sensor_graphs.xml) - hidden by default, shown once there's more than one period's
+         worth of data to pick between. -->
+    <style name="graph_period_radio_group">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginBottom">4dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:visibility">gone</item>
+    </style>
+
+    <style name="graph_period_radio_button">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:buttonTint">@color/accent_cool</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">13sp</item>
+    </style>
+
+    <!-- One of a graph panel's stacked chart sections (temp/wind/precip/pressure in
+         panel_forecast_graphs.xml; the single chart container in panel_sensor_graphs.xml),
+         sharing the panel's vertical space equally with its siblings. -->
+    <style name="graph_equal_section">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">0dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:orientation">vertical</item>
+    </style>
+
+    <!-- The FrameLayout stacking a chart section's watermark, chart and empty-state text. -->
+    <style name="graph_chart_frame">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">0dp</item>
+        <item name="android:layout_weight">1</item>
+    </style>
+
+    <!-- Large label drawn behind a chart's empty space (panel_forecast_graphs.xml's 4 charts) -
+         biased toward the top third rather than dead center, which is where the y-axis
+         auto-scaling and the "no history yet" empty-state message both already sit. -->
+    <style name="graph_watermark_text">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:gravity">center</item>
+        <item name="android:maxLines">2</item>
+        <item name="android:textSize">30sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="layout_constraintBottom_toBottomOf">parent</item>
+        <item name="layout_constraintEnd_toEndOf">parent</item>
+        <item name="layout_constraintStart_toStartOf">parent</item>
+        <item name="layout_constraintTop_toTopOf">parent</item>
+        <item name="layout_constraintVertical_bias">0.15</item>
+    </style>
+
+    <style name="graph_line_chart">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_marginStart">8dp</item>
+        <item name="android:layout_marginTop">8dp</item>
+        <item name="android:layout_marginEnd">8dp</item>
+    </style>
+
+    <style name="graph_empty_text">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:visibility">gone</item>
+    </style>
+
+    <!-- Legend row below a chart: the plotted series' max value, centered. -->
+    <style name="graph_legend_value_text">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:paddingBottom">1dp</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:textSize">13sp</item>
+        <item name="layout_constraintBottom_toBottomOf">parent</item>
+        <item name="layout_constraintEnd_toEndOf">parent</item>
+        <item name="layout_constraintStart_toStartOf">parent</item>
+        <item name="layout_constraintTop_toTopOf">parent</item>
+    </style>
+
+    <!-- Legend row below a chart: the chart's title, at the row's end - layout_constraintStart_toEndOf
+         is left to each instance since it points at that instance's own max-value text. -->
+    <style name="graph_legend_title_text">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:gravity">end</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingBottom">1dp</item>
+        <item name="android:textColor">@color/accent_cool</item>
+        <item name="android:textSize">12sp</item>
+        <item name="layout_constraintBottom_toBottomOf">parent</item>
+        <item name="layout_constraintEnd_toEndOf">parent</item>
+        <item name="layout_constraintTop_toTopOf">parent</item>
+    </style>
 </resources>

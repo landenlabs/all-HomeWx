@@ -836,13 +836,19 @@ class MainActivity : AppCompatActivity() {
         val forecast = latestForecast ?: return
         lifecycleScope.launch {
             val sinceMillis = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(48)
+            val todayStart = startOfDay(System.currentTimeMillis())
             val pastPoints = withContext(Dispatchers.IO) {
                 val dailyPoints = weatherMetricsHistoryStore.getDailyHistoryBefore(sinceMillis)
                 val recentPoints = weatherMetricsHistoryStore.getHistorySince(sinceMillis)
                 dailyPoints + recentPoints
             }
+            // The Daily graph's "Now" period blends these 2 recorded past days with today's live
+            // conditions - see ForecastGraphsPanel.buildDailyEntriesForPeriod.
+            val recentDailySnapshots = withContext(Dispatchers.IO) {
+                listOf(2L, 1L).mapNotNull { daysAgo -> dailySnapshotStore.getSnapshot(todayStart - daysAgo * DAY_MILLIS) }
+            }
             if (currentInfoPanel != InfoPanelView.FORECAST) return@launch
-            forecastPanel.render(forecast, pastPoints)
+            forecastPanel.render(forecast, pastPoints, recentDailySnapshots)
         }
     }
 
@@ -852,10 +858,12 @@ class MainActivity : AppCompatActivity() {
         val sensors = visibleSensors(AppState.uiState.value.sensors)
         sensorGraphsPanel.setSensors(sensors)
         lifecycleScope.launch {
-            val sinceMillis = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(48)
+            // Fetches everything the store has retained (not just 48h) - SensorGraphsPanel does
+            // its own client-side trim to the radio-selected period, and needs the full history
+            // on hand to know whether more than 48h exists at all.
             sensors.forEach { sensor ->
                 val history = withContext(Dispatchers.IO) {
-                    sensorHistoryStore.getHistorySince(sensor.id, sinceMillis)
+                    sensorHistoryStore.getHistorySince(sensor.id, 0L)
                 }
                 val tempPoints = history.mapNotNull { point -> point.tempF?.let { point.timestampMillis to it } }
                 val humidityPoints = history.mapNotNull { point -> point.humidityPct?.let { point.timestampMillis to it } }

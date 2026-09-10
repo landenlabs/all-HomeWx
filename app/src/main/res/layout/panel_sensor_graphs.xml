@@ -1,8 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- One chart per currently-visible sensor, added/removed at runtime in SensorGraphsPanel
-     since the count varies with how many sensors exist and settings' hidden-sensor list. -->
+<!-- sensorGraphsChartContainer holds one chart per currently-visible sensor, added/removed at
+     runtime in SensorGraphsPanel since the count varies with how many sensors exist and
+     settings' hidden-sensor list. The period RadioGroup above it is static and stays put across
+     rebuilds; it's only shown once the recorded history spans more than 48h to trim. -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical" />
+    android:orientation="vertical">
+
+    <RadioGroup
+        android:id="@+id/sensorGraphsPeriodGroup"
+        style="@style/graph_period_radio_group">
+
+        <RadioButton
+            android:id="@+id/sensorGraphsPeriod24"
+            style="@style/graph_period_radio_button"
+            android:layout_marginEnd="20dp"
+            android:text="@string/sensor_graph_period_24h" />
+
+        <RadioButton
+            android:id="@+id/sensorGraphsPeriod48"
+            style="@style/graph_period_radio_button"
+            android:layout_marginEnd="20dp"
+            android:checked="true"
+            android:text="@string/sensor_graph_period_48h" />
+
+        <RadioButton
+            android:id="@+id/sensorGraphsPeriod72"
+            style="@style/graph_period_radio_button"
+            android:layout_marginEnd="20dp"
+            android:text="@string/sensor_graph_period_72h" />
+
+        <RadioButton
+            android:id="@+id/sensorGraphsPeriodAll"
+            style="@style/graph_period_radio_button"
+            android:text="@string/sensor_graph_period_all" />
+
+    </RadioGroup>
+
+    <LinearLayout
+        android:id="@+id/sensorGraphsChartContainer"
+        style="@style/graph_equal_section" />
+
+</LinearLayout>

@@ -9,8 +9,10 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import com.dlang.homewx.R
+import com.dlang.homewx.data.DailySnapshot
 import com.dlang.homewx.data.WeatherMetricsPoint
 import com.dlang.homewx.settings.AppSettings
+import com.dlang.homewx.state.AppState
 import com.dlang.homewx.databinding.PanelForecastGraphsBinding
 import com.dlang.homewx.weather.DailyForecastEntry
 import com.dlang.homewx.weather.HourlyForecastEntry
@@ -53,11 +55,16 @@ class ForecastGraphsPanel(container: ViewGroup) {
      *  the radio button checked by default in the layout. Only consulted for [ForecastRange.HOURLY]. */
     private var hourlyPeriod = HourlyGraphPeriod.TODAY
 
-    /** Args from the last [render] call, re-used to redraw when [hourlyPeriod] changes without
-     *  waiting for [com.dlang.homewx.ui.ForecastPanel] to push a fresh forecast. */
+    /** Which slice of the daily forecast the strip charts plot - defaults to All, matching the
+     *  radio button checked by default in the layout. Only consulted for [ForecastRange.DAILY]. */
+    private var dailyPeriod = DailyGraphPeriod.ALL
+
+    /** Args from the last [render] call, re-used to redraw when [hourlyPeriod]/[dailyPeriod]
+     *  change without waiting for [com.dlang.homewx.ui.ForecastPanel] to push a fresh forecast. */
     private var lastRange: ForecastRange? = null
     private var lastForecast: WeatherForecast? = null
     private var lastPastPoints: List<WeatherMetricsPoint> = emptyList()
+    private var lastRecentDailySnapshots: List<DailySnapshot> = emptyList()
 
     init {
         container.addView(root)
@@ -88,16 +95,32 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 else -> HourlyGraphPeriod.TODAY
             }
             val forecast = lastForecast ?: return@setOnCheckedChangeListener
-            lastRange?.let { render(it, forecast, lastPastPoints) }
+            lastRange?.let { render(it, forecast, lastPastPoints, lastRecentDailySnapshots) }
+        }
+        binding.forecastDailyPeriodGroup.setOnCheckedChangeListener { _, checkedId ->
+            dailyPeriod = when (checkedId) {
+                binding.forecastDailyPeriodNow.id -> DailyGraphPeriod.NOW
+                binding.forecastDailyPeriodPlus3Day.id -> DailyGraphPeriod.PLUS_3_DAY
+                else -> DailyGraphPeriod.ALL
+            }
+            val forecast = lastForecast ?: return@setOnCheckedChangeListener
+            lastRange?.let { render(it, forecast, lastPastPoints, lastRecentDailySnapshots) }
         }
     }
 
-    fun render(range: ForecastRange, forecast: WeatherForecast, pastPoints: List<WeatherMetricsPoint>) {
+    fun render(
+        range: ForecastRange,
+        forecast: WeatherForecast,
+        pastPoints: List<WeatherMetricsPoint>,
+        recentDailySnapshots: List<DailySnapshot>
+    ) {
         lastRange = range
         lastForecast = forecast
         lastPastPoints = pastPoints
+        lastRecentDailySnapshots = recentDailySnapshots
 
         binding.forecastHourlyPeriodGroup.visibility = if (range == ForecastRange.HOURLY) View.VISIBLE else View.GONE
+        binding.forecastDailyPeriodGroup.visibility = if (range == ForecastRange.DAILY) View.VISIBLE else View.GONE
         binding.forecastPressureSection.visibility = if (range == ForecastRange.PAST) View.VISIBLE else View.GONE
 
         binding.forecastPrecipTitleText.text = context.getString(
@@ -165,7 +188,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 )
             }
             ForecastRange.DAILY -> {
-                val days = forecast.daily
+                val days = buildDailyEntriesForPeriod(forecast.daily, dailyPeriod, recentDailySnapshots)
                 // Each entry's dateMillis is noon of that day (matching where the data itself
                 // gets plotted), so feeding it straight into the shared day-boundary detector
                 // would draw the green divider at noon, right on top of the data, instead of at
@@ -276,6 +299,55 @@ class ForecastGraphsPanel(container: ViewGroup) {
      *  "change". */
     private fun dayBoundaryXValues(hours: List<HourlyForecastEntry>): List<Float> =
         LineChartSetup.dayBoundaryXValues(hours.map { it.timeMillis })
+
+    /** Narrows/rebuilds the full daily forecast down to the slice [period] asks for - ALL is a
+     *  no-op (matches the daily cards view), PLUS_3_DAY keeps just today plus the next 3 forecast
+     *  days, and NOW replaces [days]' own notion of "today" (a forecast value, and under some
+     *  weather sources an incomplete one - see [AppState]'s [com.dlang.homewx.model.UiState.dailyExtremes])
+     *  with a live blend: [recentDailySnapshots]' 2 recorded past days, a synthetic "today" entry
+     *  built from today's actual running high/low/wind extremes (falling back to the current
+     *  instantaneous reading where no extreme has been recorded yet) plus today's forecast
+     *  precipitation chance (no live equivalent exists), and the next 2 forecast days - 5 days total. */
+    private fun buildDailyEntriesForPeriod(
+        days: List<DailyForecastEntry>,
+        period: DailyGraphPeriod,
+        recentDailySnapshots: List<DailySnapshot>
+    ): List<DailyForecastEntry> = when (period) {
+        DailyGraphPeriod.ALL -> days
+        DailyGraphPeriod.PLUS_3_DAY -> days.take(4)
+        DailyGraphPeriod.NOW -> {
+            val nowMillis = System.currentTimeMillis()
+            val todayForecast = days.firstOrNull { isSameDay(it.dateMillis, nowMillis) }
+            val todayDateMillis = todayForecast?.dateMillis ?: nowMillis
+            val state = AppState.uiState.value
+            val extremes = state.dailyExtremes
+            val current = state.currentWeather
+
+            val pastEntries = recentDailySnapshots.map { snapshot ->
+                DailyForecastEntry(
+                    dateMillis = snapshot.dayStartMillis + DAY_MILLIS / 2,
+                    highF = snapshot.tempHighF,
+                    lowF = snapshot.tempLowF,
+                    windMaxMph = snapshot.windHighMph,
+                    precipitationChancePct = null,
+                    conditionText = snapshot.conditionText ?: "",
+                    iconKey = snapshot.iconKey ?: ""
+                )
+            }
+            val todayEntry = DailyForecastEntry(
+                dateMillis = todayDateMillis,
+                highF = extremes.tempHighF?.value ?: current?.temperatureF,
+                lowF = extremes.tempLowF?.value ?: current?.temperatureF,
+                windMaxMph = extremes.windHighMph?.value ?: current?.windSpeedMph,
+                precipitationChancePct = todayForecast?.precipitationChancePct,
+                conditionText = current?.conditionText ?: todayForecast?.conditionText ?: "",
+                iconKey = current?.iconKey ?: todayForecast?.iconKey ?: ""
+            )
+            val futureEntries = days.filter { it.dateMillis > todayDateMillis && !isSameDay(it.dateMillis, todayDateMillis) }.take(2)
+
+            pastEntries + todayEntry + futureEntries
+        }
+    }
 
     /** One (x, "Mon") label per calendar day in [hours], positioned at that day's noon - only
      *  when noon actually falls within the covered data range, and skipped near the very start

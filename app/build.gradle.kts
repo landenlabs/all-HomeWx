@@ -31,6 +31,18 @@ android {
         val sunApiKey = localProperties.getProperty("SUN_API_KEY") ?: ""
         buildConfigField("String", "SUN_API_KEY", "\"$sunApiKey\"")
 
+        val wyzeLogin = localProperties.getProperty("WYZE_LOGIN") ?: ""
+        buildConfigField("String", "WYZE_LOGIN", "\"$wyzeLogin\"")
+
+        val wyzeUser = localProperties.getProperty("WYZE_USER") ?: ""
+        buildConfigField("String", "WYZE_USER", "\"$wyzeUser\"")
+
+        val wyzePwd = localProperties.getProperty("WYZE_PWD") ?: ""
+        buildConfigField("String", "WYZE_PWD", "\"$wyzePwd\"")
+
+        val wyzeCameras = localProperties.getProperty("WYZE_CAMERAS") ?: ""
+        buildConfigField("String", "WYZE_CAMERAS", "\"$wyzeCameras\"")
+
         val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date())
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
     }

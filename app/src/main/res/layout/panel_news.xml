@@ -97,4 +97,32 @@
 
     </FrameLayout>
 
+    <!-- Shows the Wyze camera portal (logged in automatically) when the "Wyze" sub-tab is
+         selected - visibility toggled alongside the other views above, never more than one
+         visible. -->
+    <FrameLayout
+        android:id="@+id/wyzeContainer"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:visibility="gone">
+
+        <WebView
+            android:id="@+id/wyzeWebView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <TextView
+            android:id="@+id/wyzeErrorText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:padding="24dp"
+            android:textColor="@color/text_secondary"
+            android:textSize="16sp"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
 </LinearLayout>

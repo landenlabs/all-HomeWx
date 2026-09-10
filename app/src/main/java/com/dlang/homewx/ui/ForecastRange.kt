@@ -11,3 +11,9 @@ enum class ForecastPresentation { CARDS, GRAPH }
  *  the radio buttons above them. ALL matches the hourly cards view (every forecast hour); TODAY
  *  and PLUS_24 narrow that to just today's calendar day or the next 24 hours from now. */
 enum class HourlyGraphPeriod { ALL, TODAY, PLUS_24 }
+
+/** Which slice of [ForecastRange.DAILY]'s data the graph view's strip charts plot - selected via
+ *  the radio buttons above them. ALL matches the daily cards view (every forecast day); NOW
+ *  centers on today, blending 2 recorded past days with today's live conditions and the next 2
+ *  forecast days; PLUS_3_DAY narrows to today plus the next 3 forecast days. */
+enum class DailyGraphPeriod { ALL, NOW, PLUS_3_DAY }

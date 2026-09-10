@@ -12,6 +12,7 @@
     <string name="tab_news_title">News</string>
     <string name="news_tab_drought">Drought</string>
     <string name="news_tab_stocks">Stocks</string>
+    <string name="news_tab_wyze">Wyze</string>
     <string name="tab_forecast_title">Forecast</string>
     <string name="tab_sensor_graphs_title">Sensor history graphs</string>
     <string name="tab_radar_title">Radar</string>
@@ -33,6 +34,13 @@
     <string name="forecast_hourly_period_all">All</string>
     <string name="forecast_hourly_period_today">Today</string>
     <string name="forecast_hourly_period_plus24">+24 Hours</string>
+    <string name="forecast_daily_period_now">Now</string>
+    <string name="forecast_daily_period_plus3day">+3day</string>
+    <string name="forecast_daily_period_all">All</string>
+    <string name="sensor_graph_period_24h">24hr</string>
+    <string name="sensor_graph_period_48h">48hr</string>
+    <string name="sensor_graph_period_72h">72hr</string>
+    <string name="sensor_graph_period_all">All</string>
     <string name="forecast_no_wind">No wind expected</string>
     <string name="forecast_no_precipitation">No precipitation expected</string>
     <string name="forecast_no_wind_recorded">No wind recorded</string>

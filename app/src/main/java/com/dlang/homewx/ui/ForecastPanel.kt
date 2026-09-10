@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.dlang.homewx.R
+import com.dlang.homewx.data.DailySnapshot
 import com.dlang.homewx.data.WeatherMetricsPoint
 import com.dlang.homewx.databinding.PanelForecastBinding
 import com.dlang.homewx.weather.DailyForecastEntry
@@ -39,6 +40,7 @@ class ForecastPanel(
     private var presentation = ForecastPresentation.CARDS
     private var latestForecast = WeatherForecast(hourly = emptyList(), daily = emptyList())
     private var latestPastPoints: List<WeatherMetricsPoint> = emptyList()
+    private var latestRecentDailySnapshots: List<DailySnapshot> = emptyList()
 
     init {
         container.addView(root)
@@ -80,9 +82,10 @@ class ForecastPanel(
         }
     }
 
-    fun render(forecast: WeatherForecast, pastPoints: List<WeatherMetricsPoint>) {
+    fun render(forecast: WeatherForecast, pastPoints: List<WeatherMetricsPoint>, recentDailySnapshots: List<DailySnapshot>) {
         latestForecast = forecast
         latestPastPoints = pastPoints
+        latestRecentDailySnapshots = recentDailySnapshots
         refresh()
     }
 
@@ -114,7 +117,7 @@ class ForecastPanel(
                 }
             }
         } else {
-            graphsPanel.render(range, latestForecast, latestPastPoints)
+            graphsPanel.render(range, latestForecast, latestPastPoints, latestRecentDailySnapshots)
         }
     }
 
