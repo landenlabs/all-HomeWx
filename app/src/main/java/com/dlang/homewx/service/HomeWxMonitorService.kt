@@ -153,6 +153,7 @@ class HomeWxMonitorService : LifecycleService() {
         }
 
         lifecycleScope.launch {
+            var consecutiveFailures = 0
             while (true) {
                 try {
                     val sensors = goveeRepository.refreshAll()
@@ -195,7 +196,15 @@ class HomeWxMonitorService : LifecycleService() {
                     }
                     applyTempSensorOverrideToCurrentConditions()
                     refreshDailyExtremes()
+                    // A device-level failure (e.g. the network being down) never throws here -
+                    // GoveeRepository.refreshAll() catches per-device and returns an `error`-
+                    // tagged reading instead - so a plain try/catch alone can't detect it. Treat
+                    // any sensor coming back with an error as a failure too, so an outage still
+                    // triggers the backoff/network-recovery wake-up below instead of silently
+                    // waiting out the full poll interval.
+                    consecutiveFailures = if (sensorsWithTrends.any { it.error != null }) consecutiveFailures + 1 else 0
                 } catch (e: Exception) {
+                    consecutiveFailures++
                     val message = e.message ?: "Govee refresh failed"
                     Log.e(TAG, "Govee refresh failed", e)
                     AppState.recordError("Govee", e)
@@ -206,7 +215,7 @@ class HomeWxMonitorService : LifecycleService() {
                 } else {
                     ACTIVE_POLL_INTERVAL_MS
                 }
-                delay(intervalMs)
+                waitForNextPoll(consecutiveFailures, intervalMs)
             }
         }
 

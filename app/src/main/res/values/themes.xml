@@ -5,4 +5,14 @@
         <item name="android:windowBackground">@color/bg_root</item>
         <item name="android:windowFullscreen" tools:targetApi="24">false</item>
     </style>
+
+    <!-- Base theme for FullScreenWebViewDialog - a plain Dialog (not DialogFragment) shown over
+         the current activity, so it needs windowIsFloating=false + a matching opaque background
+         to actually fill the screen instead of rendering as a small floating card. -->
+    <style name="Theme.HomeWx.FullScreenDialog" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowBackground">@color/bg_root</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
 </resources>
