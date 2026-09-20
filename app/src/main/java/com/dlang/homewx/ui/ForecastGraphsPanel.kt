@@ -18,6 +18,8 @@ import com.dlang.homewx.weather.DailyForecastEntry
 import com.dlang.homewx.weather.HourlyForecastEntry
 import com.dlang.homewx.weather.WeatherForecast
 import com.dlang.homewx.weather.isSameDay
+import com.dlang.homewx.weather.startOfDay
+import com.dlang.homewx.weather.startOfHour
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.formatter.ValueFormatter
 import java.text.SimpleDateFormat
@@ -25,6 +27,92 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
+
+/** Milliseconds in a day - used throughout this file's period-filtering functions and by
+ *  [ForecastGraphsPanel] itself. */
+private const val DAY_MILLIS = 24 * 60 * 60 * 1000L
+
+/** Narrows the full hourly forecast down to the slice [period] asks for - ALL is a no-op
+ *  (matches the hourly cards view), TODAY keeps only hours within the device's current
+ *  calendar day, and PLUS_24 keeps the next 24 hours starting now. Shared by
+ *  [com.dlang.homewx.ui.ForecastPanel] (cards) and [ForecastGraphsPanel] (graph) so both
+ *  presentations filter identically. */
+fun filterHoursForPeriod(hours: List<HourlyForecastEntry>, period: HourlyGraphPeriod): List<HourlyForecastEntry> {
+    return when (period) {
+        HourlyGraphPeriod.ALL -> hours
+        HourlyGraphPeriod.TODAY -> {
+            val todayStart = startOfDay(System.currentTimeMillis())
+            val todayEnd = todayStart + DAY_MILLIS
+            hours.filter { it.timeMillis in todayStart until todayEnd }
+        }
+        HourlyGraphPeriod.PLUS_24 -> {
+            val now = System.currentTimeMillis()
+            val end = now + DAY_MILLIS
+            hours.filter { it.timeMillis in now..end }
+        }
+    }
+}
+
+/** Narrows [points] to the trailing [period] window - ALL is a no-op, otherwise keeps points
+ *  from the start of (today minus [PastGraphPeriod.days] - 1) onward, so e.g. DAYS_3 covers
+ *  today plus the 2 previous calendar days. Shared by [com.dlang.homewx.ui.ForecastPanel]
+ *  (cards) and [ForecastGraphsPanel] (graph) so both presentations filter identically. */
+fun filterPastPointsForPeriod(points: List<WeatherMetricsPoint>, period: PastGraphPeriod): List<WeatherMetricsPoint> {
+    val days = period.days ?: return points
+    val cutoffMillis = startOfDay(System.currentTimeMillis()) - (days - 1) * DAY_MILLIS
+    return points.filter { it.timestampMillis >= cutoffMillis }
+}
+
+/** Narrows/rebuilds the full daily forecast down to the slice [period] asks for - ALL is a
+ *  no-op (matches the daily cards view), PLUS_3_DAY keeps just today plus the next 3 forecast
+ *  days, and NOW replaces [days]' own notion of "today" (a forecast value, and under some
+ *  weather sources an incomplete one - see [AppState]'s [com.dlang.homewx.model.UiState.dailyExtremes])
+ *  with a live blend: [recentDailySnapshots]' 2 recorded past days, a synthetic "today" entry
+ *  built from today's actual running high/low/wind extremes (falling back to the current
+ *  instantaneous reading where no extreme has been recorded yet) plus today's forecast
+ *  precipitation chance (no live equivalent exists), and the next 2 forecast days - 5 days total.
+ *  Shared by [com.dlang.homewx.ui.ForecastPanel] (cards) and [ForecastGraphsPanel] (graph) so
+ *  both presentations filter identically. */
+fun buildDailyEntriesForPeriod(
+    days: List<DailyForecastEntry>,
+    period: DailyGraphPeriod,
+    recentDailySnapshots: List<DailySnapshot>
+): List<DailyForecastEntry> = when (period) {
+    DailyGraphPeriod.ALL -> days
+    DailyGraphPeriod.PLUS_3_DAY -> days.take(4)
+    DailyGraphPeriod.NOW -> {
+        val nowMillis = System.currentTimeMillis()
+        val todayForecast = days.firstOrNull { isSameDay(it.dateMillis, nowMillis) }
+        val todayDateMillis = todayForecast?.dateMillis ?: nowMillis
+        val state = AppState.uiState.value
+        val extremes = state.dailyExtremes
+        val current = state.currentWeather
+
+        val pastEntries = recentDailySnapshots.map { snapshot ->
+            DailyForecastEntry(
+                dateMillis = snapshot.dayStartMillis + DAY_MILLIS / 2,
+                highF = snapshot.tempHighF,
+                lowF = snapshot.tempLowF,
+                windMaxMph = snapshot.windHighMph,
+                precipitationChancePct = null,
+                conditionText = snapshot.conditionText ?: "",
+                iconKey = snapshot.iconKey ?: ""
+            )
+        }
+        val todayEntry = DailyForecastEntry(
+            dateMillis = todayDateMillis,
+            highF = extremes.tempHighF?.value ?: current?.temperatureF,
+            lowF = extremes.tempLowF?.value ?: current?.temperatureF,
+            windMaxMph = extremes.windHighMph?.value ?: current?.windSpeedMph,
+            precipitationChancePct = todayForecast?.precipitationChancePct,
+            conditionText = current?.conditionText ?: todayForecast?.conditionText ?: "",
+            iconKey = current?.iconKey ?: todayForecast?.iconKey ?: ""
+        )
+        val futureEntries = days.filter { it.dateMillis > todayDateMillis && !isSameDay(it.dateMillis, todayDateMillis) }.take(2)
+
+        pastEntries + todayEntry + futureEntries
+    }
+}
 
 /**
  * Temperature / wind / precipitation / pressure line graphs for the forecast panel's Past,
@@ -49,22 +137,12 @@ class ForecastGraphsPanel(container: ViewGroup) {
 
     private val hourFormat = SimpleDateFormat("h a", Locale.getDefault())
     private val dayFormat = SimpleDateFormat("EEE", Locale.getDefault())
-    private val pastFormat = SimpleDateFormat("EEE h a", Locale.getDefault())
 
-    /** Which slice of the hourly forecast the strip charts plot - defaults to Today, matching
-     *  the radio button checked by default in the layout. Only consulted for [ForecastRange.HOURLY]. */
-    private var hourlyPeriod = HourlyGraphPeriod.TODAY
-
-    /** Which slice of the daily forecast the strip charts plot - defaults to All, matching the
-     *  radio button checked by default in the layout. Only consulted for [ForecastRange.DAILY]. */
-    private var dailyPeriod = DailyGraphPeriod.ALL
-
-    /** Args from the last [render] call, re-used to redraw when [hourlyPeriod]/[dailyPeriod]
-     *  change without waiting for [com.dlang.homewx.ui.ForecastPanel] to push a fresh forecast. */
-    private var lastRange: ForecastRange? = null
-    private var lastForecast: WeatherForecast? = null
-    private var lastPastPoints: List<WeatherMetricsPoint> = emptyList()
-    private var lastRecentDailySnapshots: List<DailySnapshot> = emptyList()
+    /** Past's x-axis labels - one sample per day, so no time-of-day component: "Sat 3" normally,
+     *  or "Oct 13" once the displayed range spans more than a month (where the day-of-week alone
+     *  stops being enough to place a point in time). */
+    private val pastDayFormat = SimpleDateFormat("EEE d", Locale.getDefault())
+    private val pastMonthFormat = SimpleDateFormat("MMM d", Locale.getDefault())
 
     init {
         container.addView(root)
@@ -87,41 +165,27 @@ class ForecastGraphsPanel(container: ViewGroup) {
             watermark.text = title.text
         }
         binding.forecastPrecipWatermarkText.setTextColor(watermarkTextColor)
-
-        binding.forecastHourlyPeriodGroup.setOnCheckedChangeListener { _, checkedId ->
-            hourlyPeriod = when (checkedId) {
-                binding.forecastHourlyPeriodAll.id -> HourlyGraphPeriod.ALL
-                binding.forecastHourlyPeriodPlus24.id -> HourlyGraphPeriod.PLUS_24
-                else -> HourlyGraphPeriod.TODAY
-            }
-            val forecast = lastForecast ?: return@setOnCheckedChangeListener
-            lastRange?.let { render(it, forecast, lastPastPoints, lastRecentDailySnapshots) }
-        }
-        binding.forecastDailyPeriodGroup.setOnCheckedChangeListener { _, checkedId ->
-            dailyPeriod = when (checkedId) {
-                binding.forecastDailyPeriodNow.id -> DailyGraphPeriod.NOW
-                binding.forecastDailyPeriodPlus3Day.id -> DailyGraphPeriod.PLUS_3_DAY
-                else -> DailyGraphPeriod.ALL
-            }
-            val forecast = lastForecast ?: return@setOnCheckedChangeListener
-            lastRange?.let { render(it, forecast, lastPastPoints, lastRecentDailySnapshots) }
-        }
     }
 
+    /** [hourlyPeriod]/[dailyPeriod]/[pastPeriod] are owned by [com.dlang.homewx.ui.ForecastPanel]
+     *  (whose radio buttons sit above both the cards and this graph presentation, so the same
+     *  selection filters either one) and passed in here rather than tracked locally. */
     fun render(
         range: ForecastRange,
         forecast: WeatherForecast,
         pastPoints: List<WeatherMetricsPoint>,
-        recentDailySnapshots: List<DailySnapshot>
+        recentDailySnapshots: List<DailySnapshot>,
+        hourlyPeriod: HourlyGraphPeriod,
+        dailyPeriod: DailyGraphPeriod,
+        pastPeriod: PastGraphPeriod
     ) {
-        lastRange = range
-        lastForecast = forecast
-        lastPastPoints = pastPoints
-        lastRecentDailySnapshots = recentDailySnapshots
-
-        binding.forecastHourlyPeriodGroup.visibility = if (range == ForecastRange.HOURLY) View.VISIBLE else View.GONE
-        binding.forecastDailyPeriodGroup.visibility = if (range == ForecastRange.DAILY) View.VISIBLE else View.GONE
         binding.forecastPressureSection.visibility = if (range == ForecastRange.PAST) View.VISIBLE else View.GONE
+
+        // Computed up front (not just inside the PAST branch below) so the x-axis formatter,
+        // shared across all ranges, can pick its Past-specific pattern based on what's actually
+        // about to be plotted.
+        val displayedPastPoints = filterPastPointsForPeriod(pastPoints, pastPeriod)
+        val pastFormat = if (spansMoreThanAMonth(displayedPastPoints)) pastMonthFormat else pastDayFormat
 
         binding.forecastPrecipTitleText.text = context.getString(
             if (range == ForecastRange.PAST) R.string.weather_graph_precipitation else R.string.forecast_graph_precipitation_chance
@@ -158,16 +222,19 @@ class ForecastGraphsPanel(container: ViewGroup) {
             ForecastRange.HOURLY -> {
                 val hours = filterHoursForPeriod(forecast.hourly, hourlyPeriod)
                 val dayBoundaries = dayBoundaryXValues(hours)
-                val noonLabels = noonDayOfWeekLabels(hours)
+                // ALL spans many days, where a single "Mon"/"Tue" label per day (centered on that
+                // day's noon) is what matters; Today/+24 Hours are short enough windows that the
+                // hour of day is what matters instead.
+                val xLabels = if (hourlyPeriod == HourlyGraphPeriod.ALL) noonDayOfWeekLabels(hours) else hourOfDayLabels(hours)
                 val nowMillis = System.currentTimeMillis()
                 val showNowMarker = hours.isNotEmpty() && nowMillis in hours.first().timeMillis..hours.last().timeMillis
                 listOf(binding.forecastTempChartView, binding.forecastWindChartView, binding.forecastPrecipChartView).forEach { chart ->
                     // The default hour-by-hour tick labels ("3 PM") land wherever MPAndroidChart's
                     // automatic grid computation happens to fall, which reads as near-random -
-                    // replaced with one "Mon"/"Tue" label per day, centered on that day's noon.
+                    // replaced with explicit markers positioned/thinned by [xLabels] instead.
                     chart.xAxis.setDrawLabels(false)
                     LineChartSetup.setLimitLines(chart, context, dayBoundaries)
-                    LineChartSetup.addAxisLabelMarkers(chart, context, noonLabels)
+                    LineChartSetup.addAxisLabelMarkers(chart, context, xLabels)
                     if (showNowMarker) LineChartSetup.addCurrentTimeMarker(chart, context, nowMillis / 1000f)
                 }
 
@@ -229,7 +296,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 )
             }
             ForecastRange.PAST -> {
-                val dayBoundaries = LineChartSetup.dayBoundaryXValues(pastPoints.map { it.timestampMillis })
+                val dayBoundaries = LineChartSetup.dayBoundaryXValues(displayedPastPoints.map { it.timestampMillis })
                 listOf(binding.forecastTempChartView, binding.forecastWindChartView, binding.forecastPrecipChartView, binding.forecastPressureChartView).forEach { chart ->
                     chart.xAxis.setDrawLabels(true)
                     LineChartSetup.setLimitLines(chart, context, dayBoundaries)
@@ -241,10 +308,10 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 val splineEnabled = AppSettings.isDailyWeatherSplineEnabled(context)
                 fun useSpline(points: List<Pair<Long, Double>>) = splineEnabled && points.size < PAST_SPLINE_MAX_POINTS
 
-                val tempPoints = pastPoints.mapNotNull { p -> p.temperatureF?.let { p.timestampMillis to it } }
+                val tempPoints = displayedPastPoints.mapNotNull { p -> p.temperatureF?.let { p.timestampMillis to it } }
                 renderSingleLineTemp(tempPoints, useSpline(tempPoints))
 
-                val windPoints = pastPoints.mapNotNull { p -> p.windSpeedMph?.let { p.timestampMillis to it } }
+                val windPoints = displayedPastPoints.mapNotNull { p -> p.windSpeedMph?.let { p.timestampMillis to it } }
                 renderMetric(
                     binding.forecastWindSection, binding.forecastWindChartFrame, binding.forecastWindChartView, binding.forecastWindEmptyText, binding.forecastWindMaxValueText,
                     binding.forecastWindWatermarkText, binding.forecastWindTitleText,
@@ -252,7 +319,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
                     R.string.forecast_no_wind_data, R.string.forecast_no_wind_recorded,
                     valueFormatter = windValueFormatter, spline = useSpline(windPoints)
                 )
-                val precipPoints = pastPoints.mapNotNull { p -> p.precipitationIn?.let { p.timestampMillis to it } }
+                val precipPoints = displayedPastPoints.mapNotNull { p -> p.precipitationIn?.let { p.timestampMillis to it } }
                 renderMetric(
                     binding.forecastPrecipSection, binding.forecastPrecipChartFrame, binding.forecastPrecipChartView, binding.forecastPrecipEmptyText, binding.forecastPrecipMaxValueText,
                     binding.forecastPrecipWatermarkText, binding.forecastPrecipTitleText,
@@ -260,7 +327,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
                     R.string.forecast_no_precipitation_data, R.string.forecast_no_precipitation_recorded,
                     R.color.accent_cool, filled = true, valueFormatter = precipInValueFormatter, spline = useSpline(precipPoints)
                 )
-                val pressurePoints = pastPoints.mapNotNull { p -> p.pressureInHg?.let { p.timestampMillis to it } }
+                val pressurePoints = displayedPastPoints.mapNotNull { p -> p.pressureInHg?.let { p.timestampMillis to it } }
                 renderMetric(
                     binding.forecastPressureSection, binding.forecastPressureChartFrame, binding.forecastPressureChartView, binding.forecastPressureEmptyText, binding.forecastPressureMaxValueText,
                     binding.forecastPressureWatermarkText, binding.forecastPressureTitleText,
@@ -272,83 +339,19 @@ class ForecastGraphsPanel(container: ViewGroup) {
         }
     }
 
-    /** Narrows the full hourly forecast down to the slice [period] asks for - ALL is a no-op
-     *  (matches the hourly cards view), TODAY keeps only hours within the device's current
-     *  calendar day, and PLUS_24 keeps the next 24 hours starting now. */
-    private fun filterHoursForPeriod(hours: List<HourlyForecastEntry>, period: HourlyGraphPeriod): List<HourlyForecastEntry> {
-        return when (period) {
-            HourlyGraphPeriod.ALL -> hours
-            HourlyGraphPeriod.TODAY -> {
-                val todayStart = Calendar.getInstance().apply {
-                    set(Calendar.HOUR_OF_DAY, 0)
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
-                }.timeInMillis
-                val todayEnd = todayStart + DAY_MILLIS
-                hours.filter { it.timeMillis in todayStart until todayEnd }
-            }
-            HourlyGraphPeriod.PLUS_24 -> {
-                val now = System.currentTimeMillis()
-                val end = now + DAY_MILLIS
-                hours.filter { it.timeMillis in now..end }
-            }
-        }
-    }
-
     /** x-values (matching [LineChartSetup]'s seconds-since-epoch convention) where one calendar
      *  day's hours end and the next day's begin - skips the very first hour, which isn't a
      *  "change". */
     private fun dayBoundaryXValues(hours: List<HourlyForecastEntry>): List<Float> =
         LineChartSetup.dayBoundaryXValues(hours.map { it.timeMillis })
 
-    /** Narrows/rebuilds the full daily forecast down to the slice [period] asks for - ALL is a
-     *  no-op (matches the daily cards view), PLUS_3_DAY keeps just today plus the next 3 forecast
-     *  days, and NOW replaces [days]' own notion of "today" (a forecast value, and under some
-     *  weather sources an incomplete one - see [AppState]'s [com.dlang.homewx.model.UiState.dailyExtremes])
-     *  with a live blend: [recentDailySnapshots]' 2 recorded past days, a synthetic "today" entry
-     *  built from today's actual running high/low/wind extremes (falling back to the current
-     *  instantaneous reading where no extreme has been recorded yet) plus today's forecast
-     *  precipitation chance (no live equivalent exists), and the next 2 forecast days - 5 days total. */
-    private fun buildDailyEntriesForPeriod(
-        days: List<DailyForecastEntry>,
-        period: DailyGraphPeriod,
-        recentDailySnapshots: List<DailySnapshot>
-    ): List<DailyForecastEntry> = when (period) {
-        DailyGraphPeriod.ALL -> days
-        DailyGraphPeriod.PLUS_3_DAY -> days.take(4)
-        DailyGraphPeriod.NOW -> {
-            val nowMillis = System.currentTimeMillis()
-            val todayForecast = days.firstOrNull { isSameDay(it.dateMillis, nowMillis) }
-            val todayDateMillis = todayForecast?.dateMillis ?: nowMillis
-            val state = AppState.uiState.value
-            val extremes = state.dailyExtremes
-            val current = state.currentWeather
-
-            val pastEntries = recentDailySnapshots.map { snapshot ->
-                DailyForecastEntry(
-                    dateMillis = snapshot.dayStartMillis + DAY_MILLIS / 2,
-                    highF = snapshot.tempHighF,
-                    lowF = snapshot.tempLowF,
-                    windMaxMph = snapshot.windHighMph,
-                    precipitationChancePct = null,
-                    conditionText = snapshot.conditionText ?: "",
-                    iconKey = snapshot.iconKey ?: ""
-                )
-            }
-            val todayEntry = DailyForecastEntry(
-                dateMillis = todayDateMillis,
-                highF = extremes.tempHighF?.value ?: current?.temperatureF,
-                lowF = extremes.tempLowF?.value ?: current?.temperatureF,
-                windMaxMph = extremes.windHighMph?.value ?: current?.windSpeedMph,
-                precipitationChancePct = todayForecast?.precipitationChancePct,
-                conditionText = current?.conditionText ?: todayForecast?.conditionText ?: "",
-                iconKey = current?.iconKey ?: todayForecast?.iconKey ?: ""
-            )
-            val futureEntries = days.filter { it.dateMillis > todayDateMillis && !isSameDay(it.dateMillis, todayDateMillis) }.take(2)
-
-            pastEntries + todayEntry + futureEntries
-        }
+    /** Whether [points] cover more than a month, at which point Past's axis labels switch from
+     *  "day of week + day of month" (ambiguous once the same weekday/day-of-month recurs within
+     *  the range) to "month + day of month". */
+    private fun spansMoreThanAMonth(points: List<WeatherMetricsPoint>): Boolean {
+        val first = points.firstOrNull()?.timestampMillis ?: return false
+        val last = points.lastOrNull()?.timestampMillis ?: return false
+        return last - first > PAST_MONTH_SPAN_MILLIS
     }
 
     /** One (x, "Mon") label per calendar day in [hours], positioned at that day's noon - only
@@ -388,6 +391,36 @@ class ForecastGraphsPanel(container: ViewGroup) {
         }
         return labels
     }
+
+    /** One (x, "3 PM") label per hour in [hours] - used for Today/+24 Hours, where the hour of
+     *  day is what matters (unlike ALL's [noonDayOfWeekLabels], which spans too many days for
+     *  that). Thinned to every 2nd/3rd/4th/6th/12th hour - whichever is the smallest step that
+     *  keeps the label count at or under [MAX_HOURLY_LABELS] - so a full day's worth of hours
+     *  doesn't crowd them illegibly; a label survives thinning by its actual hour-of-day being a
+     *  multiple of that step (e.g. every 3rd hour lands on 12/3/6/9), not by position in the list,
+     *  so the surviving hours read as round clock times regardless of where [hours] starts. The
+     *  current hour (if present) is highlighted green, matching every other "now" marker here. */
+    private fun hourOfDayLabels(hours: List<HourlyForecastEntry>): List<LineChartSetup.AxisLabel> {
+        if (hours.isEmpty()) return emptyList()
+        val step = hourLabelStep(hours.size)
+        val nowHourStart = startOfHour(System.currentTimeMillis())
+        val calendar = Calendar.getInstance()
+        return hours.mapNotNull { entry ->
+            calendar.timeInMillis = entry.timeMillis
+            if (calendar.get(Calendar.HOUR_OF_DAY) % step != 0) return@mapNotNull null
+            LineChartSetup.AxisLabel(
+                entry.timeMillis / 1000f,
+                hourFormat.format(Date(entry.timeMillis)),
+                startOfHour(entry.timeMillis) == nowHourStart
+            )
+        }
+    }
+
+    /** Smallest of [HOUR_LABEL_STEPS] that keeps roughly [hourCount] hours' worth of labels down
+     *  to [MAX_HOURLY_LABELS] or fewer, falling back to the largest step if even that isn't
+     *  enough (only possible for an implausibly long "hourly" window). */
+    private fun hourLabelStep(hourCount: Int): Int =
+        HOUR_LABEL_STEPS.firstOrNull { step -> (hourCount + step - 1) / step <= MAX_HOURLY_LABELS } ?: HOUR_LABEL_STEPS.last()
 
     /** One (x, "Mon") label per entry in [days], positioned at that day's dateMillis (noon,
      *  matching where the data itself is plotted) - today's label is highlighted green. */
@@ -512,12 +545,23 @@ class ForecastGraphsPanel(container: ViewGroup) {
     }
 
     companion object {
-        /** Milliseconds in a day - used to bound the Today/+24-hour hourly graph filters. */
-        private const val DAY_MILLIS = 24 * 60 * 60 * 1000L
-
         /** A noon label within this fraction of either edge of the visible x-range is dropped -
          *  not enough room to draw it without crowding the chart's border. */
         private const val EDGE_MARGIN_FRACTION = 0.05
+
+        /** Candidate hour-of-day label steps for [hourLabelStep], smallest (densest) first -
+         *  all evenly divide a 12-hour half-day so the surviving labels land on round clock
+         *  times (12/3/6/9 for step 3, 12/6 for step 6, etc.), not arbitrary hours. */
+        private val HOUR_LABEL_STEPS = intArrayOf(1, 2, 3, 4, 6, 12)
+
+        /** [hourLabelStep] picks the smallest step keeping the label count at or under this -
+         *  dense enough to be useful, sparse enough not to overlap on a phone-width chart. */
+        private const val MAX_HOURLY_LABELS = 8
+
+        /** Threshold for Past's axis-label format switch (see [spansMoreThanAMonth]) - 31 days
+         *  so the 30-day period option never trips it, only "All" once it's actually accumulated
+         *  more than a month of history. */
+        private const val PAST_MONTH_SPAN_MILLIS = 31 * DAY_MILLIS
 
         /** Below this many points, Past's graphs are eligible for the same optional spline
          *  smoothing Daily's graphs use - a short-enough range that a spline reads as smoothing

@@ -22,6 +22,16 @@ fun startOfDay(atMillis: Long): Long =
 
 fun isSameDay(aMillis: Long, bMillis: Long): Boolean = startOfDay(aMillis) == startOfDay(bMillis)
 
+/** Start of the calendar hour containing [atMillis] - used to bucket recorded samples (multiple
+ *  per hour) onto the same hour a forecast entry would occupy. */
+fun startOfHour(atMillis: Long): Long =
+    Calendar.getInstance().apply {
+        timeInMillis = atMillis
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
 /** [start, end] (inclusive, start-of-day millis) for the [daysAround]-day window centered on this date one year ago. */
 fun historicalComparisonWindow(referenceMillis: Long, daysAround: Int = 3): Pair<Long, Long> {
     val calendar = Calendar.getInstance().apply { timeInMillis = referenceMillis }

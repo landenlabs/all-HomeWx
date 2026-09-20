@@ -38,6 +38,10 @@
     <string name="forecast_daily_period_now">Now</string>
     <string name="forecast_daily_period_plus3day">+3day</string>
     <string name="forecast_daily_period_all">All</string>
+    <string name="forecast_past_period_3day">3 days</string>
+    <string name="forecast_past_period_7day">7 days</string>
+    <string name="forecast_past_period_30day">30 days</string>
+    <string name="forecast_past_period_all">All</string>
     <string name="sensor_graph_period_24h">24hr</string>
     <string name="sensor_graph_period_48h">48hr</string>
     <string name="sensor_graph_period_72h">72hr</string>

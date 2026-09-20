@@ -17,3 +17,8 @@ enum class HourlyGraphPeriod { ALL, TODAY, PLUS_24 }
  *  centers on today, blending 2 recorded past days with today's live conditions and the next 2
  *  forecast days; PLUS_3_DAY narrows to today plus the next 3 forecast days. */
 enum class DailyGraphPeriod { ALL, NOW, PLUS_3_DAY }
+
+/** Which slice of [ForecastRange.PAST]'s recorded history the graph view's strip charts plot -
+ *  selected via the radio buttons above them. [days] trims to the trailing N calendar days; ALL
+ *  (null) shows everything recorded. */
+enum class PastGraphPeriod(val days: Int?) { DAYS_3(3), DAYS_7(7), DAYS_30(30), ALL(null) }
