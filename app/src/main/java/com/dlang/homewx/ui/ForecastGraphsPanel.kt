@@ -184,7 +184,8 @@ class ForecastGraphsPanel(container: ViewGroup) {
                     binding.forecastPrecipWatermarkText, binding.forecastPrecipTitleText,
                     hours.mapNotNull { h -> h.precipitationChancePct?.let { h.timeMillis to it.toDouble() } },
                     R.string.forecast_no_precipitation_data, R.string.forecast_no_precipitation,
-                    R.color.accent_cool, filled = true, valueFormatter = pctValueFormatter
+                    R.color.accent_cool, filled = true, valueFormatter = pctValueFormatter,
+                    fixedAxisRange = LineChartSetup.PERCENT_AXIS_RANGE
                 )
             }
             ForecastRange.DAILY -> {
@@ -223,7 +224,8 @@ class ForecastGraphsPanel(container: ViewGroup) {
                     binding.forecastPrecipWatermarkText, binding.forecastPrecipTitleText,
                     days.mapNotNull { d -> d.precipitationChancePct?.let { d.dateMillis to it.toDouble() } },
                     R.string.forecast_no_precipitation_data, R.string.forecast_no_precipitation,
-                    R.color.accent_cool, filled = true, spline = spline, valueFormatter = pctValueFormatter
+                    R.color.accent_cool, filled = true, spline = spline, valueFormatter = pctValueFormatter,
+                    fixedAxisRange = LineChartSetup.PERCENT_AXIS_RANGE
                 )
             }
             ForecastRange.PAST -> {
@@ -457,7 +459,8 @@ class ForecastGraphsPanel(container: ViewGroup) {
         colorRes: Int = R.color.accent_warm,
         filled: Boolean = false,
         spline: Boolean = false,
-        valueFormatter: (Double) -> String = { it.roundToInt().toString() }
+        valueFormatter: (Double) -> String = { it.roundToInt().toString() },
+        fixedAxisRange: Pair<Float, Float>? = null
     ) {
         val noData = points.size < 2
         val allZero = !noData && allZeroMessageRes != null && points.all { it.second == 0.0 }
@@ -471,7 +474,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
         } else {
             chart.visibility = View.VISIBLE
             emptyText.visibility = View.GONE
-            LineChartSetup.render(chart, context, points, colorRes, filled, spline)
+            LineChartSetup.render(chart, context, points, colorRes, filled, spline, fixedAxisRange)
             maxValueText.text = valueFormatter(points.maxOf { it.second })
         }
     }

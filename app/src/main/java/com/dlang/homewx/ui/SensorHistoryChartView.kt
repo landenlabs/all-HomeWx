@@ -108,7 +108,8 @@ class SensorHistoryChartView(private val context: Context) {
             leftLabel = "Humidity",
             rightSeries = smoothIfFlat(tempPoints),
             rightColorRes = R.color.accent_warm,
-            rightLabel = "Temp"
+            rightLabel = "Temp",
+            leftAxisRange = LineChartSetup.PERCENT_AXIS_RANGE
         )
     }
 
@@ -127,11 +128,10 @@ class SensorHistoryChartView(private val context: Context) {
      * Both the window length and the flatness threshold are user-tunable (Settings > Display -
      * [AppSettings.getSmoothingWindowMinutes]/[AppSettings.getFlatRangeThreshold]).
      *
-     * This alone doesn't make a near-flat series look calm on its own, though - see
-     * [LineChartSetup.applyMinimumAxisSpan] for the other half of the fix (the y-axis itself
-     * auto-scaling tightly around a small range is what actually made a smoothed-down Basement
-     * humidity series - real range ~2 points, but with per-sample jitter of up to ~1 point,
-     * comparable in size to the whole signal - still look wildly noisy).
+     * Since [renderHistory] plots humidity against the fixed [LineChartSetup.PERCENT_AXIS_RANGE]
+     * (0-100%) rather than an auto-scaled axis, per-sample jitter of up to ~1 point reads as the
+     * small wiggle it actually is - but this smoothing still keeps a genuinely flat stretch (e.g.
+     * a real range of ~2 points) from looking busier than it needs to.
      */
     private fun smoothIfFlat(points: List<Pair<Long, Double>>): List<Pair<Long, Double>> {
         if (points.size < 2) return points

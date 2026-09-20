@@ -30,6 +30,12 @@ object LineChartSetup {
      *  least this span instead of MPAndroidChart's normal tight auto-scale. */
     private const val MIN_AXIS_SPAN = 5.0
 
+    /** Fixed y-axis range for any series whose values are a 0-100 percentage (humidity,
+     *  precipitation chance) - passed to [render]'s/[renderDualAxis]'s axis-range params instead
+     *  of letting MPAndroidChart (or [applyMinimumAxisSpan]) auto-scale, so e.g. 40% reads at
+     *  40% of the chart's height rather than wherever that range happens to fall that day. */
+    val PERCENT_AXIS_RANGE: Pair<Float, Float> = 0f to 100f
+
     /** x-values (seconds-since-epoch, matching this object's [Entry] convention) where one
      *  calendar day ends and the next begins, given a list of ascending millis timestamps -
      *  skips the very first entry, which isn't a "change". Shared by [ForecastGraphsPanel] and
@@ -172,7 +178,8 @@ object LineChartSetup {
         points: List<Pair<Long, Double>>,
         colorRes: Int = R.color.accent_warm,
         filled: Boolean = false,
-        spline: Boolean = false
+        spline: Boolean = false,
+        fixedAxisRange: Pair<Float, Float>? = null
     ) {
         if (points.size < 2) {
             chart.clear()
@@ -193,6 +200,17 @@ object LineChartSetup {
             }
         }
         chart.data = LineData(dataSet)
+        // Charts are reused across renders (e.g. the forecast panel's precip chart switches
+        // between percentage-chance and recorded-inches depending on range) - reset explicitly
+        // when this call isn't fixing the range, so a previous call's fixed min/max doesn't leak
+        // into a series with entirely different units.
+        if (fixedAxisRange != null) {
+            chart.axisLeft.axisMinimum = fixedAxisRange.first
+            chart.axisLeft.axisMaximum = fixedAxisRange.second
+        } else {
+            chart.axisLeft.resetAxisMinimum()
+            chart.axisLeft.resetAxisMaximum()
+        }
         chart.invalidate()
     }
 
@@ -218,7 +236,8 @@ object LineChartSetup {
         leftLabel: String,
         rightSeries: List<Pair<Long, Double>>,
         rightColorRes: Int,
-        rightLabel: String
+        rightLabel: String,
+        leftAxisRange: Pair<Float, Float>? = null
     ) {
         fun toDataSet(points: List<Pair<Long, Double>>, colorRes: Int, label: String, axis: YAxis.AxisDependency): LineDataSet? {
             if (points.size < 2) return null
@@ -242,7 +261,12 @@ object LineChartSetup {
             return
         }
         chart.data = LineData(dataSets)
-        applyMinimumAxisSpan(chart.axisLeft, leftSeries.map { it.second })
+        if (leftAxisRange != null) {
+            chart.axisLeft.axisMinimum = leftAxisRange.first
+            chart.axisLeft.axisMaximum = leftAxisRange.second
+        } else {
+            applyMinimumAxisSpan(chart.axisLeft, leftSeries.map { it.second })
+        }
         applyMinimumAxisSpan(chart.axisRight, rightSeries.map { it.second })
         chart.invalidate()
     }
