@@ -572,9 +572,18 @@ class ForecastGraphsPanel(container: ViewGroup) {
          *  behind the plotted line. */
         private const val WATERMARK_ALPHA = 204
 
-        private val TEMPERATURE_THRESHOLDS = listOf(100f to R.color.white, 32f to R.color.blue2)
-        private val WIND_THRESHOLDS = listOf(10f to R.color.white, 20f to R.color.red)
-        private val PRECIPITATION_CHANCE_THRESHOLDS = listOf(50f to R.color.white, 75f to R.color.blue2)
+        private val TEMPERATURE_THRESHOLDS = listOf(
+            LineChartSetup.ThresholdLine(100f, R.color.white),
+            LineChartSetup.ThresholdLine(32f, R.color.accent_purple)
+        )
+        private val WIND_THRESHOLDS = listOf(
+            LineChartSetup.ThresholdLine(10f, R.color.white),
+            LineChartSetup.ThresholdLine(20f, R.color.red)
+        )
+        private val PRECIPITATION_CHANCE_THRESHOLDS = listOf(
+            LineChartSetup.ThresholdLine(50f, R.color.white, LineChartSetup.ThresholdDash.DOTTED),
+            LineChartSetup.ThresholdLine(75f, R.color.white, LineChartSetup.ThresholdDash.DASHED)
+        )
 
         private val tempValueFormatter: (Double) -> String = { v -> "${v.roundToInt()}°" }
         private val windValueFormatter: (Double) -> String = { v -> "${v.roundToInt()} mph" }

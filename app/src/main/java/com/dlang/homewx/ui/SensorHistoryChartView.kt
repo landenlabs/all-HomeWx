@@ -58,7 +58,14 @@ class SensorHistoryChartView(private val context: Context) {
                 override fun getFormattedValue(value: Float): String = "${value.toInt()}°"
             }
         )
-        LineChartSetup.setThresholdLines(chart, context, listOf(100f to R.color.white, 32f to R.color.blue2), axis = chart.axisRight)
+        LineChartSetup.setThresholdLines(
+            chart, context,
+            listOf(
+                LineChartSetup.ThresholdLine(100f, R.color.white),
+                LineChartSetup.ThresholdLine(32f, R.color.accent_purple)
+            ),
+            axis = chart.axisRight
+        )
         // The legend row built below replaces MPAndroidChart's own built-in legend with
         // Temp/Humidity key + current values + room name, so the chart's legend stays disabled
         // here (LineChartSetup.configure already turns it off by default).

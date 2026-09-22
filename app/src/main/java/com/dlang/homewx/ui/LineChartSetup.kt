@@ -123,18 +123,30 @@ object LineChartSetup {
         )
     }
 
+    /** A dash pattern for [setThresholdLines] - lengths in the same "line length, gap length"
+     *  form as [LimitLine.enableDashedLine]. [DOTTED] reads as a fine dotted line, [DASHED] as a
+     *  longer-segmented dashed line; leave a [ThresholdLine.dashPattern] null for solid. */
+    enum class ThresholdDash(val lineLength: Float, val spaceLength: Float) {
+        DOTTED(2f, 4f),
+        DASHED(10f, 6f)
+    }
+
+    /** One horizontal threshold line for [setThresholdLines] - [dashPattern] null draws it solid. */
+    data class ThresholdLine(val value: Float, val colorRes: Int, val dashPattern: ThresholdDash? = null)
+
     /** Draws fixed horizontal threshold lines on [axis] - e.g. wind speed's "high wind" line, or
      *  temperature's freezing line. Defaults to the left axis (every chart but the sensor
      *  graphs' dual-axis one is left-axis only); pass [chart]'s right axis for a series plotted
      *  there instead. Replaces whatever horizontal limit lines were on that axis, so pass an
      *  empty list to clear them. */
-    fun setThresholdLines(chart: LineChart, context: Context, thresholds: List<Pair<Float, Int>>, axis: YAxis = chart.axisLeft) {
+    fun setThresholdLines(chart: LineChart, context: Context, thresholds: List<ThresholdLine>, axis: YAxis = chart.axisLeft) {
         axis.removeAllLimitLines()
-        thresholds.forEach { (value, colorRes) ->
+        thresholds.forEach { threshold ->
             axis.addLimitLine(
-                LimitLine(value).apply {
-                    lineColor = ContextCompat.getColor(context, colorRes)
+                LimitLine(threshold.value).apply {
+                    lineColor = ContextCompat.getColor(context, threshold.colorRes)
                     lineWidth = 1.5f
+                    threshold.dashPattern?.let { enableDashedLine(it.lineLength, it.spaceLength, 0f) }
                 }
             )
         }
