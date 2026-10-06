@@ -94,7 +94,7 @@ class ForecastPanel(
         binding.forecastHourlyPeriodGroup.setOnCheckedChangeListener { _, checkedId ->
             hourlyPeriod = when (checkedId) {
                 binding.forecastHourlyPeriodAll.id -> HourlyGraphPeriod.ALL
-                binding.forecastHourlyPeriodPlus24.id -> HourlyGraphPeriod.PLUS_24
+                binding.forecastHourlyPeriodPlus24.id -> HourlyGraphPeriod.TWO_DAYS
                 else -> HourlyGraphPeriod.TODAY
             }
             refresh()

@@ -87,6 +87,7 @@ object LineChartSetup {
             this.gridColor = gridLineColor
         }
         chart.xAxis.apply {
+            resetAxisMinimum() // a range may have pinned it (daily Now/+3day) - undo for the next
             position = XAxis.XAxisPosition.BOTTOM
             textColor = axisTextColor
             this.gridColor = gridLineColor

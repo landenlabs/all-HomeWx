@@ -11,7 +11,7 @@
     <color name="accent_day_marker">#8BC34A</color>
     <color name="sensor_row_selected">#338AB4F8</color>
     <color name="weather_title_bg_current">#000000</color>
-    <color name="weather_title_bg_past">#440000</color>
+    <color name="weather_title_bg_past">#4A2C0F</color>
     <color name="weather_title_bg_forecast">#004400</color>
 
     <color name="white">#FFFFFF</color>

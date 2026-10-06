@@ -28,7 +28,9 @@ import com.dlang.homewx.data.WeatherMetricsPoint
 import com.dlang.homewx.databinding.ActivityMainBinding
 import com.dlang.homewx.model.LightMode
 import com.dlang.homewx.model.SensorReading
+import android.view.ViewGroup
 import com.dlang.homewx.model.UiState
+import com.dlang.homewx.ui.NightModePanel
 import com.dlang.homewx.news.NewsItem
 import com.dlang.homewx.power.ScreenPowerController
 import com.dlang.homewx.rivers.RiverGaugeSettings
@@ -130,6 +132,16 @@ class MainActivity : AppCompatActivity() {
      *  so continued tapping keeps extending the pause, same pattern as [wakeOverrideJob]. */
     private var autoCycleResumeJob: Job? = null
 
+    /** Full-screen night layout, drawn over everything while the light sensor says QUIET (and
+     *  no tap-to-wake override is active) - see [syncNightOverlay]. */
+    private lateinit var nightModePanel: NightModePanel
+    /** Re-renders [nightModePanel] once a minute (clock) while it's showing; null while hidden. */
+    private var nightRefreshJob: Job? = null
+    /** The weather objects [nightModePanel] was last rendered from, so [syncNightOverlay] (called
+     *  on every AppState tick, lux readings included) only re-renders when they actually change. */
+    private var nightRenderedForecast: Any? = null
+    private var nightRenderedWeather: Any? = null
+
     private val weatherGestureDetector by lazy {
         GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent): Boolean = true
@@ -163,6 +175,13 @@ class MainActivity : AppCompatActivity() {
         applySystemBarInsetPadding(binding.root)
 
         screenPowerController = ScreenPowerController(this)
+        nightModePanel = NightModePanel(this)
+        nightModePanel.hide()
+        applySystemBarInsetPadding(nightModePanel.root)
+        addContentView(
+            nightModePanel.root,
+            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        )
         binding.sensorRecyclerView.layoutManager = LinearLayoutManager(this)
         binding.sensorRecyclerView.adapter = sensorAdapter
         binding.weatherBackgroundImage.setOnTouchListener { _, event -> weatherGestureDetector.onTouchEvent(event) }
@@ -254,12 +273,53 @@ class MainActivity : AppCompatActivity() {
     private fun startWakeOverride() {
         wakeOverrideActive = true
         screenPowerController.apply(LightMode.ACTIVE)
+        syncNightOverlay(AppState.uiState.value)
         wakeOverrideJob?.cancel()
         wakeOverrideJob = lifecycleScope.launch {
             delay(WAKE_OVERRIDE_DURATION_MS)
             wakeOverrideActive = false
             screenPowerController.apply(AppState.uiState.value.lightMode)
+            syncNightOverlay(AppState.uiState.value)
         }
+    }
+
+    /** Shows the night layout while the light sensor says QUIET and no tap-to-wake override is
+     *  active, hides it otherwise. While showing, a once-a-minute loop keeps the clock current;
+     *  weather changes re-render it right away (detected by object identity, since this runs on
+     *  every AppState tick). */
+    private fun syncNightOverlay(state: UiState) {
+        val shouldShow = state.lightMode == LightMode.QUIET && !wakeOverrideActive
+        if (!shouldShow) {
+            nightRefreshJob?.cancel()
+            nightRefreshJob = null
+            nightModePanel.hide()
+            applySystemBarInsetPadding(nightModePanel.root)
+            nightRenderedForecast = null
+            nightRenderedWeather = null
+            return
+        }
+        nightModePanel.show()
+        if (nightRefreshJob == null) {
+            nightRefreshJob = lifecycleScope.launch {
+                while (true) {
+                    renderNightOverlay()
+                    delay(60_000L - System.currentTimeMillis() % 60_000L + 50L)
+                }
+            }
+        } else if (state.weatherForecast !== nightRenderedForecast || state.currentWeather !== nightRenderedWeather) {
+            lifecycleScope.launch { renderNightOverlay() }
+        }
+    }
+
+    private suspend fun renderNightOverlay() {
+        val state = AppState.uiState.value
+        nightRenderedForecast = state.weatherForecast
+        nightRenderedWeather = state.currentWeather
+        val now = System.currentTimeMillis()
+        val pastPoints = withContext(Dispatchers.IO) {
+            weatherMetricsHistoryStore.getHistorySince(now - TimeUnit.HOURS.toMillis(NightModePanel.WINDOW_HOURS.toLong()))
+        }
+        nightModePanel.render(AppState.uiState.value, pastPoints, now)
     }
 
     private fun showNewsArticle(item: NewsItem) {
@@ -306,6 +366,7 @@ class MainActivity : AppCompatActivity() {
                     screenPowerController.apply(state.lightMode)
                 }
                 handleLightModeTransition(state.lightMode)
+                syncNightOverlay(state)
                 binding.currentLuxText.text = state.currentLux?.let { "${it.roundToInt()} lux" } ?: "-- lux"
                 sensorAdapter.submit(visibleSensors(state.sensors))
                 sensorsUpdatedAtMillis = state.sensorsUpdatedAtMillis

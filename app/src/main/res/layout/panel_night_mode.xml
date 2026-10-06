@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Full-screen overlay shown instead of the normal UI while the light sensor has the app in
+     QUIET (night) mode: time on top, then temperature and wind/precipitation (or, when neither
+     is notable, a big current-temperature readout) in equal thirds. Clickable so taps on it
+     don't fall through to the hidden UI below - the tap still reaches Activity.onUserInteraction,
+     which is what wakes the normal UI. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/nightRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/black"
+    android:clickable="true"
+    android:focusable="true"
+    android:orientation="vertical">
+
+    <!-- Auto-sized to the largest font that fits its third of the screen. -->
+    <TextView
+        android:id="@+id/nightTimeText"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:autoSizeMaxTextSize="600sp"
+        android:autoSizeMinTextSize="12sp"
+        android:autoSizeStepGranularity="2sp"
+        android:autoSizeTextType="uniform"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:textColor="@color/text_primary" />
+
+    <!-- The current temperature is drawn behind the chart as a large watermark (sized in code
+         to ~50% of the frame's height - see NightModePanel.sizeBackgroundText). -->
+    <FrameLayout
+        android:id="@+id/nightTempFrame"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <TextView
+            android:id="@+id/nightTempBgText"
+            style="@style/night_background_text" />
+
+        <com.github.mikephil.charting.charts.LineChart
+            android:id="@+id/nightTempChart"
+            style="@style/graph_line_chart" />
+
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/nightSecondaryFrame"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <TextView
+            android:id="@+id/nightSecondaryBgText"
+            style="@style/night_background_text" />
+
+        <com.github.mikephil.charting.charts.LineChart
+            android:id="@+id/nightSecondaryChart"
+            style="@style/graph_line_chart"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <TextView
+            android:id="@+id/nightTempReadoutText"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:autoSizeMaxTextSize="600sp"
+            android:autoSizeMinTextSize="12sp"
+            android:autoSizeStepGranularity="2sp"
+            android:autoSizeTextType="uniform"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="@color/text_primary"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+</LinearLayout>

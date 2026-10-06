@@ -37,7 +37,7 @@
     </LinearLayout>
 
     <!-- Hourly-only: which slice of the forecast hours the cards/strip charts below show.
-         Hidden for Past/Daily, which have no notion of "today"/"+24 hours". Shared by both the
+         Hidden for Past/Daily, which have no notion of "today"/"2 days". Shared by both the
          cards and graph presentations - toggling doesn't reset which one is showing. -->
     <RadioGroup
         android:id="@+id/forecastHourlyPeriodGroup"

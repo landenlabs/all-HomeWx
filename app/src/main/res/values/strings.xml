@@ -34,7 +34,7 @@
     <string name="forecast_graph_precipitation_chance">Precipitation Chance (%)</string>
     <string name="forecast_hourly_period_all">All</string>
     <string name="forecast_hourly_period_today">Today</string>
-    <string name="forecast_hourly_period_plus24">+24 Hours</string>
+    <string name="forecast_hourly_period_plus24">2 Days</string>
     <string name="forecast_daily_period_now">Now</string>
     <string name="forecast_daily_period_plus3day">+3day</string>
     <string name="forecast_daily_period_all">All</string>

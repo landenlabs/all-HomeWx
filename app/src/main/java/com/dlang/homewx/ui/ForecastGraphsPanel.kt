@@ -34,7 +34,7 @@ private const val DAY_MILLIS = 24 * 60 * 60 * 1000L
 
 /** Narrows the full hourly forecast down to the slice [period] asks for - ALL is a no-op
  *  (matches the hourly cards view), TODAY keeps only hours within the device's current
- *  calendar day, and PLUS_24 keeps the next 24 hours starting now. Shared by
+ *  calendar day, and TWO_DAYS keeps today's and tomorrow's calendar days. Shared by
  *  [com.dlang.homewx.ui.ForecastPanel] (cards) and [ForecastGraphsPanel] (graph) so both
  *  presentations filter identically. */
 fun filterHoursForPeriod(hours: List<HourlyForecastEntry>, period: HourlyGraphPeriod): List<HourlyForecastEntry> {
@@ -45,10 +45,10 @@ fun filterHoursForPeriod(hours: List<HourlyForecastEntry>, period: HourlyGraphPe
             val todayEnd = todayStart + DAY_MILLIS
             hours.filter { it.timeMillis in todayStart until todayEnd }
         }
-        HourlyGraphPeriod.PLUS_24 -> {
-            val now = System.currentTimeMillis()
-            val end = now + DAY_MILLIS
-            hours.filter { it.timeMillis in now..end }
+        HourlyGraphPeriod.TWO_DAYS -> {
+            val todayStart = startOfDay(System.currentTimeMillis())
+            val end = todayStart + 2 * DAY_MILLIS
+            hours.filter { it.timeMillis in todayStart until end }
         }
     }
 }
@@ -67,10 +67,12 @@ fun filterPastPointsForPeriod(points: List<WeatherMetricsPoint>, period: PastGra
  *  no-op (matches the daily cards view), PLUS_3_DAY keeps just today plus the next 3 forecast
  *  days, and NOW replaces [days]' own notion of "today" (a forecast value, and under some
  *  weather sources an incomplete one - see [AppState]'s [com.dlang.homewx.model.UiState.dailyExtremes])
- *  with a live blend: [recentDailySnapshots]' 2 recorded past days, a synthetic "today" entry
- *  built from today's actual running high/low/wind extremes (falling back to the current
- *  instantaneous reading where no extreme has been recorded yet) plus today's forecast
- *  precipitation chance (no live equivalent exists), and the next 2 forecast days - 5 days total.
+ *  with a live entry built from today's actual running high/low/wind extremes (falling back to
+ *  the current instantaneous reading where no extreme has been recorded yet) plus today's
+ *  forecast precipitation chance (no live equivalent exists), followed by the next 2 forecast
+ *  days - 3 days total. Both NOW and PLUS_3_DAY start at today, never earlier;
+ *  [recentDailySnapshots] is currently unused by either. [ForecastGraphsPanel] also pins their
+ *  x-axis to the start of today.
  *  Shared by [com.dlang.homewx.ui.ForecastPanel] (cards) and [ForecastGraphsPanel] (graph) so
  *  both presentations filter identically. */
 fun buildDailyEntriesForPeriod(
@@ -88,17 +90,6 @@ fun buildDailyEntriesForPeriod(
         val extremes = state.dailyExtremes
         val current = state.currentWeather
 
-        val pastEntries = recentDailySnapshots.map { snapshot ->
-            DailyForecastEntry(
-                dateMillis = snapshot.dayStartMillis + DAY_MILLIS / 2,
-                highF = snapshot.tempHighF,
-                lowF = snapshot.tempLowF,
-                windMaxMph = snapshot.windHighMph,
-                precipitationChancePct = null,
-                conditionText = snapshot.conditionText ?: "",
-                iconKey = snapshot.iconKey ?: ""
-            )
-        }
         val todayEntry = DailyForecastEntry(
             dateMillis = todayDateMillis,
             highF = extremes.tempHighF?.value ?: current?.temperatureF,
@@ -110,7 +101,7 @@ fun buildDailyEntriesForPeriod(
         )
         val futureEntries = days.filter { it.dateMillis > todayDateMillis && !isSameDay(it.dateMillis, todayDateMillis) }.take(2)
 
-        pastEntries + todayEntry + futureEntries
+        listOf(todayEntry) + futureEntries
     }
 }
 
@@ -223,7 +214,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 val hours = filterHoursForPeriod(forecast.hourly, hourlyPeriod)
                 val dayBoundaries = dayBoundaryXValues(hours)
                 // ALL spans many days, where a single "Mon"/"Tue" label per day (centered on that
-                // day's noon) is what matters; Today/+24 Hours are short enough windows that the
+                // day's noon) is what matters; Today/2 Days are short enough windows that the
                 // hour of day is what matters instead.
                 val xLabels = if (hourlyPeriod == HourlyGraphPeriod.ALL) noonDayOfWeekLabels(hours) else hourOfDayLabels(hours)
                 val nowMillis = System.currentTimeMillis()
@@ -264,11 +255,15 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 // detector's per-entry timestamp lands on midnight of that same calendar day.
                 val dayBoundaries = LineChartSetup.dayBoundaryXValues(days.map { it.dateMillis - DAY_MILLIS / 2 })
                 val dayLabels = dayOfWeekLabels(days)
+                // NOW and +3day always start at the beginning of the current day (midnight), not
+                // at the first data point (noon of today), so today's chart starts flush left.
+                val pinToStartOfToday = dailyPeriod != DailyGraphPeriod.ALL
                 listOf(binding.forecastTempChartView, binding.forecastWindChartView, binding.forecastPrecipChartView).forEach { chart ->
                     // As with Hourly's noon labels, the default per-tick axis labels can't be
                     // colored individually, so they're replaced with explicit markers to
                     // highlight today's label in green.
                     chart.xAxis.setDrawLabels(false)
+                    if (pinToStartOfToday) chart.xAxis.axisMinimum = startOfDay(System.currentTimeMillis()) / 1000f
                     LineChartSetup.setLimitLines(chart, context, dayBoundaries)
                     LineChartSetup.addAxisLabelMarkers(chart, context, dayLabels)
                 }
@@ -392,7 +387,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
         return labels
     }
 
-    /** One (x, "3 PM") label per hour in [hours] - used for Today/+24 Hours, where the hour of
+    /** One (x, "3 PM") label per hour in [hours] - used for Today/2 Days, where the hour of
      *  day is what matters (unlike ALL's [noonDayOfWeekLabels], which spans too many days for
      *  that). Thinned to every 2nd/3rd/4th/6th/12th hour - whichever is the smallest step that
      *  keeps the label count at or under [MAX_HOURLY_LABELS] - so a full day's worth of hours
