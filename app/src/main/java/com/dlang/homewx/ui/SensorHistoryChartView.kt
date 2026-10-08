@@ -11,6 +11,7 @@ import androidx.core.content.ContextCompat
 import com.dlang.homewx.R
 import com.dlang.homewx.settings.AppSettings
 import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.formatter.ValueFormatter
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -44,7 +45,7 @@ class SensorHistoryChartView(private val context: Context) {
     val view: View
 
     init {
-        LineChartSetup.configure(chart, context, description = null, xAxisValueFormatter)
+        LineChartSetup.configure(chart, context, description = null, xAxisValueFormatter, minMarkerAxis = YAxis.AxisDependency.RIGHT)
         chart.axisLeft.apply {
             valueFormatter = object : ValueFormatter() {
                 override fun getFormattedValue(value: Float): String = "${value.toInt()}%"

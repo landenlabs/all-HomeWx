@@ -62,6 +62,7 @@ class SettingsActivity : AppCompatActivity() {
         setUpSensorSpinner()
         setUpSensorVisibilityCheckBoxes()
         setUpScreenBrightnessSlider()
+        setUpNightBrightnessSlider()
         setUpBackgroundDarkenSlider()
         setUpLightThresholdSlider()
         setUpRiverGaugesSection()
@@ -250,6 +251,19 @@ class SettingsActivity : AppCompatActivity() {
         })
     }
 
+    private fun setUpNightBrightnessSlider() {
+        binding.nightBrightnessSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                binding.nightBrightnessValueText.text = "${progressToNightPercent(progress)}%"
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+        })
+    }
+
+    private fun progressToNightPercent(progress: Int): Int = progress + AppSettings.MIN_NIGHT_BRIGHTNESS_PERCENT
+
     private fun previewBrightness(percent: Int) {
         val params = window.attributes
         params.screenBrightness = percent / 100f
@@ -376,6 +390,10 @@ class SettingsActivity : AppCompatActivity() {
         binding.screenBrightnessValueText.text = "$brightnessPercent%"
         previewBrightness(brightnessPercent)
 
+        val nightPercent = AppSettings.getNightBrightnessPercent(this)
+        binding.nightBrightnessSlider.progress = nightPercent - AppSettings.MIN_NIGHT_BRIGHTNESS_PERCENT
+        binding.nightBrightnessValueText.text = "$nightPercent%"
+
         val darkenPercent = AppSettings.getBackgroundDarkenPercent(this)
         binding.backgroundDarkenSlider.progress = darkenPercent
         binding.backgroundDarkenValueText.text = "$darkenPercent%"
@@ -426,6 +444,7 @@ class SettingsActivity : AppCompatActivity() {
             ?: AppSettings.DEFAULT_FLAT_RANGE_THRESHOLD
         AppSettings.setFlatRangeThreshold(this, flatThreshold)
         AppSettings.setScreenBrightnessPercent(this, progressToBrightnessPercent(binding.screenBrightnessSlider.progress))
+        AppSettings.setNightBrightnessPercent(this, progressToNightPercent(binding.nightBrightnessSlider.progress))
         AppSettings.setBackgroundDarkenPercent(this, binding.backgroundDarkenSlider.progress)
         AppSettings.setLightThresholdLux(this, progressToLux(binding.lightThresholdSlider.progress).toFloat())
         AppSettings.setDailyWeatherSplineEnabled(this, binding.dailySplineSwitch.isChecked)

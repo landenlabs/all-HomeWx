@@ -55,7 +55,16 @@ object LineChartSetup {
         return boundaries
     }
 
-    fun configure(chart: LineChart, context: Context, description: String?, xAxisValueFormatter: ValueFormatter) {
+    /** [extremaMarkers] draws yellow max / purple min triangles under the x-axis (see
+     *  [ExtremaMarkerRenderer]); [minMarkerAxis] picks which axis group also gets a min marker. */
+    fun configure(
+        chart: LineChart,
+        context: Context,
+        description: String?,
+        xAxisValueFormatter: ValueFormatter,
+        extremaMarkers: Boolean = true,
+        minMarkerAxis: YAxis.AxisDependency? = null
+    ) {
         val axisTextColor = ContextCompat.getColor(context, R.color.text_secondary)
         val gridLineColor = ContextCompat.getColor(context, R.color.divider)
 
@@ -93,6 +102,7 @@ object LineChartSetup {
             this.gridColor = gridLineColor
             valueFormatter = xAxisValueFormatter
         }
+        if (extremaMarkers) ExtremaMarkerRenderer.install(chart, minMarkerAxis)
     }
 
     /** Draws a thin vertical marker (no label) at each x-value in [xValues] - e.g. the forecast

@@ -21,6 +21,7 @@ import com.dlang.homewx.weather.isSameDay
 import com.dlang.homewx.weather.startOfDay
 import com.dlang.homewx.weather.startOfHour
 import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.formatter.ValueFormatter
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -198,7 +199,12 @@ class ForecastGraphsPanel(container: ViewGroup) {
             binding.forecastWindChartView,
             binding.forecastPrecipChartView,
             binding.forecastPressureChartView.takeIf { range == ForecastRange.PAST }
-        ).forEach { LineChartSetup.configure(it, context, description = null, xAxisValueFormatter) }
+        ).forEach {
+            LineChartSetup.configure(
+                it, context, description = null, xAxisValueFormatter,
+                minMarkerAxis = YAxis.AxisDependency.LEFT.takeIf { _ -> it === binding.forecastTempChartView }
+            )
+        }
 
         LineChartSetup.setThresholdLines(binding.forecastTempChartView, context, TEMPERATURE_THRESHOLDS)
         LineChartSetup.setThresholdLines(binding.forecastWindChartView, context, WIND_THRESHOLDS)

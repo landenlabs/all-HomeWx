@@ -19,6 +19,7 @@ object AppSettings {
     private const val KEY_LIGHT_THRESHOLD_LUX = "light_threshold_lux"
     private const val KEY_WEBVIEW_REQUEST_LOGGING_ENABLED = "webview_request_logging_enabled"
     private const val KEY_SCREEN_BRIGHTNESS_PERCENT = "screen_brightness_percent"
+    private const val KEY_NIGHT_BRIGHTNESS_PERCENT = "night_brightness_percent"
     private const val KEY_FORECAST_DAYS = "forecast_days"
     private const val KEY_SMOOTHING_WINDOW_MINUTES = "smoothing_window_minutes"
     private const val KEY_FLAT_RANGE_THRESHOLD = "flat_range_threshold"
@@ -32,6 +33,8 @@ object AppSettings {
     const val MAX_LIGHT_THRESHOLD_LUX = 100f
     const val DEFAULT_SCREEN_BRIGHTNESS_PERCENT = 100
     const val MIN_SCREEN_BRIGHTNESS_PERCENT = 10
+    const val DEFAULT_NIGHT_BRIGHTNESS_PERCENT = 100
+    const val MIN_NIGHT_BRIGHTNESS_PERCENT = 5
     const val DEFAULT_FORECAST_DAYS = 7
     const val MIN_FORECAST_DAYS = 1
     const val MAX_FORECAST_DAYS = 16 // Open-Meteo's own forecast_days ceiling
@@ -111,6 +114,15 @@ object AppSettings {
 
     fun setScreenBrightnessPercent(context: Context, percent: Int) {
         prefs(context).edit { putInt(KEY_SCREEN_BRIGHTNESS_PERCENT, percent.coerceIn(MIN_SCREEN_BRIGHTNESS_PERCENT, 100)) }
+    }
+
+    /** Multiplier (percent) applied to the night-mode layout's brightness - see NightModePanel. */
+    fun getNightBrightnessPercent(context: Context): Int =
+        prefs(context).getInt(KEY_NIGHT_BRIGHTNESS_PERCENT, DEFAULT_NIGHT_BRIGHTNESS_PERCENT)
+            .coerceIn(MIN_NIGHT_BRIGHTNESS_PERCENT, 100)
+
+    fun setNightBrightnessPercent(context: Context, percent: Int) {
+        prefs(context).edit { putInt(KEY_NIGHT_BRIGHTNESS_PERCENT, percent.coerceIn(MIN_NIGHT_BRIGHTNESS_PERCENT, 100)) }
     }
 
     fun isWebViewRequestLoggingEnabled(context: Context): Boolean =

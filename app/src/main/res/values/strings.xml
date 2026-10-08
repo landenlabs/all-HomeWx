@@ -82,6 +82,7 @@
     <string name="settings_daily_spline_switch">Smooth daily/past forecast graphs (spline)</string>
     <string name="settings_section_display">DISPLAY</string>
     <string name="settings_screen_brightness_label">Screen brightness</string>
+    <string name="settings_night_brightness_label">Night mode brightness</string>
     <string name="settings_background_darken_label">Darken background image</string>
     <string name="settings_section_sensor_graphs">SENSOR GRAPHS</string>
     <string name="settings_smoothing_window_label">Smoothing window (minutes)</string>

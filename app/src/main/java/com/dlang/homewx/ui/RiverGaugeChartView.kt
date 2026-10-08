@@ -40,7 +40,7 @@ class RiverGaugeChartView(private val context: Context) {
     val view: View
 
     init {
-        LineChartSetup.configure(chart, context, description = null, xAxisValueFormatter)
+        LineChartSetup.configure(chart, context, description = null, xAxisValueFormatter, extremaMarkers = false)
         chart.axisLeft.apply {
             valueFormatter = object : ValueFormatter() {
                 override fun getFormattedValue(value: Float): String = "%.1f ft".format(value)

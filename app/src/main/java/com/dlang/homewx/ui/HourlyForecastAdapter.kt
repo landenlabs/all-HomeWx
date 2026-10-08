@@ -153,6 +153,12 @@ class HourlyForecastAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
             val precipChance = entry.precipitationChancePct
             binding.hourlyCardPrecipText.text = precipChance?.let { "$it%" } ?: "--"
+            binding.hourlyCardPrecipText.setTextColor(
+                ContextCompat.getColor(
+                    context,
+                    if (precipChance != null && precipChance >= 50) R.color.accent_cool else R.color.text_primary
+                )
+            )
             binding.hourlyCardPrecipIcon.visibility = if (precipChance != null && precipChance > 0) View.VISIBLE else View.GONE
             val isMaxPrecip = precipChance != null && maxPrecipPct != null &&
                 precipChance == maxPrecipPct && maxPrecipPct >= 50

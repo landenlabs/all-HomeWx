@@ -86,6 +86,12 @@ class DailyForecastAdapter(private val onItemClick: (DailyForecastEntry) -> Unit
 
             val precipChance = entry.precipitationChancePct
             binding.forecastCardPrecipText.text = precipChance?.let { "$it%" } ?: "--"
+            binding.forecastCardPrecipText.setTextColor(
+                ContextCompat.getColor(
+                    context,
+                    if (precipChance != null && precipChance >= 50) R.color.accent_cool else R.color.text_primary
+                )
+            )
             binding.forecastCardPrecipIcon.visibility = if (precipChance != null && precipChance > 0) View.VISIBLE else View.GONE
             val isMaxPrecip = precipChance != null && maxPrecipPct != null &&
                 precipChance == maxPrecipPct && maxPrecipPct >= 50

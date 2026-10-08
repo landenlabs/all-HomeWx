@@ -10,7 +10,9 @@ import com.dlang.homewx.R
 import com.dlang.homewx.data.WeatherMetricsPoint
 import com.dlang.homewx.databinding.PanelNightModeBinding
 import com.dlang.homewx.model.UiState
+import com.dlang.homewx.settings.AppSettings
 import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
@@ -55,11 +57,21 @@ class NightModePanel(context: Context) {
         binding.nightSecondaryFrame.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> sizeBackgroundText(binding.nightSecondaryBgText, binding.nightSecondaryFrame) }
     }
 
-    fun show() { binding.root.visibility = View.VISIBLE }
+    fun show() {
+        applyBrightness()
+        binding.root.visibility = View.VISIBLE
+    }
+
+    /** Scales the whole layout's brightness by the user's night-brightness setting (the layout
+     *  sits on black, so view alpha is a straight brightness multiplier). */
+    private fun applyBrightness() {
+        binding.root.alpha = AppSettings.getNightBrightnessPercent(context) / 100f
+    }
     fun hide() { binding.root.visibility = View.GONE }
 
     /** Redraws everything for [nowMillis]; cheap enough to call once a minute or on a weather update. */
     fun render(state: UiState, pastPoints: List<WeatherMetricsPoint>, nowMillis: Long = System.currentTimeMillis()) {
+        applyBrightness()
         renderTime(nowMillis)
 
         val windowStart = nowMillis - WINDOW_MILLIS
@@ -156,7 +168,8 @@ class NightModePanel(context: Context) {
         fixedAxisRange: Pair<Float, Float>? = null,
         thresholds: List<LineChartSetup.ThresholdLine> = emptyList()
     ) {
-        LineChartSetup.configure(chart, context, description = null, xAxisValueFormatter = xAxisFormatter)
+        LineChartSetup.configure(chart, context, description = null, xAxisValueFormatter = xAxisFormatter,
+            minMarkerAxis = YAxis.AxisDependency.LEFT.takeIf { chart === binding.nightTempChart })
         LineChartSetup.setThresholdLines(chart, context, thresholds)
         LineChartSetup.setLimitLines(chart, context, emptyList())
         LineChartSetup.addCurrentTimeMarker(chart, context, nowMillis / 1000f)
