@@ -48,6 +48,12 @@ class LightSensorMonitor(
         AppState.uiState.update { it.copy(currentLux = lux) }
         val currentMode = AppState.uiState.value.lightMode
 
+        if (AppSettings.isForcedNightMode(context)) {
+            pendingMode = null
+            if (currentMode != LightMode.QUIET) AppState.uiState.update { it.copy(lightMode = LightMode.QUIET) }
+            return
+        }
+
         val lightThresholdLux = AppSettings.getLightThresholdLux(context)
         val darkThresholdLux = (lightThresholdLux - HYSTERESIS_GAP_LUX).coerceAtLeast(0f)
 

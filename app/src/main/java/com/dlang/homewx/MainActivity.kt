@@ -59,6 +59,7 @@ import com.dlang.homewx.weather.startOfDay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
@@ -122,6 +123,13 @@ class MainActivity : AppCompatActivity() {
     /** True while a tap-to-wake override is forcing the screen ACTIVE despite the light sensor saying QUIET. */
     private var wakeOverrideActive = false
     private var wakeOverrideJob: Job? = null
+    /** Radar is pinned because rain is forecast; see [syncRainHold]. */
+    private var rainHoldActive = false
+    /** Set when a person left the pinned radar; blocks re-entry until the forecast goes dry. */
+    private var rainHoldDismissed = false
+    /** True while [syncRainHold] itself changes the panel, so it isn't mistaken for a manual change. */
+    private var rainHoldSwitching = false
+    private var lastInteractionMillis = 0L
     /** Tracks the previous tick's light mode so a QUIET->ACTIVE transition can be detected in [observeState]. */
     private var lastLightMode: LightMode? = null
     /** Running while auto-cycling tabs after a light-triggered wake; paused (see [autoCycleResumeJob])
@@ -177,6 +185,7 @@ class MainActivity : AppCompatActivity() {
         screenPowerController = ScreenPowerController(this)
         nightModePanel = NightModePanel(this)
         nightModePanel.hide()
+        nightModePanel.setOnSettingsClick { startActivity(Intent(this, SettingsActivity::class.java)) }
         applySystemBarInsetPadding(nightModePanel.root)
         addContentView(
             nightModePanel.root,
@@ -222,6 +231,12 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         binding.weatherBackgroundScrim.alpha = AppSettings.getBackgroundDarkenPercent(this) / 100f
         screenPowerController.refresh()
+        if (AppSettings.isForcedNightMode(this)) {
+            wakeOverrideJob?.cancel()
+            wakeOverrideActive = false
+            AppState.uiState.update { it.copy(lightMode = LightMode.QUIET) }
+        }
+        syncNightOverlay(AppState.uiState.value)
         sensorAdapter.submit(visibleSensors(AppState.uiState.value.sensors))
         updateRiverTabVisibility()
         updateWeatherSourceBadge()
@@ -259,7 +274,8 @@ class MainActivity : AppCompatActivity() {
      *  auto-cycle is running (or already paused) pauses/extends it too. */
     override fun onUserInteraction() {
         super.onUserInteraction()
-        if (AppState.uiState.value.lightMode == LightMode.QUIET) {
+        lastInteractionMillis = System.currentTimeMillis()
+        if (AppState.uiState.value.lightMode == LightMode.QUIET && !AppSettings.isForcedNightMode(this)) {
             startWakeOverride()
         }
         if (forecastPreviewRevertJob != null) {
@@ -288,7 +304,8 @@ class MainActivity : AppCompatActivity() {
      *  weather changes re-render it right away (detected by object identity, since this runs on
      *  every AppState tick). */
     private fun syncNightOverlay(state: UiState) {
-        val shouldShow = state.lightMode == LightMode.QUIET && !wakeOverrideActive
+        val forced = AppSettings.isForcedNightMode(this)
+        val shouldShow = forced || (state.lightMode == LightMode.QUIET && !wakeOverrideActive)
         if (!shouldShow) {
             nightRefreshJob?.cancel()
             nightRefreshJob = null
@@ -365,6 +382,7 @@ class MainActivity : AppCompatActivity() {
                 if (!wakeOverrideActive) {
                     screenPowerController.apply(state.lightMode)
                 }
+                syncRainHold(state)
                 handleLightModeTransition(state.lightMode)
                 syncNightOverlay(state)
                 binding.currentLuxText.text = state.currentLux?.let { "${it.roundToInt()} lux" } ?: "-- lux"
@@ -418,6 +436,41 @@ class MainActivity : AppCompatActivity() {
             }
         } else if (newMode == LightMode.QUIET && autoCycleResumeJob == null) {
             stopAutoCycle()
+        }
+    }
+
+    /** Keeps the radar showing while rain (>= [RAIN_HOLD_PCT]% in the next 24h) is forecast and
+     *  nobody is using the screen; reverts to News + auto-cycle once the forecast goes dry.
+     *  Runs on every AppState tick. */
+    private fun syncRainHold(state: UiState) {
+        val forecast = state.weatherForecast ?: return
+        val now = System.currentTimeMillis()
+        val rainLikely = forecast.hourly.any {
+            it.timeMillis in now..(now + TimeUnit.HOURS.toMillis(24)) && (it.precipitationChancePct ?: 0) >= RAIN_HOLD_PCT
+        }
+        val night = state.lightMode == LightMode.QUIET
+        if (night) {
+            rainHoldActive = false
+            return
+        }
+        if (!rainLikely) {
+            rainHoldDismissed = false
+            if (rainHoldActive) {
+                rainHoldActive = false
+                rainHoldSwitching = true
+                selectTab(InfoPanelView.NEWS)
+                rainHoldSwitching = false
+                startAutoCycle()
+            }
+            return
+        }
+        val idle = now - lastInteractionMillis >= RAIN_HOLD_IDLE_MS
+        if (!rainHoldActive && !rainHoldDismissed && idle) {
+            rainHoldActive = true
+            stopAutoCycle()
+            rainHoldSwitching = true
+            selectTab(InfoPanelView.RADAR)
+            rainHoldSwitching = false
         }
     }
 
@@ -812,6 +865,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showInfoPanel(panel: InfoPanelView) {
+        if (rainHoldActive && !rainHoldSwitching && panel != InfoPanelView.RADAR) {
+            // Someone manually changed the panel: release the hold and don't re-enter it until
+            // the forecast has gone dry once.
+            rainHoldActive = false
+            rainHoldDismissed = true
+        }
         currentInfoPanel = panel
         newsPanel.root.visibility = if (panel == InfoPanelView.NEWS) View.VISIBLE else View.GONE
         sensorChartPanel.root.visibility = if (panel == InfoPanelView.SENSOR_CHART) View.VISIBLE else View.GONE
@@ -985,6 +1044,8 @@ class MainActivity : AppCompatActivity() {
         private const val STALE_WEATHER_THRESHOLD_MS = 60 * 60 * 1000L
         private const val WAKE_OVERRIDE_DURATION_MS = 5 * 60 * 1000L
         private const val FORECAST_PREVIEW_TIMEOUT_MS = 10 * 60 * 1000L
+        private const val RAIN_HOLD_PCT = 50
+        private const val RAIN_HOLD_IDLE_MS = 60 * 1000L
         private const val AUTO_CYCLE_INTERVAL_MS = 5 * 60 * 1000L
         private const val AUTO_CYCLE_PAUSE_MS = 10 * 60 * 1000L
         private val AUTO_CYCLE_TABS = listOf(

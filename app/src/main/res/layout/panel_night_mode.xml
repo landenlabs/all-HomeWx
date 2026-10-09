@@ -4,15 +4,21 @@
      is notable, a big current-temperature readout) in equal thirds. Clickable so taps on it
      don't fall through to the hidden UI below - the tap still reaches Activity.onUserInteraction,
      which is what wakes the normal UI. -->
-<LinearLayout
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/nightRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/black"
     android:clickable="true"
-    android:focusable="true"
-    android:orientation="vertical">
+    android:focusable="true">
+
+    <LinearLayout
+        android:id="@+id/nightContent"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
     <!-- Auto-sized to the largest font that fits its third of the screen. -->
     <TextView
@@ -79,4 +85,18 @@
 
     </FrameLayout>
 
-</LinearLayout>
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/nightSettingsButton"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="12dp"
+        android:background="@drawable/bg_settings_gear"
+        android:contentDescription="@string/settings_title"
+        android:padding="6dp"
+        android:src="@drawable/ic_settings"
+        app:tint="@color/text_secondary" />
+
+</FrameLayout>

@@ -62,11 +62,19 @@ class NightModePanel(context: Context) {
         binding.root.visibility = View.VISIBLE
     }
 
-    /** Scales the whole layout's brightness by the user's night-brightness setting (the layout
-     *  sits on black, so view alpha is a straight brightness multiplier). */
+    /** Scales the content's brightness by the user's night-brightness setting (the content sits
+     *  on black, so view alpha is a straight brightness multiplier). Alpha goes on the content,
+     *  never the root: the root's black background must stay opaque or the normal UI shows
+     *  through it. */
     private fun applyBrightness() {
-        binding.root.alpha = AppSettings.getNightBrightnessPercent(context) / 100f
+        val alpha = AppSettings.getNightBrightnessPercent(context) / 100f
+        binding.nightContent.alpha = alpha
+        binding.nightSettingsButton.alpha = alpha
     }
+    fun setOnSettingsClick(listener: () -> Unit) {
+        binding.nightSettingsButton.setOnClickListener { listener() }
+    }
+
     fun hide() { binding.root.visibility = View.GONE }
 
     /** Redraws everything for [nowMillis]; cheap enough to call once a minute or on a weather update. */

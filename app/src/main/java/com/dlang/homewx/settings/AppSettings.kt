@@ -104,6 +104,10 @@ object AppSettings {
         prefs(context).getFloat(KEY_LIGHT_THRESHOLD_LUX, DEFAULT_LIGHT_THRESHOLD_LUX)
             .coerceIn(MIN_LIGHT_THRESHOLD_LUX, MAX_LIGHT_THRESHOLD_LUX)
 
+    /** Slider at its maximum pins the app to the night layout regardless of light or taps. */
+    fun isForcedNightMode(context: Context): Boolean =
+        getLightThresholdLux(context) >= MAX_LIGHT_THRESHOLD_LUX
+
     fun setLightThresholdLux(context: Context, lux: Float) {
         prefs(context).edit { putFloat(KEY_LIGHT_THRESHOLD_LUX, lux.coerceIn(MIN_LIGHT_THRESHOLD_LUX, MAX_LIGHT_THRESHOLD_LUX)) }
     }
