@@ -36,9 +36,32 @@ class RiverGraphsPanel(container: ViewGroup) {
         }
     }
 
+    /** Called when this panel is made visible - drops any pan/zoom left from last time. */
+    fun resetView() {
+        chartsBySiteId.values.forEach { it.resetView() }
+        fullscreenSiteId = null
+        applyFullscreen()
+    }
+
+    /** Gauge whose chart is expanded (via long-press) to fill the panel, or null for the row layout. */
+    private var fullscreenSiteId: String? = null
+
+    private fun toggleFullscreen(siteId: String) {
+        fullscreenSiteId = if (fullscreenSiteId == siteId) null else siteId
+        applyFullscreen()
+    }
+
+    private fun applyFullscreen() {
+        val full = fullscreenSiteId
+        chartsBySiteId.forEach { (id, chart) ->
+            chart.view.visibility = if (full == null || full == id) View.VISIBLE else View.GONE
+        }
+    }
+
     private fun rebuild(gauges: List<GaugeSite>) {
         chartContainer.removeAllViews()
         chartsBySiteId.clear()
+        fullscreenSiteId = null
         val marginPx = (8 * density).toInt()
 
         gauges.forEach { gauge ->
@@ -47,6 +70,7 @@ class RiverGraphsPanel(container: ViewGroup) {
                 setMargins(marginPx, marginPx, marginPx, marginPx)
             }
             chartContainer.addView(chartView.view)
+            chartView.setOnLongPress { toggleFullscreen(gauge.siteId) }
             chartsBySiteId[gauge.siteId] = chartView
         }
     }

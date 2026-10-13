@@ -22,6 +22,9 @@ class SensorChartPanel(container: ViewGroup) {
         binding.root.addView(chartView.view)
     }
 
+    /** Called when this panel is made visible - drops any pan/zoom left from last time. */
+    fun resetView() = chartView.resetView()
+
     fun setSensor(roomName: String, tempF: Double?, humidityPct: Double?) {
         chartView.setRoomNameAndCurrentValues(roomName, tempF, humidityPct)
     }

@@ -51,10 +51,33 @@ class SensorGraphsPanel(container: ViewGroup) {
         }
     }
 
+    /** Called when this panel is made visible - drops any pan/zoom left from last time. */
+    fun resetView() {
+        chartsBySensorId.values.forEach { it.resetView() }
+        fullscreenSensorId = null
+        applyFullscreen()
+    }
+
+    /** Sensor whose chart is expanded (via long-press) to fill the panel, or null for the row layout. */
+    private var fullscreenSensorId: String? = null
+
+    private fun toggleFullscreen(sensorId: String) {
+        fullscreenSensorId = if (fullscreenSensorId == sensorId) null else sensorId
+        applyFullscreen()
+    }
+
+    private fun applyFullscreen() {
+        val full = fullscreenSensorId
+        chartsBySensorId.forEach { (id, chart) ->
+            chart.view.visibility = if (full == null || full == id) View.VISIBLE else View.GONE
+        }
+    }
+
     private fun rebuild(sensors: List<SensorReading>) {
         chartContainer.removeAllViews()
         chartsBySensorId.clear()
         lastPointsBySensorId.clear()
+        fullscreenSensorId = null
         val marginPx = (8 * density).toInt()
 
         sensors.forEach { sensor ->
@@ -63,6 +86,7 @@ class SensorGraphsPanel(container: ViewGroup) {
                 setMargins(marginPx, marginPx, marginPx, marginPx)
             }
             chartContainer.addView(chartView.view)
+            chartView.setOnLongPress { toggleFullscreen(sensor.id) }
             chartsBySensorId[sensor.id] = chartView
         }
     }

@@ -163,6 +163,9 @@ class ForecastPanel(
         }
     }
 
+    /** Called when this panel is made visible - see [ForecastGraphsPanel.resetView]. */
+    fun resetGraphView() = graphsPanel.resetView()
+
     companion object {
         private const val CARD_MIN_WIDTH_DP = 200
     }

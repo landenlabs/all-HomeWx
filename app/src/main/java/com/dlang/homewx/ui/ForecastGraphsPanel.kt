@@ -1,6 +1,7 @@
 package com.dlang.homewx.ui
 
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -23,6 +24,8 @@ import com.dlang.homewx.weather.startOfHour
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.formatter.ValueFormatter
+import com.github.mikephil.charting.listener.ChartTouchListener
+import com.github.mikephil.charting.listener.OnChartGestureListener
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -159,6 +162,56 @@ class ForecastGraphsPanel(container: ViewGroup) {
         binding.forecastPrecipWatermarkText.setTextColor(watermarkTextColor)
     }
 
+    private val sectionsByChart: Map<LineChart, LinearLayout> = mapOf(
+        binding.forecastTempChartView to binding.forecastTempSection,
+        binding.forecastWindChartView to binding.forecastWindSection,
+        binding.forecastPrecipChartView to binding.forecastPrecipSection,
+        binding.forecastPressureChartView to binding.forecastPressureSection
+    )
+
+    /** The chart currently expanded to fill the whole panel (via long-press), or null when all
+     *  sections show in their normal stacked row layout. */
+    private var fullscreenChart: LineChart? = null
+    private var currentRange = ForecastRange.HOURLY
+
+    init {
+        // Long-press toggles a chart between its row in the stack and filling the whole panel.
+        sectionsByChart.keys.forEach { chart ->
+            chart.onChartGestureListener = object : OnChartGestureListener {
+                override fun onChartLongPressed(me: MotionEvent) = toggleFullscreen(chart)
+                override fun onChartGestureStart(me: MotionEvent, lastPerformedGesture: ChartTouchListener.ChartGesture) {}
+                override fun onChartGestureEnd(me: MotionEvent, lastPerformedGesture: ChartTouchListener.ChartGesture) {}
+                override fun onChartDoubleTapped(me: MotionEvent) {}
+                override fun onChartSingleTapped(me: MotionEvent) {}
+                override fun onChartFling(me1: MotionEvent, me2: MotionEvent, velocityX: Float, velocityY: Float) {}
+                override fun onChartScale(me: MotionEvent, scaleX: Float, scaleY: Float) {}
+                override fun onChartTranslate(me: MotionEvent, dX: Float, dY: Float) {}
+            }
+        }
+    }
+
+    /** Called when the panel is made visible - drops any pan/zoom and returns to the row layout. */
+    fun resetView() {
+        sectionsByChart.keys.forEach { LineChartSetup.resetView(it) }
+        fullscreenChart = null
+        applySectionVisibility()
+    }
+
+    private fun toggleFullscreen(chart: LineChart) {
+        fullscreenChart = if (fullscreenChart === chart) null else chart
+        applySectionVisibility()
+    }
+
+    /** Shows every section the current range normally shows (pressure is Past-only), or - while
+     *  [fullscreenChart] is set - just that chart's section, which then takes the whole panel. */
+    private fun applySectionVisibility() {
+        val full = fullscreenChart
+        sectionsByChart.forEach { (chart, section) ->
+            val shownByRange = chart !== binding.forecastPressureChartView || currentRange == ForecastRange.PAST
+            section.visibility = if (shownByRange && (full == null || full === chart)) View.VISIBLE else View.GONE
+        }
+    }
+
     /** [hourlyPeriod]/[dailyPeriod]/[pastPeriod] are owned by [com.dlang.homewx.ui.ForecastPanel]
      *  (whose radio buttons sit above both the cards and this graph presentation, so the same
      *  selection filters either one) and passed in here rather than tracked locally. */
@@ -171,7 +224,8 @@ class ForecastGraphsPanel(container: ViewGroup) {
         dailyPeriod: DailyGraphPeriod,
         pastPeriod: PastGraphPeriod
     ) {
-        binding.forecastPressureSection.visibility = if (range == ForecastRange.PAST) View.VISIBLE else View.GONE
+        currentRange = range
+        applySectionVisibility()
 
         // Computed up front (not just inside the PAST branch below) so the x-axis formatter,
         // shared across all ranges, can pick its Past-specific pattern based on what's actually
@@ -336,6 +390,14 @@ class ForecastGraphsPanel(container: ViewGroup) {
                     R.string.forecast_no_pressure_data, allZeroMessageRes = null,
                     valueFormatter = pressureValueFormatter, spline = useSpline(pressurePoints)
                 )
+            }
+        }
+
+        // A chart that's since collapsed (no data) or isn't part of this range can't stay expanded.
+        fullscreenChart?.let { full ->
+            if (full.visibility != View.VISIBLE || (full === binding.forecastPressureChartView && range != ForecastRange.PAST)) {
+                fullscreenChart = null
+                applySectionVisibility()
             }
         }
     }

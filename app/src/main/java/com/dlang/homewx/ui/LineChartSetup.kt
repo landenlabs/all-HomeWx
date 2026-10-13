@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.text.TextUtils
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -21,6 +22,8 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
+import com.github.mikephil.charting.listener.ChartTouchListener
+import com.github.mikephil.charting.listener.OnChartGestureListener
 import java.util.Calendar
 
 /** Shared axis/touch setup and data-binding for every [LineChart] in the info panel (sensor history + weather graphs). */
@@ -53,6 +56,26 @@ object LineChartSetup {
             }
         }
         return boundaries
+    }
+
+    /** Calls [onLongPress] when [chart] is long-pressed (used to toggle a chart fullscreen). */
+    fun setOnLongPress(chart: LineChart, onLongPress: () -> Unit) {
+        chart.onChartGestureListener = object : OnChartGestureListener {
+            override fun onChartLongPressed(me: MotionEvent) = onLongPress()
+            override fun onChartGestureStart(me: MotionEvent, lastPerformedGesture: ChartTouchListener.ChartGesture) {}
+            override fun onChartGestureEnd(me: MotionEvent, lastPerformedGesture: ChartTouchListener.ChartGesture) {}
+            override fun onChartDoubleTapped(me: MotionEvent) {}
+            override fun onChartSingleTapped(me: MotionEvent) {}
+            override fun onChartFling(me1: MotionEvent, me2: MotionEvent, velocityX: Float, velocityY: Float) {}
+            override fun onChartScale(me: MotionEvent, scaleX: Float, scaleY: Float) {}
+            override fun onChartTranslate(me: MotionEvent, dX: Float, dY: Float) {}
+        }
+    }
+
+    /** Undoes any pinch-zoom/pan and clears the tap crosshair, back to the chart's default view. */
+    fun resetView(chart: LineChart) {
+        chart.highlightValues(null)
+        chart.fitScreen()
     }
 
     /** [extremaMarkers] draws yellow max / purple min triangles under the x-axis (see

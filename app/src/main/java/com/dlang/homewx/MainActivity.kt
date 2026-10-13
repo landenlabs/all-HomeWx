@@ -439,15 +439,23 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Keeps the radar showing while rain (>= [RAIN_HOLD_PCT]% in the next 24h) is forecast and
+    /** Keeps the radar showing while rain (>= [RAIN_HOLD_PCT]% in the next 24h, or >= [RAIN_HOLD_PCT]%
+     *  this hour, or any nonzero current precipitation inches) is forecast/observed and
      *  nobody is using the screen; reverts to News + auto-cycle once the forecast goes dry.
      *  Runs on every AppState tick. */
     private fun syncRainHold(state: UiState) {
-        val forecast = state.weatherForecast ?: return
+        if (state.weatherForecast == null && state.currentWeather == null) return
         val now = System.currentTimeMillis()
-        val rainLikely = forecast.hourly.any {
+        val hourly = state.weatherForecast?.hourly.orEmpty()
+        val forecastRain = hourly.any {
             it.timeMillis in now..(now + TimeUnit.HOURS.toMillis(24)) && (it.precipitationChancePct ?: 0) >= RAIN_HOLD_PCT
         }
+        // "Current" percent = the hourly entry in effect now (latest one that has already started).
+        val currentEntry = hourly.filter { it.timeMillis <= now && now - it.timeMillis < TimeUnit.HOURS.toMillis(1) }
+            .maxByOrNull { it.timeMillis }
+        val currentRain = (currentEntry?.precipitationChancePct ?: 0) >= RAIN_HOLD_PCT ||
+            (state.currentWeather?.precipitationIn ?: 0.0) > 0.0
+        val rainLikely = forecastRain || currentRain
         val night = state.lightMode == LightMode.QUIET
         if (night) {
             rainHoldActive = false
@@ -880,6 +888,13 @@ class MainActivity : AppCompatActivity() {
         radarPanel.root.visibility = if (panel == InfoPanelView.RADAR) View.VISIBLE else View.GONE
         riverGraphsPanel.root.visibility = if (panel == InfoPanelView.RIVERS) View.VISIBLE else View.GONE
         if (panel != InfoPanelView.RADAR) radarPanel.stopAnimation()
+        when (panel) {
+            InfoPanelView.FORECAST -> forecastPanel.resetGraphView()
+            InfoPanelView.SENSOR_CHART -> sensorChartPanel.resetView()
+            InfoPanelView.SENSOR_GRAPHS -> sensorGraphsPanel.resetView()
+            InfoPanelView.RIVERS -> riverGraphsPanel.resetView()
+            else -> Unit
+        }
         updateTabSelection(panel)
     }
 

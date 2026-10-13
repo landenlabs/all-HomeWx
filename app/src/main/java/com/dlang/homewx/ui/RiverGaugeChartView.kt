@@ -72,6 +72,10 @@ class RiverGaugeChartView(private val context: Context) {
         }
     }
 
+    fun resetView() = LineChartSetup.resetView(chart)
+
+    fun setOnLongPress(onLongPress: () -> Unit) = LineChartSetup.setOnLongPress(chart, onLongPress)
+
     /** Cheap to call often (e.g. every state tick) - updates the watermark, the legend row's
      *  gauge name, and its current-values text, all independent of the (async-loaded) history. */
     fun setGaugeNameAndCurrentValues(gaugeName: String, latest: GaugeReading?) {

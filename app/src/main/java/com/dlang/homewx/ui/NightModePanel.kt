@@ -1,11 +1,13 @@
 package com.dlang.homewx.ui
 
 import android.content.Context
+import android.graphics.Color
 import android.view.LayoutInflater
 import android.util.TypedValue
 import android.view.View
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
 import com.dlang.homewx.R
 import com.dlang.homewx.data.WeatherMetricsPoint
 import com.dlang.homewx.databinding.PanelNightModeBinding
@@ -68,8 +70,22 @@ class NightModePanel(context: Context) {
      *  through it. */
     private fun applyBrightness() {
         val alpha = AppSettings.getNightBrightnessPercent(context) / 100f
-        binding.nightContent.alpha = alpha
-        binding.nightSettingsButton.alpha = alpha
+        // The strip charts stay at full opacity (see dimChartChrome for their non-data parts).
+        listOf(binding.nightTimeText, binding.nightTempBgText, binding.nightSecondaryBgText, binding.nightTempReadoutText, binding.nightSettingsButton)
+            .forEach { it.alpha = alpha }
+    }
+
+    /** The charts aren't alpha-dimmed so their data lines stay at 100%; dim everything else
+     *  (axis labels, grid, limit/threshold/marker lines) by the night-brightness setting instead. */
+    private fun dimChartChrome(chart: LineChart) {
+        val alpha = (AppSettings.getNightBrightnessPercent(context) * 255 / 100).coerceIn(0, 255)
+        fun dim(color: Int) = ColorUtils.setAlphaComponent(color, alpha * Color.alpha(color) / 255)
+        listOf(chart.xAxis, chart.axisLeft, chart.axisRight).forEach { axis ->
+            axis.textColor = dim(axis.textColor)
+            axis.gridColor = dim(axis.gridColor)
+            axis.axisLineColor = dim(axis.axisLineColor)
+            axis.limitLines.forEach { it.lineColor = dim(it.lineColor); it.textColor = dim(it.textColor) }
+        }
     }
     fun setOnSettingsClick(listener: () -> Unit) {
         binding.nightSettingsButton.setOnClickListener { listener() }
@@ -187,7 +203,7 @@ class NightModePanel(context: Context) {
             if (points.isEmpty()) return null
             return LineDataSet(points.map { (t, v) -> Entry(t / 1000f, v.toFloat()) }, null).apply {
                 this.color = color
-                lineWidth = 4f
+                lineWidth = 8f
                 setDrawCircles(false)
                 setDrawValues(false)
                 if (dashed) enableDashedLine(10f, 6f, 0f)
@@ -217,6 +233,7 @@ class NightModePanel(context: Context) {
             chart.axisLeft.resetAxisMinimum()
             chart.axisLeft.resetAxisMaximum()
         }
+        dimChartChrome(chart)
         chart.invalidate()
     }
 
