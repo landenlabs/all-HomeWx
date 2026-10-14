@@ -180,9 +180,9 @@ class ForecastPanel(
  * way, once an hour has actually happened, its real recorded data wins over whatever the
  * forecast guessed for it. Hours from now onward are left untouched. [recordedPoints] is the
  * same fine-grained (multiple samples/hour) history the Past graph plots; each replaced hour is
- * the average of whatever samples landed in it. Precipitation chance has no recorded equivalent
- * - only actual inches are recorded, not a forecast probability - so replaced hours leave it
- * null, same as an hour with no data at all.
+ * the average of whatever samples landed in it. Precipitation chance isn't an observation, so
+ * it's the forecast chance that was in effect when each sample was recorded (the latest one in the
+ * hour); null only for hours recorded before that was tracked.
  */
 private fun WeatherForecast.withTodayBackfilled(recordedPoints: List<WeatherMetricsPoint>): WeatherForecast {
     val now = System.currentTimeMillis()
@@ -196,7 +196,7 @@ private fun WeatherForecast.withTodayBackfilled(recordedPoints: List<WeatherMetr
                 timeMillis = hourMillis,
                 temperatureF = points.mapNotNull { it.temperatureF }.averageOrNull(),
                 windSpeedMph = points.mapNotNull { it.windSpeedMph }.averageOrNull(),
-                precipitationChancePct = null,
+                precipitationChancePct = points.mapNotNull { it.precipChancePct }.lastOrNull(),
                 pressureInHg = points.mapNotNull { it.pressureInHg }.averageOrNull(),
                 conditionText = "",
                 iconKey = points.lastOrNull()?.iconKey ?: ""

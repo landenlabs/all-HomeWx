@@ -430,7 +430,10 @@ class MainActivity : AppCompatActivity() {
         val previousMode = lastLightMode
         lastLightMode = newMode
         if (previousMode == LightMode.QUIET && newMode == LightMode.ACTIVE) {
-            if (autoCycleResumeJob == null) {
+            // syncRainHold runs first in the same state tick and may already have pinned the
+            // radar on a light wake; forcing News here would count as a manual change and
+            // dismiss the hold.
+            if (autoCycleResumeJob == null && !rainHoldActive) {
                 selectTab(InfoPanelView.NEWS)
                 startAutoCycle()
             }

@@ -21,3 +21,10 @@ fun WeatherForecast.hourlyDelta(
     val futureValue = valueOf(entry) ?: return null
     return futureValue - currentValue
 }
+
+/** The forecast precipitation chance (%) for the hour containing [timeMillis] - the closest
+ *  hourly entry, but only if it's within an hour; null otherwise. */
+fun WeatherForecast.precipChanceAt(timeMillis: Long): Int? =
+    hourly.minByOrNull { abs(it.timeMillis - timeMillis) }
+        ?.takeIf { abs(it.timeMillis - timeMillis) < HOUR_MILLIS }
+        ?.precipitationChancePct

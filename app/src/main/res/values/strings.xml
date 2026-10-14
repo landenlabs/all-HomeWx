@@ -18,6 +18,9 @@
     <string name="tab_sensor_graphs_title">Sensor history graphs</string>
     <string name="tab_radar_title">Radar</string>
     <string name="tab_rivers_title">River gauges</string>
+    <string name="radar_layer_radar">Radar</string>
+    <string name="radar_layer_clouds">Clouds</string>
+    <string name="radar_layer_infrared">IR</string>
     <string name="radar_play_animation">Play radar animation</string>
     <string name="radar_pause_animation">Pause radar animation</string>
     <string name="radar_loading_animation">Loading radar…</string>

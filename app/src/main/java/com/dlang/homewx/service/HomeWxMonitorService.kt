@@ -41,6 +41,7 @@ import com.dlang.homewx.weather.bestExtreme
 import com.dlang.homewx.weather.historicalComparisonWindow
 import com.dlang.homewx.weather.hourlyDelta
 import com.dlang.homewx.weather.isSameDay
+import com.dlang.homewx.weather.precipChanceAt
 import com.dlang.homewx.weather.startOfDay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -227,7 +228,7 @@ class HomeWxMonitorService : LifecycleService() {
                     val forecast = weatherRepository.getForecast()
                     latestForecast = forecast
                     weatherDailyTracker.recordSample(current.observedAtMillis, current.temperatureF, current.windSpeedMph)
-                    withContext(Dispatchers.IO) { weatherMetricsHistoryStore.record(current) }
+                    withContext(Dispatchers.IO) { weatherMetricsHistoryStore.record(current, forecast.precipChanceAt(current.observedAtMillis)) }
                     val tempTrend = forecast.hourlyDelta(current.observedAtMillis, 1, current.temperatureF) { it.temperatureF }
                     val tempTrend4h = forecast.hourlyDelta(current.observedAtMillis, 4, current.temperatureF) { it.temperatureF }
                     val pressureTrend = forecast.hourlyDelta(current.observedAtMillis, 6, current.pressureInHg) { it.pressureInHg }

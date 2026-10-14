@@ -19,7 +19,11 @@ data class WeatherMetricsPoint(
      *  as-recorded (already resolved from the weather code + day/night at capture time) rather
      *  than the raw numeric weather code, so re-deriving it later doesn't need to guess
      *  day/night from the timestamp. */
-    val iconKey: String?
+    val iconKey: String?,
+    /** Forecast chance of precipitation (%) that was in effect when this sample was recorded -
+     *  kept so the Hourly graph's already-passed hours (backfilled from this history) still
+     *  have a chance to plot. Short-term table only; null for daily-archive points. */
+    val precipChancePct: Int? = null
 )
 
 /**
@@ -46,6 +50,7 @@ class WeatherMetricsHistoryStore(context: Context) :
                 $COL_PRECIPITATION_IN REAL,
                 $COL_PRESSURE_INHG REAL,
                 $COL_ICON_KEY TEXT,
+                $COL_PRECIP_CHANCE_PCT INTEGER,
                 $COL_TIMESTAMP_MILLIS INTEGER NOT NULL
             )
             """.trimIndent()
@@ -99,7 +104,7 @@ class WeatherMetricsHistoryStore(context: Context) :
         }
     }
 
-    fun record(current: CurrentConditions) {
+    fun record(current: CurrentConditions, precipChancePct: Int? = null) {
         if (current.temperatureF == null && current.windSpeedMph == null &&
             current.precipitationIn == null && current.pressureInHg == null
         ) {
@@ -114,6 +119,7 @@ class WeatherMetricsHistoryStore(context: Context) :
                 put(COL_PRECIPITATION_IN, current.precipitationIn)
                 put(COL_PRESSURE_INHG, current.pressureInHg)
                 put(COL_ICON_KEY, current.iconKey)
+                put(COL_PRECIP_CHANCE_PCT, precipChancePct)
                 put(COL_TIMESTAMP_MILLIS, current.observedAtMillis)
             }
         )
@@ -200,7 +206,7 @@ class WeatherMetricsHistoryStore(context: Context) :
         val points = mutableListOf<WeatherMetricsPoint>()
         readableDatabase.query(
             TABLE,
-            arrayOf(COL_TIMESTAMP_MILLIS, COL_TEMPERATURE_F, COL_WIND_SPEED_MPH, COL_PRECIPITATION_IN, COL_PRESSURE_INHG, COL_ICON_KEY),
+            arrayOf(COL_TIMESTAMP_MILLIS, COL_TEMPERATURE_F, COL_WIND_SPEED_MPH, COL_PRECIPITATION_IN, COL_PRESSURE_INHG, COL_ICON_KEY, COL_PRECIP_CHANCE_PCT),
             "$COL_TIMESTAMP_MILLIS >= ?",
             arrayOf(sinceMillis.toString()),
             null, null,
@@ -214,7 +220,8 @@ class WeatherMetricsHistoryStore(context: Context) :
                         windSpeedMph = if (cursor.isNull(2)) null else cursor.getDouble(2),
                         precipitationIn = if (cursor.isNull(3)) null else cursor.getDouble(3),
                         pressureInHg = if (cursor.isNull(4)) null else cursor.getDouble(4),
-                        iconKey = if (cursor.isNull(5)) null else cursor.getString(5)
+                        iconKey = if (cursor.isNull(5)) null else cursor.getString(5),
+                        precipChancePct = if (cursor.isNull(6)) null else cursor.getInt(6)
                     )
                 )
             }
@@ -259,7 +266,7 @@ class WeatherMetricsHistoryStore(context: Context) :
 
     companion object {
         private const val DB_NAME = "homewx_weather_metrics_history.db"
-        private const val DB_VERSION = 5
+        private const val DB_VERSION = 6
         private const val TABLE = "weather_metrics"
         private const val DAILY_TABLE = "weather_metrics_daily"
         private const val COL_ID = "id"
@@ -269,6 +276,7 @@ class WeatherMetricsHistoryStore(context: Context) :
         private const val COL_PRECIPITATION_IN = "precipitation_in"
         private const val COL_PRESSURE_INHG = "pressure_inhg"
         private const val COL_ICON_KEY = "icon_key"
+        private const val COL_PRECIP_CHANCE_PCT = "precip_chance_pct"
         private const val COL_TIMESTAMP_MILLIS = "timestamp_millis"
         /** Daily table only - tracks which hour [COL_PRECIPITATION_IN]'s running total last
          *  folded in a sample from, so [nextDailyPrecipTotal] knows whether a new sample should
