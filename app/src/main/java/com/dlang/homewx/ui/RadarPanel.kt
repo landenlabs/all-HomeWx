@@ -11,6 +11,7 @@ import android.view.ViewGroup
 import androidx.lifecycle.LifecycleCoroutineScope
 import com.dlang.homewx.R
 import com.dlang.homewx.databinding.PanelRadarBinding
+import com.dlang.homewx.settings.AppSettings
 import com.dlang.homewx.state.AppState
 import com.dlang.homewx.weather.HomeLocation
 import kotlinx.coroutines.Dispatchers
@@ -88,6 +89,22 @@ private const val TAG = "RadarPanel"
 // live during playback because it fell just outside our unpadded prefetch rect.
 private const val PREFETCH_TILE_PADDING = 1
 
+// Esri "Dark Gray Canvas" (no API key; attribution: Esri, HERE, Garmin, (c) OpenStreetMap contributors).
+// CARTO's dark tiles now return an "API KEY REQUIRED" watermark. The base has no labels or
+// boundaries - those come from a separate transparent reference layer drawn above the radar.
+private const val ESRI_CANVAS_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/"
+private const val ESRI_MAX_ZOOM = 16
+private val DARK_BASE_TILE_SOURCE = EsriTileSource("ESRI-DarkGrayBase", "World_Dark_Gray_Base", ".jpg")
+private val DARK_REFERENCE_TILE_SOURCE = EsriTileSource("ESRI-DarkGrayReference", "World_Dark_Gray_Reference", ".png")
+
+/** Esri ArcGIS REST tile source; like GIBS it orders the URL path {z}/{y}/{x}. */
+private class EsriTileSource(name: String, private val service: String, ext: String) :
+    OnlineTileSourceBase(name, 0, ESRI_MAX_ZOOM, 256, ext, arrayOf(ESRI_CANVAS_URL)) {
+    override fun getTileURLString(pMapTileIndex: Long): String =
+        "$baseUrl$service/MapServer/tile/${MapTileIndex.getZoom(pMapTileIndex)}/" +
+            "${MapTileIndex.getY(pMapTileIndex)}/${MapTileIndex.getX(pMapTileIndex)}"
+}
+
 private val RETRY_REDRAW_DELAYS_MS = longArrayOf(1_000L, 3_000L)
 
 /** Which tile layer the radar tab overlays on the base map. [maxZoom] is the deepest zoom level
@@ -140,6 +157,9 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
     private var overzoomJob: Job? = null
     private var layer = RadarLayer.RADAR
     private val radarOverlay: TilesOverlay
+    private val referenceTileProvider: MapTileProviderBasic
+    private val referenceOverlay: TilesOverlay
+    private val bordersOverlay = BordersOverlay(container.resources.displayMetrics.density).apply { isEnabled = false }
 
     init {
         Configuration.getInstance().apply {
@@ -171,10 +191,22 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
             loadingLineColor = Color.TRANSPARENT
         }
 
+        referenceTileProvider = MapTileProviderBasic(context, DARK_REFERENCE_TILE_SOURCE)
+        referenceTileProvider.tileRequestCompleteHandlers.add(SimpleInvalidationHandler(binding.radarMapView))
+        referenceOverlay = TilesOverlay(referenceTileProvider, context).apply {
+            loadingBackgroundColor = Color.TRANSPARENT
+            loadingLineColor = Color.TRANSPARENT
+            isEnabled = AppSettings.isDarkMapTheme(context)
+        }
+
         binding.radarMapView.apply {
-            setTileSource(TileSourceFactory.MAPNIK)
+            setTileSource(baseTileSource())
             setMultiTouchControls(true)
             overlays.add(radarOverlay)
+            // Dark-theme labels/boundaries, above the radar/satellite so they stay readable.
+            overlays.add(referenceOverlay)
+            // Above the satellite tiles so borders stay visible; only enabled for those layers.
+            overlays.add(bordersOverlay)
             controller.setZoom(HOME_ZOOM)
             controller.setCenter(GeoPoint(HomeLocation.CURRENT.latitude, HomeLocation.CURRENT.longitude))
         }
@@ -189,12 +221,18 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
             // Also stops a running animation: its frames were built for the old layer.
             stopAnimation()
             layer = selected
+            bordersOverlay.isEnabled = layer != RadarLayer.RADAR
             applyLayerAlpha()
             showLiveFrame()
             Log.i(TAG, "layer switched to $layer: zoom=${binding.radarMapView.zoomLevelDouble} " +
                 "overlayEnabled=${radarOverlay.isEnabled} overlays=${binding.radarMapView.overlays.size} " +
                 "providerSource=${radarTileProvider.tileSource.name()} alpha=${layerAlpha()}")
             if (layer != RadarLayer.RADAR) probeLiveTile()
+        }
+
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) { bordersOverlay.load(context) }
+            binding.radarMapView.invalidate()
         }
 
         binding.radarPlayButton.setOnClickListener {
@@ -239,6 +277,18 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
         }
     }
 
+    private fun baseTileSource() =
+        if (AppSettings.isDarkMapTheme(context)) DARK_BASE_TILE_SOURCE else TileSourceFactory.MAPNIK
+
+    /** Swaps the base map if the Settings theme changed since it was last applied. */
+    private fun applyMapTheme() {
+        referenceOverlay.isEnabled = AppSettings.isDarkMapTheme(context)
+        val wanted = baseTileSource()
+        if (binding.radarMapView.tileProvider.tileSource.name() == wanted.name()) return
+        Log.i(TAG, "applyMapTheme: base map -> ${wanted.name()}")
+        binding.radarMapView.setTileSource(wanted)
+    }
+
     private fun layerAlpha(): Float = when (layer) {
         RadarLayer.RADAR -> 1f
         RadarLayer.CLOUDS -> CLOUDS_ALPHA
@@ -254,6 +304,7 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
 
     /** Clears the cached radar tiles and redraws, so reopening this tab shows the latest sweep. */
     fun refresh() {
+        applyMapTheme()
         showLiveFrame()
     }
 

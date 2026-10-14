@@ -403,6 +403,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.lightThresholdValueText.text = "$lightThresholdLux lux"
 
         binding.dailySplineSwitch.isChecked = AppSettings.isDailyWeatherSplineEnabled(this)
+        binding.darkMapSwitch.isChecked = AppSettings.isDarkMapTheme(this)
 
         val overrideEnabled = AppSettings.isTempSensorOverrideEnabled(this)
         binding.tempOverrideSwitch.isChecked = overrideEnabled
@@ -448,6 +449,7 @@ class SettingsActivity : AppCompatActivity() {
         AppSettings.setBackgroundDarkenPercent(this, binding.backgroundDarkenSlider.progress)
         AppSettings.setLightThresholdLux(this, progressToLux(binding.lightThresholdSlider.progress).toFloat())
         AppSettings.setDailyWeatherSplineEnabled(this, binding.dailySplineSwitch.isChecked)
+        AppSettings.setDarkMapTheme(this, binding.darkMapSwitch.isChecked)
 
         val selectedSource = WeatherSourceId.values()[binding.weatherSourceSpinner.selectedItemPosition]
         WeatherSourceConfig.setActiveSource(this, selectedSource)

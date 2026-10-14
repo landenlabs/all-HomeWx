@@ -23,6 +23,7 @@ object AppSettings {
     private const val KEY_FORECAST_DAYS = "forecast_days"
     private const val KEY_SMOOTHING_WINDOW_MINUTES = "smoothing_window_minutes"
     private const val KEY_FLAT_RANGE_THRESHOLD = "flat_range_threshold"
+    private const val KEY_DARK_MAP_THEME = "dark_map_theme"
     private const val KEY_DAILY_WEATHER_SPLINE_ENABLED = "daily_weather_spline_enabled"
 
     const val DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES = 30
@@ -143,6 +144,15 @@ object AppSettings {
 
     fun setDailyWeatherSplineEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit { putBoolean(KEY_DAILY_WEATHER_SPLINE_ENABLED, enabled) }
+    }
+
+    /** Whether the Radar tab's base map uses the dark (Esri Dark Gray Canvas) tiles instead of the
+     *  standard light OpenStreetMap ones. */
+    fun isDarkMapTheme(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_DARK_MAP_THEME, true)
+
+    fun setDarkMapTheme(context: Context, enabled: Boolean) {
+        prefs(context).edit { putBoolean(KEY_DARK_MAP_THEME, enabled) }
     }
 
     fun getHiddenSensorIds(context: Context): Set<String> =
