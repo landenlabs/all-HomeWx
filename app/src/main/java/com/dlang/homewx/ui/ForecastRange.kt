@@ -1,11 +1,12 @@
 package com.dlang.homewx.ui
 
 /** Which slice of data the forecast panel's 2nd tab bar is showing - HOURLY/DAILY read from
- *  [com.dlang.homewx.weather.WeatherForecast], PAST from the recorded weather-metrics history. */
-enum class ForecastRange { PAST, HOURLY, DAILY }
+ *  [com.dlang.homewx.weather.WeatherForecast], PAST from the recorded weather-metrics history, RAIN
+ *  from the weekly precipitation totals ([com.dlang.homewx.rain.RainRepository]). */
+enum class ForecastRange { PAST, HOURLY, DAILY, RAIN }
 
-/** Whether the forecast panel is showing cards or line graphs for the selected [ForecastRange]. */
-enum class ForecastPresentation { CARDS, GRAPH }
+/** Whether the forecast panel is showing cards, line graphs or a table for the selected [ForecastRange]. */
+enum class ForecastPresentation { CARDS, GRAPH, TABLE }
 
 /** Which slice of [ForecastRange.HOURLY]'s data the graph view's strip charts plot - selected via
  *  the radio buttons above them. ALL matches the hourly cards view (every forecast hour); TODAY

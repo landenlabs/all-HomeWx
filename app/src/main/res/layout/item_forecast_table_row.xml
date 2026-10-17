@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One row of the forecast table view - column weights must match panel_forecast.xml's header row. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:minHeight="44dp"
+    android:orientation="horizontal"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp">
+
+    <TextView
+        android:id="@+id/tableTimeText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.6"
+        android:textColor="@color/accent_cool"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        tools:text="Sat 3 PM" />
+
+    <ImageView
+        android:id="@+id/tableIcon"
+        android:layout_width="0dp"
+        android:layout_height="32dp"
+        android:layout_weight="0.9"
+        android:contentDescription="@null"
+        android:scaleType="fitCenter"
+        tools:src="@drawable/wx_sun_44d" />
+
+    <TextView
+        android:id="@+id/tableTempText"
+        style="@style/forecast_table_cell"
+        android:layout_weight="1.5"
+        tools:text="71° / 52°" />
+
+    <TextView
+        android:id="@+id/tableWindText"
+        style="@style/forecast_table_cell"
+        android:layout_weight="1.2"
+        tools:text="12 mph" />
+
+    <TextView
+        android:id="@+id/tablePrecipText"
+        style="@style/forecast_table_cell"
+        android:layout_weight="1.3"
+        tools:text="20%" />
+
+</LinearLayout>

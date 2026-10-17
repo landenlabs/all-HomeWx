@@ -4,25 +4,34 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.dlang.homewx.R
 import com.dlang.homewx.data.DailySnapshot
 import com.dlang.homewx.data.WeatherMetricsPoint
 import com.dlang.homewx.databinding.PanelForecastBinding
+import com.dlang.homewx.rain.RainRepository
 import com.dlang.homewx.weather.DailyForecastEntry
 import com.dlang.homewx.weather.HourlyForecastEntry
+import com.dlang.homewx.weather.HomeLocation
 import com.dlang.homewx.weather.WeatherForecast
+import com.dlang.homewx.weather.isSameDay
 import com.dlang.homewx.weather.startOfDay
 import com.dlang.homewx.weather.startOfHour
 import com.google.android.material.tabs.TabLayout
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
-/** Forecast panel: a 2nd tab bar (Past/Hourly/Daily) plus a cards/graph toggle shared across all
- *  3 ranges. Cards flow into as many columns as fit the available width. Inflates itself into
+/** Forecast panel: a 2nd tab bar (Past/Hourly/Daily/Rain) plus a cards/graph toggle shared across
+ *  the first 3 ranges (Rain is always its weekly bar chart). Cards flow into as many columns as fit the available width. Inflates itself into
  *  [container]. Tapping a Past or Daily card previews that card's data in the main weather
  *  panel via [onPastCardClick]/[onDailyCardClick] - this panel only forwards the tap, the
  *  preview binding and auto-revert timer live in [com.dlang.homewx.MainActivity]. */
 class ForecastPanel(
     container: ViewGroup,
+    private val scope: CoroutineScope,
     onPastCardClick: (WeatherMetricsPoint) -> Unit,
     onDailyCardClick: (DailyForecastEntry) -> Unit
 ) {
@@ -38,6 +47,16 @@ class ForecastPanel(
     private val layoutManager = GridLayoutManager(context, 1)
     private val cardMinWidthPx = (CARD_MIN_WIDTH_DP * context.resources.displayMetrics.density).toInt()
     private val graphsPanel = ForecastGraphsPanel(binding.forecastGraphsContainer)
+    private val tableAdapter = ForecastTableAdapter()
+    private val tableLayoutManager = LinearLayoutManager(context)
+    private val rainPanel = RainChartPanel(context, binding)
+    private val rainRepository = RainRepository()
+    private var rainJob: Job? = null
+
+    /** What the table was last scrolled-to-now for - it only re-scrolls when this changes (table
+     *  newly shown, range or period switched), never on a data refresh, which would yank the list
+     *  out from under a user who's scrolled elsewhere. */
+    private var lastTableScrollKey: Any? = null
 
     private var range = ForecastRange.DAILY
     private var presentation = ForecastPresentation.CARDS
@@ -55,6 +74,8 @@ class ForecastPanel(
     init {
         container.addView(root)
         recyclerView.layoutManager = layoutManager
+        binding.forecastTableRecyclerView.layoutManager = tableLayoutManager
+        binding.forecastTableRecyclerView.adapter = tableAdapter
         // Read view.width from a posted Runnable, not directly in the layout-change callback:
         // on the panel's first layout pass the RecyclerView's own children haven't been laid
         // out yet, so computing span count synchronously here used a stale/zero width and
@@ -77,6 +98,9 @@ class ForecastPanel(
             binding.forecastRangeTabLayout.newTab().setText(R.string.forecast_tab_daily).apply { tag = ForecastRange.DAILY },
             /* select = */ true
         )
+        binding.forecastRangeTabLayout.addTab(
+            binding.forecastRangeTabLayout.newTab().setText(R.string.forecast_tab_rain).apply { tag = ForecastRange.RAIN }
+        )
         binding.forecastRangeTabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
                 range = tab.tag as ForecastRange
@@ -87,7 +111,11 @@ class ForecastPanel(
         })
 
         binding.forecastViewToggleButton.setOnClickListener {
-            presentation = if (presentation == ForecastPresentation.CARDS) ForecastPresentation.GRAPH else ForecastPresentation.CARDS
+            presentation = if (presentation == ForecastPresentation.GRAPH) ForecastPresentation.CARDS else ForecastPresentation.GRAPH
+            refresh()
+        }
+        binding.forecastTableToggleButton.setOnClickListener {
+            presentation = if (presentation == ForecastPresentation.TABLE) ForecastPresentation.CARDS else ForecastPresentation.TABLE
             refresh()
         }
 
@@ -126,14 +154,27 @@ class ForecastPanel(
     }
 
     private fun refresh() {
-        val showCards = presentation == ForecastPresentation.CARDS
-        binding.forecastViewToggleButton.setImageResource(if (showCards) R.drawable.ic_graph else R.drawable.ic_view_cards)
+        // Rain is always its bar chart, whatever the cards/graph/table toggle last said.
+        val showRain = range == ForecastRange.RAIN
+        val showCards = presentation == ForecastPresentation.CARDS && !showRain
+        val showGraph = presentation == ForecastPresentation.GRAPH && !showRain
+        val showTable = presentation == ForecastPresentation.TABLE && !showRain
+        val toggleVisibility = if (showRain) View.GONE else View.VISIBLE
+        binding.forecastViewToggleButton.visibility = toggleVisibility
+        binding.forecastTableToggleButton.visibility = toggleVisibility
+        binding.forecastViewToggleButton.setImageResource(if (showGraph) R.drawable.ic_view_cards else R.drawable.ic_graph)
         binding.forecastViewToggleButton.contentDescription = context.getString(
-            if (showCards) R.string.forecast_switch_to_graph_view else R.string.forecast_switch_to_card_view
+            if (showGraph) R.string.forecast_switch_to_card_view else R.string.forecast_switch_to_graph_view
+        )
+        binding.forecastTableToggleButton.setImageResource(if (showTable) R.drawable.ic_view_cards else R.drawable.ic_table)
+        binding.forecastTableToggleButton.contentDescription = context.getString(
+            if (showTable) R.string.forecast_switch_to_card_view else R.string.forecast_switch_to_table_view
         )
 
         recyclerView.visibility = if (showCards) View.VISIBLE else View.GONE
-        binding.forecastGraphsContainer.visibility = if (showCards) View.GONE else View.VISIBLE
+        binding.forecastGraphsContainer.visibility = if (showGraph) View.VISIBLE else View.GONE
+        binding.forecastTableContainer.visibility = if (showTable) View.VISIBLE else View.GONE
+        rainPanel.container.visibility = if (showRain) View.VISIBLE else View.GONE
 
         // Shared across both presentations - whichever period group matches the selected tab
         // filters cards and graph alike.
@@ -141,7 +182,12 @@ class ForecastPanel(
         binding.forecastDailyPeriodGroup.visibility = if (range == ForecastRange.DAILY) View.VISIBLE else View.GONE
         binding.forecastPastPeriodGroup.visibility = if (range == ForecastRange.PAST) View.VISIBLE else View.GONE
 
-        if (showCards) {
+        if (!showTable) lastTableScrollKey = null
+        if (showRain) {
+            renderRain()
+        } else if (showTable) {
+            renderTable()
+        } else if (showCards) {
             // Reassigning recyclerView.adapter - even to the same instance - makes RecyclerView
             // drop its scroll position, so only touch it when the range actually changed.
             when (range) {
@@ -157,17 +203,79 @@ class ForecastPanel(
                     if (recyclerView.adapter !== dailyAdapter) recyclerView.adapter = dailyAdapter
                     dailyAdapter.submit(buildDailyEntriesForPeriod(latestForecast.daily, dailyPeriod, latestRecentDailySnapshots))
                 }
+                ForecastRange.RAIN -> Unit // handled above
             }
         } else {
             graphsPanel.render(range, latestForecast, latestPastPoints, latestRecentDailySnapshots, hourlyPeriod, dailyPeriod, pastPeriod)
         }
     }
 
+    /** Draws whatever totals are cached right away (so a data refresh never blanks the chart), then
+     *  fetches in the background if they're stale. [refresh] runs on every weather update, so a
+     *  fetch already in flight is left alone. */
+    private fun renderRain() {
+        val location = HomeLocation.CURRENT
+        val cached = rainRepository.cachedWeeks(location)
+        if (cached != null) rainPanel.render(cached) else rainPanel.showStatus(context.getString(R.string.forecast_rain_loading))
+        if (rainRepository.isFresh(location) || rainJob?.isActive == true) return
+
+        rainJob = scope.launch {
+            try {
+                val weeks = rainRepository.refresh(location)
+                if (range == ForecastRange.RAIN) rainPanel.render(weeks)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Keep showing stale totals if there are any; only an empty chart needs the error.
+                if (range == ForecastRange.RAIN && rainRepository.cachedWeeks(location) == null) {
+                    rainPanel.showStatus(context.getString(R.string.forecast_rain_error, e.message ?: e.javaClass.simpleName))
+                }
+            }
+        }
+    }
+
+    /** Hourly range -> an hourly table; Past and Daily -> the daily table (past 7 days, today,
+     *  then forecast days), since the past days only exist as one recorded summary per day. */
+    private fun renderTable() {
+        val nowMillis = System.currentTimeMillis()
+        val hourly = range == ForecastRange.HOURLY
+        binding.forecastTableTempHeader.setText(
+            if (hourly) R.string.forecast_table_header_temp else R.string.forecast_table_header_temp_high_low
+        )
+        val rows = if (hourly) {
+            buildHourlyTableRows(filterHoursForPeriod(latestForecast.hourly, hourlyPeriod), nowMillis)
+        } else {
+            val entries = buildDailyEntriesForPeriod(latestForecast.daily, dailyPeriod, latestRecentDailySnapshots)
+            // buildDailyEntriesForPeriod's NOW entry is today built from live extremes - the
+            // best "today" available - so reuse it for today under every period.
+            val today = buildDailyEntriesForPeriod(latestForecast.daily, DailyGraphPeriod.NOW, latestRecentDailySnapshots)
+                .first()
+            val future = entries.filter { it.dateMillis > today.dateMillis && !isSameDay(it.dateMillis, today.dateMillis) }
+            buildDailyTableRows(latestRecentDailySnapshots, listOf(today) + future, nowMillis)
+        }
+        tableAdapter.submit(rows)
+
+        val scrollKey = range to (if (hourly) hourlyPeriod else dailyPeriod)
+        if (scrollKey != lastTableScrollKey) {
+            lastTableScrollKey = scrollKey
+            binding.forecastTableRecyclerView.post {
+                val index = tableAdapter.nowIndex
+                if (index >= 0) tableLayoutManager.scrollToPositionWithOffset(index, NOW_ROW_SCROLL_OFFSET_PX)
+            }
+        }
+    }
+
     /** Called when this panel is made visible - see [ForecastGraphsPanel.resetView]. */
-    fun resetGraphView() = graphsPanel.resetView()
+    fun resetGraphView() {
+        graphsPanel.resetView()
+        lastTableScrollKey = null
+    }
 
     companion object {
         private const val CARD_MIN_WIDTH_DP = 200
+
+        /** Leaves a little context above the current row when scrolling it into view. */
+        private const val NOW_ROW_SCROLL_OFFSET_PX = 120
     }
 }
 

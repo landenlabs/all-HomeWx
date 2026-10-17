@@ -14,6 +14,17 @@
         android:background="@color/bg_panel_bottom"
         android:orientation="horizontal">
 
+        <ImageButton
+            android:id="@+id/forecastTableToggleButton"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/forecast_switch_to_table_view"
+            android:padding="12dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_table"
+            app:tint="@color/text_secondary" />
+
         <com.google.android.material.tabs.TabLayout
             android:id="@+id/forecastRangeTabLayout"
             android:layout_width="0dp"
@@ -132,6 +143,123 @@
             android:clipToPadding="false"
             android:overScrollMode="never"
             android:padding="10dp" />
+
+        <!-- Table presentation: a column-header row above a scrolling list of rows. Column weights
+             here must match item_forecast_table_row.xml. -->
+        <LinearLayout
+            android:id="@+id/forecastTableContainer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@color/bg_panel_bottom"
+                android:orientation="horizontal"
+                android:paddingStart="12dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="6dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1.6"
+                    android:text="@string/forecast_table_header_time"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="0.9" />
+
+                <TextView
+                    android:id="@+id/forecastTableTempHeader"
+                    style="@style/forecast_table_cell"
+                    android:layout_weight="1.5"
+                    android:text="@string/forecast_table_header_temp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    style="@style/forecast_table_cell"
+                    android:layout_weight="1.2"
+                    android:text="@string/forecast_table_header_wind"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    style="@style/forecast_table_cell"
+                    android:layout_weight="1.3"
+                    android:text="@string/forecast_table_header_precip"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+
+            </LinearLayout>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/forecastTableRecyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:overScrollMode="never" />
+
+        </LinearLayout>
+
+        <!-- Rain-only: 12 weekly precipitation totals as a bar chart. Shown regardless of the
+             cards/graph/table presentation, which has no meaning for this range. -->
+        <FrameLayout
+            android:id="@+id/forecastRainContainer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:padding="10dp">
+
+                <TextView
+                    android:id="@+id/forecastRainTitleText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/forecast_rain_title"
+                    android:textColor="@color/accent_cool"
+                    android:textSize="16sp" />
+
+                <com.github.mikephil.charting.charts.BarChart
+                    android:id="@+id/forecastRainChart"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1" />
+
+                <TextView
+                    android:id="@+id/forecastRainSourceText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="end"
+                    android:text="@string/forecast_rain_source"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/forecastRainStatusText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:padding="24dp"
+                android:textColor="@color/text_secondary"
+                android:textSize="16sp"
+                android:visibility="gone" />
+
+        </FrameLayout>
 
         <FrameLayout
             android:id="@+id/forecastGraphsContainer"

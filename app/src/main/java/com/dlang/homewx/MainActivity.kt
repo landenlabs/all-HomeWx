@@ -201,6 +201,7 @@ class MainActivity : AppCompatActivity() {
         articlePanel = ArticlePanel(binding.infoPanelContainer, onBack = ::closeArticle)
         forecastPanel = ForecastPanel(
             binding.infoPanelContainer,
+            lifecycleScope,
             onPastCardClick = ::showTappedPastPoint,
             onDailyCardClick = ::showTappedForecastDay
         )
@@ -980,10 +981,9 @@ class MainActivity : AppCompatActivity() {
                 val recentPoints = weatherMetricsHistoryStore.getHistorySince(sinceMillis)
                 dailyPoints + recentPoints
             }
-            // The Daily graph's "Now" period blends these 2 recorded past days with today's live
-            // conditions - see ForecastGraphsPanel.buildDailyEntriesForPeriod.
+            // The last 7 recorded days - the Daily table's past rows (see buildDailyTableRows).
             val recentDailySnapshots = withContext(Dispatchers.IO) {
-                listOf(2L, 1L).mapNotNull { daysAgo -> dailySnapshotStore.getSnapshot(todayStart - daysAgo * DAY_MILLIS) }
+                listOf(7L, 6L, 5L, 4L, 3L, 2L, 1L).mapNotNull { daysAgo -> dailySnapshotStore.getSnapshot(todayStart - daysAgo * DAY_MILLIS) }
             }
             if (currentInfoPanel != InfoPanelView.FORECAST) return@launch
             forecastPanel.render(forecast, pastPoints, recentDailySnapshots)

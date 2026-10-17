@@ -32,16 +32,18 @@ private class BorderLine(val coords: FloatArray) {
     }
 }
 
-/** State/province and country boundary lines (Natural Earth 50m, bundled in
+/** State/province and country boundary lines plus coastlines (Natural Earth 50m, bundled in
  *  assets/map_borders.json) drawn over a map. Used on top of the opaque-ish satellite layers,
  *  which hide the base map's own borders. Call [load] once off the main thread. */
 class BordersOverlay(density: Float) : Overlay() {
     @Volatile private var states: List<BorderLine> = emptyList()
     @Volatile private var countries: List<BorderLine> = emptyList()
+    @Volatile private var coast: List<BorderLine> = emptyList()
 
-    // Bright amber stays legible over both white clouds and dark IR imagery.
-    private val statePaint = linePaint(density * 1f, Color.argb(200, 255, 213, 79))
-    private val countryPaint = linePaint(density * 1.8f, Color.argb(235, 255, 193, 7))
+    // Red stays legible over both white clouds and dark IR imagery (yellow/amber washed out on clouds).
+    private val statePaint = linePaint(density * 1f, Color.argb(220, 255, 23, 23))
+    private val countryPaint = linePaint(density * 1.8f, Color.argb(240, 213, 0, 0))
+    private val coastPaint = linePaint(density * 1.2f, Color.argb(230, 255, 23, 23))
     private val path = Path()
     private val point = Point()
     private val geoPoint = GeoPoint(0.0, 0.0)
@@ -60,7 +62,8 @@ class BordersOverlay(density: Float) : Overlay() {
             val json = JSONObject(context.assets.open(ASSET_NAME).bufferedReader().use { it.readText() })
             states = parse(json.getJSONArray("states"))
             countries = parse(json.getJSONArray("countries"))
-            Log.i(TAG, "load: ${states.size} state lines, ${countries.size} country lines")
+            coast = json.optJSONArray("coast")?.let(::parse) ?: emptyList()
+            Log.i(TAG, "load: ${states.size} state lines, ${countries.size} country lines, ${coast.size} coast lines")
         } catch (e: Exception) {
             Log.e(TAG, "load: failed to read $ASSET_NAME", e)
         }
@@ -73,6 +76,7 @@ class BordersOverlay(density: Float) : Overlay() {
 
     override fun draw(canvas: Canvas, projection: Projection) {
         val box = projection.boundingBox
+        drawLines(canvas, projection, coast, coastPaint, box.lonWest, box.lonEast, box.latSouth, box.latNorth)
         drawLines(canvas, projection, states, statePaint, box.lonWest, box.lonEast, box.latSouth, box.latNorth)
         drawLines(canvas, projection, countries, countryPaint, box.lonWest, box.lonEast, box.latSouth, box.latNorth)
     }

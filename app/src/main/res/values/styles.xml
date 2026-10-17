@@ -55,6 +55,14 @@
     </style>
 
     <!-- One of the 4 stacked value rows (high/wind/precip/low) in a forecast day card. -->
+    <style name="forecast_table_cell">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:gravity">end</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">15sp</item>
+    </style>
+
     <style name="forecast_card_value">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>

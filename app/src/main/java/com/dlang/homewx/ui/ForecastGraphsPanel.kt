@@ -244,7 +244,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 return when (range) {
                     ForecastRange.PAST -> pastFormat.format(date)
                     ForecastRange.HOURLY -> hourFormat.format(date)
-                    ForecastRange.DAILY -> dayFormat.format(date)
+                    ForecastRange.DAILY, ForecastRange.RAIN -> dayFormat.format(date)
                 }
             }
         }
@@ -284,6 +284,8 @@ class ForecastGraphsPanel(container: ViewGroup) {
                     // automatic grid computation happens to fall, which reads as near-random -
                     // replaced with explicit markers positioned/thinned by [xLabels] instead.
                     chart.xAxis.setDrawLabels(false)
+                    // Start at midnight today even if the first (recorded/backfilled) hour is later.
+                    chart.xAxis.axisMinimum = startOfDay(nowMillis) / 1000f
                     LineChartSetup.setLimitLines(chart, context, dayBoundaries)
                     LineChartSetup.addAxisLabelMarkers(chart, context, xLabels)
                     if (showNowMarker) LineChartSetup.addCurrentTimeMarker(chart, context, nowMillis / 1000f)
@@ -329,22 +331,38 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 }
 
                 val spline = AppSettings.isDailyWeatherSplineEnabled(context)
+
+                // NOW/+3day plot today as its whole 24 hours (recorded hours already backfilled
+                // into [forecast].hourly, forecast hours for the rest of the day) instead of one
+                // day-level point, so the line starts at midnight rather than at noon/"now".
+                val todayStart = startOfDay(System.currentTimeMillis())
+                val todayHours = if (pinToStartOfToday) {
+                    forecast.hourly.filter { it.timeMillis in todayStart until todayStart + DAY_MILLIS }
+                } else emptyList()
+                fun series(hourly: (HourlyForecastEntry) -> Double?, daily: (DailyForecastEntry) -> Double?): List<Pair<Long, Double>> {
+                    val todayPoints = todayHours.mapNotNull { h -> hourly(h)?.let { h.timeMillis to it } }
+                    return todayPoints + days
+                        .filter { todayPoints.isEmpty() || it.dateMillis >= todayStart + DAY_MILLIS }
+                        .mapNotNull { d -> daily(d)?.let { d.dateMillis to it } }
+                }
+                val highSeries = series({ it.temperatureF }, { it.highF })
+                val lowSeries = series({ it.temperatureF }, { it.lowF })
+                val windSeries = series({ it.windSpeedMph }, { it.windMaxMph })
+                val precipSeries = series({ it.precipitationChancePct?.toDouble() }, { it.precipitationChancePct?.toDouble() })
                 renderDailyTemp(
-                    days.mapNotNull { d -> d.highF?.let { d.dateMillis to it } },
-                    days.mapNotNull { d -> d.lowF?.let { d.dateMillis to it } },
-                    spline
+                    highSeries, lowSeries, spline
                 )
                 renderMetric(
                     binding.forecastWindSection, binding.forecastWindChartFrame, binding.forecastWindChartView, binding.forecastWindEmptyText, binding.forecastWindMaxValueText,
                     binding.forecastWindWatermarkText, binding.forecastWindTitleText,
-                    days.mapNotNull { d -> d.windMaxMph?.let { d.dateMillis to it } },
+                    windSeries,
                     R.string.forecast_no_wind_data, R.string.forecast_no_wind,
                     spline = spline, valueFormatter = windValueFormatter
                 )
                 renderMetric(
                     binding.forecastPrecipSection, binding.forecastPrecipChartFrame, binding.forecastPrecipChartView, binding.forecastPrecipEmptyText, binding.forecastPrecipMaxValueText,
                     binding.forecastPrecipWatermarkText, binding.forecastPrecipTitleText,
-                    days.mapNotNull { d -> d.precipitationChancePct?.let { d.dateMillis to it.toDouble() } },
+                    precipSeries,
                     R.string.forecast_no_precipitation_data, R.string.forecast_no_precipitation,
                     R.color.accent_cool, filled = true, spline = spline, valueFormatter = pctValueFormatter,
                     fixedAxisRange = LineChartSetup.PERCENT_AXIS_RANGE
@@ -391,6 +409,8 @@ class ForecastGraphsPanel(container: ViewGroup) {
                     valueFormatter = pressureValueFormatter, spline = useSpline(pressurePoints)
                 )
             }
+            // Rain has its own panel ([RainChartPanel]) and never reaches the strip charts.
+            ForecastRange.RAIN -> Unit
         }
 
         // A chart that's since collapsed (no data) or isn't part of this range can't stay expanded.
