@@ -28,7 +28,12 @@ android {
         val goveeApiKey = localProperties.getProperty("GOVEE_API_KEY") ?: ""
         buildConfigField("String", "GOVEE_API_KEY", "\"$goveeApiKey\"")
 
-        val sunApiKey = localProperties.getProperty("SUN_API_KEY") ?: ""
+        // Google Nest (SDM) thermostat credentials; see NestApiClient.
+        for (key in listOf("NEST_PROJECT_ID", "NEST_CLIENT_ID", "NEST_CLIENT_SECRET", "NEST_REFRESH_TOKEN")) {
+            buildConfigField("String", key, "\"${localProperties.getProperty(key) ?: ""}\"")
+        }
+
+        val sunApiKey =localProperties.getProperty("SUN_API_KEY") ?: ""
         buildConfigField("String", "SUN_API_KEY", "\"$sunApiKey\"")
 
         val wyzeLogin = localProperties.getProperty("WYZE_LOGIN") ?: ""

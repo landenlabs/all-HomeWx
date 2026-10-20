@@ -14,6 +14,7 @@ import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import android.graphics.Typeface
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -122,6 +123,8 @@ class MainActivity : AppCompatActivity() {
     private var forecastPreviewRevertJob: Job? = null
     /** True while a tap-to-wake override is forcing the screen ACTIVE despite the light sensor saying QUIET. */
     private var wakeOverrideActive = false
+    /** Set by tapping the lux text while the sensor says ACTIVE: shows the night layout until the next tap. */
+    private var manualNightActive = false
     private var wakeOverrideJob: Job? = null
     /** Radar is pinned because rain is forecast; see [syncRainHold]. */
     private var rainHoldActive = false
@@ -224,6 +227,7 @@ class MainActivity : AppCompatActivity() {
             locationPermissionRequest.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
 
+        binding.currentLuxText.setOnClickListener { toggleNightMode() }
         observeState()
         startClock()
     }
@@ -276,6 +280,12 @@ class MainActivity : AppCompatActivity() {
     override fun onUserInteraction() {
         super.onUserInteraction()
         lastInteractionMillis = System.currentTimeMillis()
+        if (manualNightActive) {
+            manualNightActive = false
+            screenPowerController.apply(AppState.uiState.value.lightMode)
+            syncNightOverlay(AppState.uiState.value)
+            return
+        }
         if (AppState.uiState.value.lightMode == LightMode.QUIET && !AppSettings.isForcedNightMode(this)) {
             startWakeOverride()
         }
@@ -285,6 +295,23 @@ class MainActivity : AppCompatActivity() {
         if (autoCycleJob != null || autoCycleResumeJob != null) {
             pauseAutoCycle()
         }
+    }
+
+    /** Lux text tap: from a tap-woken screen, drops straight back to night mode instead of waiting
+     *  out [WAKE_OVERRIDE_DURATION_MS]; while the sensor says ACTIVE, shows night mode until the next tap. */
+    private fun toggleNightMode() {
+        if (AppSettings.isForcedNightMode(this)) return
+        if (wakeOverrideActive) {
+            wakeOverrideJob?.cancel()
+            wakeOverrideActive = false
+        } else if (AppState.uiState.value.lightMode == LightMode.ACTIVE) {
+            manualNightActive = true
+            screenPowerController.apply(LightMode.QUIET)
+        } else {
+            return
+        }
+        if (!manualNightActive) screenPowerController.apply(AppState.uiState.value.lightMode)
+        syncNightOverlay(AppState.uiState.value)
     }
 
     private fun startWakeOverride() {
@@ -306,7 +333,7 @@ class MainActivity : AppCompatActivity() {
      *  every AppState tick). */
     private fun syncNightOverlay(state: UiState) {
         val forced = AppSettings.isForcedNightMode(this)
-        val shouldShow = forced || (state.lightMode == LightMode.QUIET && !wakeOverrideActive)
+        val shouldShow = forced || manualNightActive || (state.lightMode == LightMode.QUIET && !wakeOverrideActive)
         if (!shouldShow) {
             nightRefreshJob?.cancel()
             nightRefreshJob = null
@@ -380,7 +407,7 @@ class MainActivity : AppCompatActivity() {
     private fun observeState() {
         lifecycleScope.launch {
             AppState.uiState.collect { state ->
-                if (!wakeOverrideActive) {
+                if (!wakeOverrideActive && !manualNightActive) {
                     screenPowerController.apply(state.lightMode)
                 }
                 syncRainHold(state)
@@ -559,9 +586,9 @@ class MainActivity : AppCompatActivity() {
             binding.conditionValueText.text = liveConditions.conditionText
             binding.humidityValueText.text = liveConditions.humidityPct?.roundToInt()?.let { "$it%" } ?: "--"
             setWindSpeedDirectionRowVisible(true)
-            binding.windSpeedValueText.text = liveConditions.windSpeedMph?.roundToInt()?.let { "$it mph" } ?: "--"
+            setWindSpeed(liveConditions.windSpeedMph)
             binding.windDirectionValueText.text = formatWindDirection(liveConditions.windDirectionDeg)
-            binding.precipitationValueText.text = formatPrecipitation(liveConditions.precipitationIn, System.currentTimeMillis())
+            setPrecipitation(liveConditions.precipitationIn, System.currentTimeMillis())
             binding.pressureValueText.text = formatPressure(liveConditions.pressureInHg, state.pressureTrend6hInHg)
         } else {
             binding.weatherIcon.setImageResource(R.drawable.wx_sun_44d)
@@ -636,9 +663,9 @@ class MainActivity : AppCompatActivity() {
         binding.conditionValueText.text = snapshot.conditionText ?: "--"
         binding.humidityValueText.text = snapshot.humidityPct?.roundToInt()?.let { "$it%" } ?: "--"
         setWindSpeedDirectionRowVisible(true)
-        binding.windSpeedValueText.text = snapshot.windSpeedMph?.roundToInt()?.let { "$it mph" } ?: "--"
+        setWindSpeed(snapshot.windSpeedMph)
         binding.windDirectionValueText.text = formatWindDirection(snapshot.windDirectionDeg)
-        binding.precipitationValueText.text = formatPrecipitation(snapshot.precipitationIn, snapshot.dayStartMillis)
+        setPrecipitation(snapshot.precipitationIn, snapshot.dayStartMillis)
         binding.pressureValueText.text = snapshot.pressureInHg?.let { "%.2f in".format(it) } ?: "--"
         binding.tempHighValueText.text = formatExtreme(toExtreme(snapshot.tempHighF, snapshot.tempHighAtMillis), "°F")
         binding.tempLowValueText.text = formatExtreme(toExtreme(snapshot.tempLowF, snapshot.tempLowAtMillis), "°F")
@@ -664,6 +691,7 @@ class MainActivity : AppCompatActivity() {
         binding.precipitationValueText.text = toExtreme(entry.precipitationChancePct?.toDouble(), entry.precipitationChanceAtMillis)
             ?.let { formatExtreme(it, "%") }
             ?: entry.precipitationChancePct?.let { "$it%" } ?: "--"
+        binding.precipitationValueText.setTypeface(null, Typeface.NORMAL)
         binding.pressureValueText.text = entry.pressureAtNoonInHg?.let { "%.2f in".format(it) } ?: "--"
         binding.tempHighValueText.text = entry.highF?.roundToInt()?.let { "$it°F" } ?: "--"
         binding.tempLowValueText.text = entry.lowF?.roundToInt()?.let { "$it°F" } ?: "--"
@@ -690,9 +718,9 @@ class MainActivity : AppCompatActivity() {
         binding.conditionValueText.text = "--"
         binding.humidityValueText.text = "--"
         setWindSpeedDirectionRowVisible(true)
-        binding.windSpeedValueText.text = point.windSpeedMph?.roundToInt()?.let { "$it mph" } ?: "--"
+        setWindSpeed(point.windSpeedMph)
         binding.windDirectionValueText.text = "--"
-        binding.precipitationValueText.text = formatPrecipitation(point.precipitationIn, point.timestampMillis)
+        setPrecipitation(point.precipitationIn, point.timestampMillis)
         binding.pressureValueText.text = point.pressureInHg?.let { "%.2f in".format(it) } ?: "--"
         binding.tempHighValueText.text = "--"
         binding.tempLowValueText.text = "--"
@@ -852,6 +880,21 @@ class MainActivity : AppCompatActivity() {
         if (extreme == null) return "--"
         val hour = hourOnlyFormat.format(Date(extreme.atMillis))
         return shrinkParenthetical("${extreme.value.roundToInt()}$unit ($hour)")
+    }
+
+    /** Wind speed emphasis: bold from 10 mph, bold + light red from 20 mph. */
+    private fun setWindSpeed(mph: Double?) {
+        val tv = binding.windSpeedValueText
+        tv.text = mph?.roundToInt()?.let { "$it mph" } ?: "--"
+        tv.setTypeface(null, if (mph != null && mph > 10) Typeface.BOLD else Typeface.NORMAL)
+        tv.setTextColor(ContextCompat.getColor(this, if (mph != null && mph >= 20) R.color.wind_strong else R.color.text_primary))
+    }
+
+    /** Measured precipitation amounts (not the forecast-chance fallback) are bold when non-zero. */
+    private fun setPrecipitation(precipitationIn: Double?, forDayMillis: Long) {
+        val tv = binding.precipitationValueText
+        tv.text = formatPrecipitation(precipitationIn, forDayMillis)
+        tv.setTypeface(null, if (precipitationIn != null && precipitationIn > 0) Typeface.BOLD else Typeface.NORMAL)
     }
 
     /** Rain actually falling is more informative than a forecast guess, so a non-zero measured

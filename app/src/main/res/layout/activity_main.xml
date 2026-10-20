@@ -46,6 +46,8 @@
         android:id="@+id/currentLuxText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:padding="12dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
         android:layout_marginStart="24dp"
         android:textColor="@color/text_secondary"
         android:textSize="14sp"
@@ -163,10 +165,10 @@
         <TextView style="@style/wx_label" android:text="@string/wx_lbl_humidity" />
         <TextView android:id="@+id/humidityValueText" style="@style/wx_value" />
 
-        <TextView style="@style/wx_label" android:text="@string/wx_lbl_temp_low" />
-        <TextView android:id="@+id/tempLowValueText" style="@style/wx_value" />
         <TextView style="@style/wx_label" android:text="@string/wx_lbl_temp_high" />
         <TextView android:id="@+id/tempHighValueText" style="@style/wx_value" />
+        <TextView style="@style/wx_label" android:text="@string/wx_lbl_temp_low" />
+        <TextView android:id="@+id/tempLowValueText" style="@style/wx_value" />
 
         <TextView style="@style/wx_label" android:text="@string/wx_lbl_wind_low" />
         <TextView android:id="@+id/windLowValueText" style="@style/wx_value" />
