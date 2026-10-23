@@ -1,5 +1,8 @@
 package com.dlang.homewx.ui
 
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -67,6 +70,13 @@ fun filterPastPointsForPeriod(points: List<WeatherMetricsPoint>, period: PastGra
     return points.filter { it.timestampMillis >= cutoffMillis }
 }
 
+/** True during the first [PREVIOUS_DAY_GRACE_HOURS] hours of a day, when the +3day graph still
+ *  shows the day that just ended (e.g. 12:00am-6am Oct 23 shows Oct 22, 23 and 24). */
+fun includesPreviousDay(nowMillis: Long): Boolean =
+    nowMillis - startOfDay(nowMillis) < PREVIOUS_DAY_GRACE_HOURS * 3_600_000L
+
+private const val PREVIOUS_DAY_GRACE_HOURS = 6
+
 /** Narrows/rebuilds the full daily forecast down to the slice [period] asks for - ALL is a
  *  no-op (matches the daily cards view), PLUS_3_DAY keeps just today plus the next 3 forecast
  *  days, and NOW replaces [days]' own notion of "today" (a forecast value, and under some
@@ -85,7 +95,24 @@ fun buildDailyEntriesForPeriod(
     recentDailySnapshots: List<DailySnapshot>
 ): List<DailyForecastEntry> = when (period) {
     DailyGraphPeriod.ALL -> days
-    DailyGraphPeriod.PLUS_3_DAY -> days.take(4)
+    DailyGraphPeriod.PLUS_3_DAY -> {
+        val nowMillis = System.currentTimeMillis()
+        val todayStart = startOfDay(nowMillis)
+        val future = days.filter { it.dateMillis >= todayStart }
+        if (includesPreviousDay(nowMillis)) {
+            val yesterday = recentDailySnapshots.firstOrNull { it.dayStartMillis == todayStart - DAY_MILLIS }
+            // Entries sit at noon of their day, matching the forecast's own dateMillis.
+            val prevEntry = yesterday?.let {
+                DailyForecastEntry(
+                    dateMillis = it.dayStartMillis + DAY_MILLIS / 2,
+                    highF = it.tempHighF, lowF = it.tempLowF, windMaxMph = it.windHighMph,
+                    precipitationChancePct = null,
+                    conditionText = it.conditionText ?: "", iconKey = it.iconKey ?: ""
+                )
+            }
+            listOfNotNull(prevEntry) + future.take(if (prevEntry != null) 2 else 3)
+        } else future.take(3)
+    }
     DailyGraphPeriod.NOW -> {
         val nowMillis = System.currentTimeMillis()
         val todayForecast = days.firstOrNull { isSameDay(it.dateMillis, nowMillis) }
@@ -320,14 +347,23 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 // NOW and +3day always start at the beginning of the current day (midnight), not
                 // at the first data point (noon of today), so today's chart starts flush left.
                 val pinToStartOfToday = dailyPeriod != DailyGraphPeriod.ALL
+                val nowMillis = System.currentTimeMillis()
+                // +3day also starts a day earlier during the first hours after midnight.
+                val showPrevDay = dailyPeriod == DailyGraphPeriod.PLUS_3_DAY && includesPreviousDay(nowMillis) &&
+                    days.firstOrNull()?.let { it.dateMillis < startOfDay(nowMillis) } == true
+                val axisStartMillis = startOfDay(nowMillis) - if (showPrevDay) DAY_MILLIS else 0L
+                // Entries sit at noon, so each day spans half a day either side of its entry.
+                val showNowMarker = days.isNotEmpty() &&
+                    nowMillis in (days.first().dateMillis - DAY_MILLIS / 2)..(days.last().dateMillis + DAY_MILLIS / 2)
                 listOf(binding.forecastTempChartView, binding.forecastWindChartView, binding.forecastPrecipChartView).forEach { chart ->
                     // As with Hourly's noon labels, the default per-tick axis labels can't be
                     // colored individually, so they're replaced with explicit markers to
                     // highlight today's label in green.
                     chart.xAxis.setDrawLabels(false)
-                    if (pinToStartOfToday) chart.xAxis.axisMinimum = startOfDay(System.currentTimeMillis()) / 1000f
+                    if (pinToStartOfToday) chart.xAxis.axisMinimum = axisStartMillis / 1000f
                     LineChartSetup.setLimitLines(chart, context, dayBoundaries)
                     LineChartSetup.addAxisLabelMarkers(chart, context, dayLabels)
+                    if (showNowMarker) LineChartSetup.addCurrentTimeMarker(chart, context, nowMillis / 1000f)
                 }
 
                 val spline = AppSettings.isDailyWeatherSplineEnabled(context)
@@ -342,7 +378,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 fun series(hourly: (HourlyForecastEntry) -> Double?, daily: (DailyForecastEntry) -> Double?): List<Pair<Long, Double>> {
                     val todayPoints = todayHours.mapNotNull { h -> hourly(h)?.let { h.timeMillis to it } }
                     return todayPoints + days
-                        .filter { todayPoints.isEmpty() || it.dateMillis >= todayStart + DAY_MILLIS }
+                        .filter { todayPoints.isEmpty() || it.dateMillis < todayStart || it.dateMillis >= todayStart + DAY_MILLIS }
                         .mapNotNull { d -> daily(d)?.let { d.dateMillis to it } }
                 }
                 val highSeries = series({ it.temperatureF }, { it.highF })
@@ -529,7 +565,17 @@ class ForecastGraphsPanel(container: ViewGroup) {
             binding.forecastTempChartView.visibility = View.VISIBLE
             binding.forecastTempEmptyText.visibility = View.GONE
             LineChartSetup.render(binding.forecastTempChartView, context, points, spline = spline)
-            binding.forecastTempMaxValueText.text = tempValueFormatter(points.maxOf { it.second })
+            setTempRangeText(points.maxOf { it.second }, points.minOf { it.second })
+        }
+    }
+
+    /** "max / min" in the temperature chart's title row, each colored to match its triangle marker
+     *  (see [ExtremaMarkerRenderer]): max yellow, min purple. */
+    private fun setTempRangeText(max: Double, min: Double) {
+        binding.forecastTempMaxValueText.text = SpannableStringBuilder().apply {
+            append(tempValueFormatter(max), ForegroundColorSpan(ContextCompat.getColor(context, R.color.accent_warm)), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            append(" / ")
+            append(tempValueFormatter(min), ForegroundColorSpan(ContextCompat.getColor(context, R.color.accent_purple)), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
     }
 
@@ -553,7 +599,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 listOf(highs to R.color.accent_warm, lows to R.color.accent_cool),
                 spline
             )
-            binding.forecastTempMaxValueText.text = tempValueFormatter((highs + lows).maxOf { it.second })
+            setTempRangeText((highs + lows).maxOf { it.second }, (highs + lows).minOf { it.second })
         }
     }
 

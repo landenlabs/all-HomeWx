@@ -157,6 +157,19 @@ object LineChartSetup {
         )
     }
 
+    /** Draws a solid horizontal line across the left axis at [yValue], [lineWidthPx] wide - the
+     *  night layout's "current value" line, crossing the vertical current-time marker right on
+     *  the data line. Adds to whatever limit lines are already on the axis rather than clearing
+     *  them, so call this after [setThresholdLines]. */
+    fun addCurrentValueMarker(chart: LineChart, context: Context, yValue: Float, lineWidthPx: Float) {
+        chart.axisLeft.addLimitLine(
+            LimitLine(yValue).apply {
+                lineColor = ContextCompat.getColor(context, R.color.accent_day_marker)
+                lineWidth = lineWidthPx
+            }
+        )
+    }
+
     /** A dash pattern for [setThresholdLines] - lengths in the same "line length, gap length"
      *  form as [LimitLine.enableDashedLine]. [DOTTED] reads as a fine dotted line, [DASHED] as a
      *  longer-segmented dashed line; leave a [ThresholdLine.dashPattern] null for solid. */

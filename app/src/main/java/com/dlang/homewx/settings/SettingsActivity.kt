@@ -17,6 +17,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import com.dlang.homewx.BuildConfig
 import com.dlang.homewx.R
+import com.dlang.homewx.data.DailySnapshotStore
+import com.dlang.homewx.data.WeatherMetricsHistoryStore
 import com.dlang.homewx.databinding.ActivitySettingsBinding
 import com.dlang.homewx.model.SensorReading
 import com.dlang.homewx.news.WebRequestLogger
@@ -55,7 +57,9 @@ class SettingsActivity : AppCompatActivity() {
             R.string.settings_version_info,
             BuildConfig.VERSION_NAME,
             BuildConfig.VERSION_CODE,
-            BuildConfig.BUILD_TIME
+            BuildConfig.BUILD_TIME,
+            WeatherMetricsHistoryStore.DB_VERSION,
+            DailySnapshotStore.DB_VERSION
         )
 
         setUpWeatherSourceSpinner()

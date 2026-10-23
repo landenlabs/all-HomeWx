@@ -8,8 +8,10 @@ import java.util.Calendar
  *  (typically today and sometimes yesterday - gridded analyses lag by a day). */
 data class DailyRain(val dayMillis: Long, val inches: Double?)
 
-/** One week's total. [isCurrent] marks the week still in progress, whose total is only "so far". */
-data class WeeklyRain(val weekStartMillis: Long, val inches: Double, val isCurrent: Boolean)
+/** One week's total. [isCurrent] marks the week still in progress, whose total is only "so far".
+ *  [lastYearInches] is the same week 52 weeks earlier (for the current week, only through the
+ *  matching weekday so the comparison is like for like), or null if that wasn't fetched. */
+data class WeeklyRain(val weekStartMillis: Long, val inches: Double, val isCurrent: Boolean, val lastYearInches: Double? = null)
 
 /** One precipitation-history source (ACIS PRISM grid today, kept pluggable like
  *  [com.dlang.homewx.weather.WeatherProvider]). Blocking - call from a background dispatcher. */
@@ -39,14 +41,26 @@ fun rainWindowStart(nowMillis: Long): Long =
 
 /** Sums [days] into [RAIN_WEEKS] Monday-start weeks ending with the week containing [nowMillis].
  *  Days with no value count as 0 - a missing day is almost always the latest one, still pending. */
-fun buildWeeklyTotals(days: List<DailyRain>, nowMillis: Long): List<WeeklyRain> {
+fun buildWeeklyTotals(days: List<DailyRain>, nowMillis: Long, lastYearDays: List<DailyRain>? = null): List<WeeklyRain> {
     val currentWeekStart = startOfWeek(nowMillis)
     val calendar = Calendar.getInstance().apply { timeInMillis = rainWindowStart(nowMillis) }
     val totalsByWeek = days.groupBy { startOfWeek(it.dayMillis) }
         .mapValues { (_, weekDays) -> weekDays.sumOf { it.inches ?: 0.0 } }
+    val lastYearTotals = lastYearDays?.groupBy { startOfWeek(it.dayMillis) }
+        ?.mapValues { (_, weekDays) -> weekDays.sumOf { it.inches ?: 0.0 } }
     return (0 until RAIN_WEEKS).map {
         val weekStart = calendar.timeInMillis
         calendar.add(Calendar.WEEK_OF_YEAR, 1)
-        WeeklyRain(weekStart, totalsByWeek[weekStart] ?: 0.0, isCurrent = weekStart == currentWeekStart)
+        WeeklyRain(
+            weekStart, totalsByWeek[weekStart] ?: 0.0, isCurrent = weekStart == currentWeekStart,
+            lastYearInches = lastYearTotals?.let { it[startOfWeek(weeksAgo52(weekStart))] ?: 0.0 }
+        )
     }
 }
+
+/** [atMillis] shifted back 52 weeks (364 days), so a Monday stays a Monday - "same week last year". */
+fun weeksAgo52(atMillis: Long): Long =
+    Calendar.getInstance().apply {
+        timeInMillis = atMillis
+        add(Calendar.WEEK_OF_YEAR, -52)
+    }.timeInMillis

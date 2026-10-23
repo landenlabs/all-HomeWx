@@ -56,9 +56,9 @@
     <string name="forecast_past_period_7day">7 days</string>
     <string name="forecast_past_period_30day">30 days</string>
     <string name="forecast_past_period_all">All</string>
-    <string name="sensor_graph_period_24h">24hr</string>
-    <string name="sensor_graph_period_48h">48hr</string>
-    <string name="sensor_graph_period_72h">72hr</string>
+    <string name="sensor_graph_period_24h">-24hr</string>
+    <string name="sensor_graph_period_48h">-48hr</string>
+    <string name="sensor_graph_period_72h">-72hr</string>
     <string name="sensor_graph_period_all">All</string>
     <string name="forecast_no_wind">No wind expected</string>
     <string name="forecast_no_precipitation">No precipitation expected</string>
@@ -88,7 +88,7 @@
     <string name="wx_lbl_normal">Normal</string>
 
     <string name="settings_title">Settings</string>
-    <string name="settings_version_info">Version %1$s (%2$d) · Built %3$s</string>
+    <string name="settings_version_info">Version %1$s (%2$d) · DB v%4$d / %5$d · Built %3$s</string>
     <string name="settings_section_weather">WEATHER</string>
     <string name="settings_weather_source_label">Weather source</string>
     <string name="settings_weather_interval_label">Refresh interval (minutes)</string>

@@ -26,7 +26,13 @@ class RainRepository(private val provider: RainProvider = AcisGridRainProvider()
     suspend fun refresh(location: GeoLocation): List<WeeklyRain> = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
         val days = provider.getDailyRain(location, rainWindowStart(now), startOfDay(now))
-        buildWeeklyTotals(days, now).also { cached = Cached(location, now, it) }
+        // Last year is a bonus overlay - if its fetch fails the bars still draw without the line.
+        val lastYearDays = try {
+            provider.getDailyRain(location, weeksAgo52(rainWindowStart(now)), weeksAgo52(startOfDay(now)))
+        } catch (e: RainProviderException) {
+            null
+        }
+        buildWeeklyTotals(days, now, lastYearDays).also { cached = Cached(location, now, it) }
     }
 
     private companion object {

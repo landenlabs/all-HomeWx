@@ -197,13 +197,14 @@ class NightModePanel(context: Context) {
         LineChartSetup.setThresholdLines(chart, context, thresholds)
         LineChartSetup.setLimitLines(chart, context, emptyList())
         LineChartSetup.addCurrentTimeMarker(chart, context, nowMillis / 1000f)
+        valueAtNow(past, future, nowMillis)?.let { LineChartSetup.addCurrentValueMarker(chart, context, it, DATA_LINE_WIDTH) }
 
         val color = ContextCompat.getColor(context, colorRes)
         fun dataSet(points: List<Pair<Long, Double>>, dashed: Boolean): LineDataSet? {
             if (points.isEmpty()) return null
             return LineDataSet(points.map { (t, v) -> Entry(t / 1000f, v.toFloat()) }, null).apply {
                 this.color = color
-                lineWidth = 8f
+                lineWidth = DATA_LINE_WIDTH
                 setDrawCircles(false)
                 setDrawValues(false)
                 if (dashed) enableDashedLine(10f, 6f, 0f)
@@ -237,7 +238,23 @@ class NightModePanel(context: Context) {
         chart.invalidate()
     }
 
+    /** The plotted line's value at [nowMillis]: the last past sample joined to the first future
+     *  one (as [renderChart] draws them), linearly interpolated, so the horizontal marker lands
+     *  exactly where the vertical "now" line crosses the data. */
+    private fun valueAtNow(past: List<Pair<Long, Double>>, future: List<Pair<Long, Double>>, nowMillis: Long): Float? {
+        val before = past.lastOrNull()
+        val after = future.firstOrNull()
+        return when {
+            before != null && after != null && after.first > before.first ->
+                (before.second + (after.second - before.second) * (nowMillis - before.first) / (after.first - before.first)).toFloat()
+            before != null -> before.second.toFloat()
+            after != null -> after.second.toFloat()
+            else -> null
+        }
+    }
+
     companion object {
+        private const val DATA_LINE_WIDTH = 8f
         private const val TARGET_HEIGHT_FRACTION = 0.5f
         private const val DIGIT_HEIGHT_PER_EM = 0.72f
         private const val MAX_WIDTH_FRACTION = 0.9f
