@@ -160,7 +160,7 @@ class DailySnapshotStore(context: Context) :
     companion object {
         private const val DB_NAME = "homewx_daily_snapshots.db"
         const val DB_VERSION = 1
-        private const val TABLE = "daily_snapshot"
+        internal const val TABLE = "daily_snapshot"
         private const val COL_DAY_START_MILLIS = "day_start_millis"
         private const val COL_CONDITION_TEXT = "condition_text"
         private const val COL_ICON_KEY = "icon_key"

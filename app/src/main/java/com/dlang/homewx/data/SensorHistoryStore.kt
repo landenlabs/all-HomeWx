@@ -130,7 +130,7 @@ class SensorHistoryStore(context: Context) :
     companion object {
         private const val DB_NAME = "homewx_sensor_history.db"
         private const val DB_VERSION = 1
-        private const val TABLE = "sensor_reading"
+        internal const val TABLE = "sensor_reading"
         private const val COL_ID = "id"
         private const val COL_SENSOR_ID = "sensor_id"
         private const val COL_TEMP_F = "temp_f"

@@ -1,6 +1,11 @@
 package com.dlang.homewx.settings
 
 import android.content.Intent
+import android.net.Uri
+import android.provider.DocumentsContract
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import com.dlang.homewx.data.BackupManager
 import android.os.Bundle
 import android.view.View
 import android.widget.ArrayAdapter
@@ -43,6 +48,38 @@ class SettingsActivity : AppCompatActivity() {
     private var riverGaugeCheckBoxes: List<CheckBox> = emptyList()
     private var riverGaugeLabelEditTexts: List<EditText> = emptyList()
 
+    // Both pickers open on the Downloads folder; the picker (SAF) needs no storage permission.
+    private val downloadsUri: Uri =
+        DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", "primary:Download")
+
+    private val exportLauncher = registerForActivityResult(object : ActivityResultContracts.CreateDocument("application/zip") {
+        override fun createIntent(context: android.content.Context, input: String) =
+            super.createIntent(context, input).putExtra(DocumentsContract.EXTRA_INITIAL_URI, downloadsUri)
+    }) { uri -> uri?.let { runBackupTask { BackupManager.export(this, contentResolver.openOutputStream(it)!!).let { rows -> getString(R.string.backup_export_done, rows) } } } }
+
+    private val importLauncher = registerForActivityResult(object : ActivityResultContracts.OpenDocument() {
+        override fun createIntent(context: android.content.Context, input: Array<String>) =
+            super.createIntent(context, input).putExtra(DocumentsContract.EXTRA_INITIAL_URI, downloadsUri)
+    }) { uri ->
+        uri?.let {
+            runBackupTask {
+                val r = BackupManager.import(this, contentResolver.openInputStream(it)!!)
+                getString(R.string.backup_import_done, r.rowsAdded, r.rowsSkipped, r.settingsRestored)
+            }
+        }
+    }
+
+    private fun runBackupTask(task: () -> String) {
+        lifecycleScope.launch {
+            val message = try {
+                withContext(Dispatchers.IO) { task() }
+            } catch (e: Exception) {
+                getString(R.string.backup_failed, e.message ?: e.javaClass.simpleName)
+            }
+            Toast.makeText(this@SettingsActivity, message, Toast.LENGTH_LONG).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
@@ -52,6 +89,12 @@ class SettingsActivity : AppCompatActivity() {
         applySystemBarInsetPadding(binding.root)
 
         binding.backButton.setOnClickListener { finish() }
+
+        binding.exportButton.setOnClickListener {
+            val stamp = java.text.SimpleDateFormat("yyyy-MM-dd-HHmm", java.util.Locale.US).format(java.util.Date())
+            exportLauncher.launch("HomeWx-export-$stamp.zip")
+        }
+        binding.importButton.setOnClickListener { importLauncher.launch(arrayOf("application/zip", "application/octet-stream")) }
 
         binding.versionInfoText.text = getString(
             R.string.settings_version_info,

@@ -3,25 +3,89 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Background Fill
     <path
         android:pathData="M0,0h108v108h-108z"
         android:fillColor="#101826" />
-    <path
-        android:pathData="M54,28c11.6,0 21,9.4 21,21c0,1 -0.1,2 -0.2,3c7.4,1.6 12.7,8.2 12.7,15.9c0,9 -7.3,16.3 -16.3,16.3H36.8C26.9,84.2 19,76.3 19,66.4c0,-8.7 6.3,-15.9 14.6,-17.4C34.9,37.7 43.5,28 54,28z"
-        android:fillColor="#8AB4F8" />
-    <path
-        android:pathData="M54,17v7"
-        android:strokeColor="#FDB813"
-        android:strokeWidth="4"
-        android:strokeLineCap="round" />
-    <path
-        android:pathData="M31,24l5,5"
-        android:strokeColor="#FDB813"
-        android:strokeWidth="4"
-        android:strokeLineCap="round" />
-    <path
-        android:pathData="M77,24l-5,5"
-        android:strokeColor="#FDB813"
-        android:strokeWidth="4"
-        android:strokeLineCap="round" />
+    -->
+
+    <!-- OVERFLOW SCALED & RE-CENTERED GROUP (~110%+ Viewport Fill) -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="1.85"
+        android:scaleY="1.85"
+        android:translateX="-2"
+        android:translateY="6">
+
+        <!-- PATH 1: SUN (Background Layer) -->
+        <path
+            android:name="sun"
+            android:fillColor="#FFA000"
+            android:strokeColor="#FF6F00"
+            android:strokeWidth="1.5"
+            android:strokeLineCap="round"
+            android:pathData="
+                m 69,40
+                a 12,12 0 1,1 0,-0.01 z
+                m -12,-18 v -4
+                m 0,32 v 4
+                m -17,-17 h -4
+                m 38,0 h 4
+                m -29,-12 l -3,-3
+                m 24,24 l 3,3
+                m -24,0 l -3,3
+                m 24,-24 l 3,-3" />
+
+        <!-- PATH 2: HOUSE OUTLINE & GRADIENT FILL (Middle/Base Layer) -->
+        <path
+            android:name="house"
+            android:strokeColor="#4444FF"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="
+                M 34,70
+                V 52
+                L 54,36
+                L 74,52
+                V 70
+                H 34 Z
+                M 49,70
+                V 58
+                H 59
+                V 70">
+            <aapt:attr name="android:fillColor"
+                xmlns:aapt="http://schemas.android.com/aapt">
+                <gradient
+                    android:startX="54"
+                    android:startY="36"
+                    android:endX="54"
+                    android:endY="70"
+                    android:type="linear">
+                    <item android:color="#c01E2952" android:offset="0.0" />
+                    <item android:color="#4444FF" android:offset="1.0" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- PATH 3: CLOUD (Foreground Layer) -->
+        <path
+            android:name="cloud"
+            android:fillColor="#E2E8F0"
+            android:strokeColor="#64748B"
+            android:strokeWidth="2.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="
+                M 32,66
+                H 52
+                A 6,6 0 0,0 52,54
+                A 5,5 0 0,0 47.5,50
+                A 8,8 0 0,0 32.5,52
+                A 6,6 0 0,0 32,66 Z" />
+
+    </group>
+
 </vector>

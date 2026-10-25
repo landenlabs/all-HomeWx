@@ -106,7 +106,7 @@ class RiverHistoryStore(context: Context) :
     companion object {
         private const val DB_NAME = "homewx_river_history.db"
         private const val DB_VERSION = 1
-        private const val TABLE = "river_reading"
+        internal const val TABLE = "river_reading"
         private const val COL_ID = "id"
         private const val COL_SITE_ID = "site_id"
         private const val COL_GAGE_HEIGHT_FT = "gage_height_ft"

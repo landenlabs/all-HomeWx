@@ -109,6 +109,12 @@
     <string name="settings_section_sensors">SENSORS</string>
     <string name="settings_no_sensors">No indoor sensors yet</string>
     <string name="settings_sensor_label_hint">Custom label</string>
+    <string name="settings_section_backup">BACKUP</string>
+    <string name="settings_export">Export data</string>
+    <string name="settings_import">Import data</string>
+    <string name="backup_export_done">Exported %1$d rows and settings</string>
+    <string name="backup_import_done">Imported %1$d rows (%2$d already present), %3$d settings. Restart the app to apply.</string>
+    <string name="backup_failed">Backup failed: %1$s</string>
     <string name="settings_section_webview_logging">ARTICLE VIEWER</string>
     <string name="settings_webview_logging_switch">Log WebView request domains</string>
     <string name="settings_webview_logging_path">Log file: %1$s</string>

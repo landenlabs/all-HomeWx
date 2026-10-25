@@ -267,8 +267,8 @@ class WeatherMetricsHistoryStore(context: Context) :
     companion object {
         private const val DB_NAME = "homewx_weather_metrics_history.db"
         const val DB_VERSION = 6
-        private const val TABLE = "weather_metrics"
-        private const val DAILY_TABLE = "weather_metrics_daily"
+        internal const val TABLE = "weather_metrics"
+        internal const val DAILY_TABLE = "weather_metrics_daily"
         private const val COL_ID = "id"
         private const val COL_DAY_START_MILLIS = "day_start_millis"
         private const val COL_TEMPERATURE_F = "temperature_f"
