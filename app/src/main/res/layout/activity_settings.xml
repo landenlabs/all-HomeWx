@@ -594,7 +594,7 @@
                 android:layout_marginTop="8dp"
                 android:textColor="@color/text_secondary"
                 android:textSize="12sp"
-                tools:text="Log file: /data/user/0/com.dlang.homewx/files/webview_request_domains.log" />
+                tools:text="Log file: /data/user/0/com.landenlabs.all_homewx/files/webview_request_domains.log" />
 
         </LinearLayout>
     </ScrollView>

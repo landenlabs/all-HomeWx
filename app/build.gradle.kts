@@ -15,11 +15,11 @@ val localProperties = Properties().apply {
 }
 
 android {
-    namespace = "com.dlang.homewx"
+    namespace = "com.landenlabs.homewx"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.dlang.homewx"
+        applicationId = "com.landenlabs.all_homewx"
         minSdk = 28 // wxdata's AAR declares minSdk 28 (see wxdata-integration-notes.md)
         targetSdk = 37
         versionCode = 60420
@@ -93,4 +93,6 @@ dependencies {
     implementation("com.squareup.okhttp3:logging-interceptor:5.5.0")
     implementation("com.google.code.gson:gson:2.14.0")
     implementation("org.greenrobot:eventbus:3.3.1")
+
+    testImplementation("junit:junit:4.13.2")
 }

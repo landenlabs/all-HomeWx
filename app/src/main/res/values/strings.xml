@@ -1,7 +1,7 @@
 <resources>
-    <string name="app_name">HomeWx</string>
-    <string name="monitor_service_channel_name">HomeWx Monitor</string>
-    <string name="monitor_service_notification_title">HomeWx is watching your home</string>
+    <string name="app_name">All HomeWx</string>
+    <string name="monitor_service_channel_name">All HomeWx Monitor</string>
+    <string name="monitor_service_notification_title">All HomeWx is watching your home</string>
     <string name="monitor_service_notification_text">Weather and sensor updates running in the background</string>
     <string name="weather_placeholder">Loading weather…</string>
     <string name="news_no_data">No data available</string>
@@ -134,5 +134,5 @@
     <string name="error_log_clear">Clear</string>
     <string name="error_log_share">Share</string>
     <string name="error_log_empty">No errors recorded</string>
-    <string name="error_log_share_subject">HomeWx error log</string>
+    <string name="error_log_share_subject">All HomeWx error log</string>
 </resources>

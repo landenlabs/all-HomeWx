@@ -1,0 +1,1121 @@
+package com.landenlabs.homewx
+
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.res.ColorStateList
+import android.os.Bundle
+import android.text.Spannable
+import android.text.SpannableString
+import android.text.style.RelativeSizeSpan
+import android.view.GestureDetector
+import android.view.MotionEvent
+import android.view.View
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import android.graphics.Typeface
+import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.landenlabs.homewx.data.DailySnapshot
+import com.landenlabs.homewx.data.DailySnapshotStore
+import com.landenlabs.homewx.data.SensorHistoryStore
+import com.landenlabs.homewx.data.WeatherMetricsHistoryStore
+import com.landenlabs.homewx.data.WeatherMetricsPoint
+import com.landenlabs.homewx.databinding.ActivityMainBinding
+import com.landenlabs.homewx.model.LightMode
+import com.landenlabs.homewx.model.SensorReading
+import android.view.ViewGroup
+import com.landenlabs.homewx.model.UiState
+import com.landenlabs.homewx.ui.NightModePanel
+import com.landenlabs.homewx.news.NewsItem
+import com.landenlabs.homewx.power.ScreenPowerController
+import com.landenlabs.homewx.rivers.RiverGaugeSettings
+import com.landenlabs.homewx.data.RiverHistoryStore
+import com.landenlabs.homewx.service.HomeWxMonitorService
+import com.landenlabs.homewx.settings.AppSettings
+import com.landenlabs.homewx.settings.SettingsActivity
+import com.landenlabs.homewx.state.AppState
+import com.landenlabs.homewx.ui.ArticlePanel
+import com.landenlabs.homewx.ui.ForecastPanel
+import com.landenlabs.homewx.ui.NewsPanel
+import com.landenlabs.homewx.ui.RadarPanel
+import com.landenlabs.homewx.ui.RiverGraphsPanel
+import com.landenlabs.homewx.ui.SensorAdapter
+import com.landenlabs.homewx.ui.SensorChartPanel
+import com.landenlabs.homewx.ui.SensorGraphsPanel
+import com.landenlabs.homewx.ui.weatherBackgroundRes
+import com.landenlabs.homewx.ui.weatherIconRes
+import com.landenlabs.homewx.weather.DailyExtreme
+import com.landenlabs.homewx.weather.DailyForecastEntry
+import com.landenlabs.homewx.weather.WeatherForecast
+import com.landenlabs.homewx.weather.WeatherSourceConfig
+import com.landenlabs.homewx.weather.WeatherSourceId
+import com.landenlabs.homewx.weather.isSameDay
+import com.landenlabs.homewx.weather.startOfDay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.math.abs
+import kotlin.math.roundToInt
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.TimeUnit
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var binding: ActivityMainBinding
+    private lateinit var screenPowerController: ScreenPowerController
+    // Only needed so NewsPanel's "no data" message can name the connected WiFi network -
+    // Android ties real SSID lookups to location permission. Re-render on grant so the
+    // message picks up the SSID immediately instead of waiting for the next news poll.
+    private val locationPermissionRequest = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) newsPanel.onStateUpdated(AppState.uiState.value.newsItemsBySource)
+    }
+    private val sensorAdapter = SensorAdapter(onSensorClick = ::showSensorHistory)
+    private lateinit var newsPanel: NewsPanel
+    private lateinit var sensorChartPanel: SensorChartPanel
+    private lateinit var articlePanel: ArticlePanel
+    private lateinit var forecastPanel: ForecastPanel
+    private lateinit var sensorGraphsPanel: SensorGraphsPanel
+    private lateinit var radarPanel: RadarPanel
+    private lateinit var riverGraphsPanel: RiverGraphsPanel
+    private val sensorHistoryStore by lazy { SensorHistoryStore(applicationContext) }
+    private val weatherMetricsHistoryStore by lazy { WeatherMetricsHistoryStore(applicationContext) }
+    private val dailySnapshotStore by lazy { DailySnapshotStore(applicationContext) }
+    private val riverHistoryStore by lazy { RiverHistoryStore(applicationContext) }
+
+    private val weatherDateTimeFormat = SimpleDateFormat("dd MMM, EEE hh:mm a", Locale.getDefault())
+    private val hourOnlyFormat = SimpleDateFormat("h a", Locale.getDefault())
+    private val historicalDayFormat = SimpleDateFormat("dd MMM, EEE", Locale.getDefault())
+
+    private var latestForecast: WeatherForecast? = null
+    private var sensorsUpdatedAtMillis: Long? = null
+    private var currentInfoPanel = InfoPanelView.NEWS
+    /** Room id whose strip chart is currently showing, only meaningful while currentInfoPanel == SENSOR_CHART.
+     *  Mirrored onto [sensorAdapter] so the tapped row stays highlighted while its chart is open. */
+    private var activeSensorHistoryId: String? = null
+        set(value) {
+            field = value
+            sensorAdapter.selectedSensorId = value
+        }
+    /**
+     * 0 = today (live), negative = that many days in the past (a frozen [DailySnapshot]),
+     * positive = that many days into the forecast (a [DailyForecastEntry]).
+     */
+    private var viewingDayOffset = 0
+    /** Set when a "Past" card is tapped in the forecast panel - a specific recorded instant
+     *  rather than a whole calendar day, so it can't be represented by [viewingDayOffset]. Takes
+     *  priority over it whenever non-null; the two are always kept mutually exclusive. */
+    private var viewingPastPoint: WeatherMetricsPoint? = null
+    /** Running while a tapped Past/Daily card is being previewed in the weather panel; reverts
+     *  to live weather after [FORECAST_PREVIEW_TIMEOUT_MS] of no interaction anywhere in the
+     *  app (restarted from [onUserInteraction], same pattern as [wakeOverrideJob]). Null when no
+     *  preview is active, which is also what tells [onUserInteraction] there's nothing to extend. */
+    private var forecastPreviewRevertJob: Job? = null
+    /** True while a tap-to-wake override is forcing the screen ACTIVE despite the light sensor saying QUIET. */
+    private var wakeOverrideActive = false
+    /** Set by tapping the lux text while the sensor says ACTIVE: shows the night layout until the next tap. */
+    private var manualNightActive = false
+    private var wakeOverrideJob: Job? = null
+    /** Radar is pinned because rain is forecast; see [syncRainHold]. */
+    private var rainHoldActive = false
+    /** Set when a person left the pinned radar; blocks re-entry until the forecast goes dry. */
+    private var rainHoldDismissed = false
+    /** True while [syncRainHold] itself changes the panel, so it isn't mistaken for a manual change. */
+    private var rainHoldSwitching = false
+    private var lastInteractionMillis = 0L
+    /** Tracks the previous tick's light mode so a QUIET->ACTIVE transition can be detected in [observeState]. */
+    private var lastLightMode: LightMode? = null
+    /** Running while auto-cycling tabs after a light-triggered wake; paused (see [autoCycleResumeJob])
+     *  on any tap anywhere on screen, and stopped outright on the way back to QUIET. */
+    private var autoCycleJob: Job? = null
+    /** Running while the auto-cycle is paused after a tap on screen; fires [startAutoCycle] again
+     *  after [AUTO_CYCLE_PAUSE_MS] of no further taps. Restarted on every [onUserInteraction] call
+     *  so continued tapping keeps extending the pause, same pattern as [wakeOverrideJob]. */
+    private var autoCycleResumeJob: Job? = null
+
+    /** Full-screen night layout, drawn over everything while the light sensor says QUIET (and
+     *  no tap-to-wake override is active) - see [syncNightOverlay]. */
+    private lateinit var nightModePanel: NightModePanel
+    /** Re-renders [nightModePanel] once a minute (clock) while it's showing; null while hidden. */
+    private var nightRefreshJob: Job? = null
+    /** The weather objects [nightModePanel] was last rendered from, so [syncNightOverlay] (called
+     *  on every AppState tick, lux readings included) only re-renders when they actually change. */
+    private var nightRenderedForecast: Any? = null
+    private var nightRenderedWeather: Any? = null
+
+    private val weatherGestureDetector by lazy {
+        GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean = true
+
+            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+                val startX = e1?.x ?: return false
+                val deltaX = e2.x - startX
+                val deltaY = e2.y - e1.y
+                if (abs(deltaX) > abs(deltaY) && abs(deltaX) > SWIPE_THRESHOLD_PX) {
+                    // Past is to the left, future to the right: swiping left reveals what's
+                    // further right (the future), swiping right reveals what's further left (the past).
+                    if (deltaX < 0) goToNewerDay() else goToOlderDay()
+                    return true
+                }
+                return false
+            }
+        })
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        // targetSdk 35+ enforces edge-to-edge, so content draws behind the status/nav
+        // bars unless we pad for it ourselves; android:fitsSystemWindows is ignored.
+        // ConstraintLayout resolves "parent" anchors/guideline percentages against the
+        // padded content area, so padding the root keeps every panel clear of the
+        // status/nav bars without needing to special-case per-panel containers.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        applySystemBarInsetPadding(binding.root)
+
+        screenPowerController = ScreenPowerController(this)
+        nightModePanel = NightModePanel(this)
+        nightModePanel.hide()
+        nightModePanel.setOnSettingsClick { startActivity(Intent(this, SettingsActivity::class.java)) }
+        applySystemBarInsetPadding(nightModePanel.root)
+        addContentView(
+            nightModePanel.root,
+            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        )
+        binding.sensorRecyclerView.layoutManager = LinearLayoutManager(this)
+        binding.sensorRecyclerView.adapter = sensorAdapter
+        binding.weatherBackgroundImage.setOnTouchListener { _, event -> weatherGestureDetector.onTouchEvent(event) }
+        binding.settingsButton.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
+
+        newsPanel = NewsPanel(binding.infoPanelContainer, lifecycleScope, onArticleClick = ::showNewsArticle)
+        sensorChartPanel = SensorChartPanel(binding.infoPanelContainer)
+        articlePanel = ArticlePanel(binding.infoPanelContainer, onBack = ::closeArticle)
+        forecastPanel = ForecastPanel(
+            binding.infoPanelContainer,
+            lifecycleScope,
+            onPastCardClick = ::showTappedPastPoint,
+            onDailyCardClick = ::showTappedForecastDay
+        )
+        sensorGraphsPanel = SensorGraphsPanel(binding.infoPanelContainer)
+        radarPanel = RadarPanel(binding.infoPanelContainer, lifecycleScope)
+        riverGraphsPanel = RiverGraphsPanel(binding.infoPanelContainer)
+
+        binding.infoPanelTabBar.newsTabButton.setOnClickListener { selectTab(InfoPanelView.NEWS) }
+        binding.infoPanelTabBar.forecastTabButton.setOnClickListener { selectTab(InfoPanelView.FORECAST) }
+        binding.infoPanelTabBar.sensorGraphsTabButton.setOnClickListener { selectTab(InfoPanelView.SENSOR_GRAPHS) }
+        binding.infoPanelTabBar.radarTabButton.setOnClickListener { selectTab(InfoPanelView.RADAR) }
+        binding.infoPanelTabBar.riversTabButton.setOnClickListener { selectTab(InfoPanelView.RIVERS) }
+        showInfoPanel(InfoPanelView.NEWS)
+
+        HomeWxMonitorService.start(this)
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            locationPermissionRequest.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+
+        binding.currentLuxText.setOnClickListener { toggleNightMode() }
+        observeState()
+        startClock()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        binding.weatherBackgroundScrim.alpha = AppSettings.getBackgroundDarkenPercent(this) / 100f
+        screenPowerController.refresh()
+        if (AppSettings.isForcedNightMode(this)) {
+            wakeOverrideJob?.cancel()
+            wakeOverrideActive = false
+            AppState.uiState.update { it.copy(lightMode = LightMode.QUIET) }
+        }
+        syncNightOverlay(AppState.uiState.value)
+        sensorAdapter.submit(visibleSensors(AppState.uiState.value.sensors))
+        updateRiverTabVisibility()
+        updateWeatherSourceBadge()
+        // Coming back to the foreground (e.g. the device waking after a long screen-off
+        // stretch) is exactly when stale data is most likely and most visible - force the
+        // weather poll loop to check in now instead of waiting out whatever's left of its
+        // normal interval. See [AppState.notifyRefreshRequested].
+        AppState.notifyRefreshRequested()
+    }
+
+    /** The active weather source only changes while this activity is paused (Settings is a
+     *  separate Activity), so re-checking here on every resume is enough, no need to watch AppState. */
+    private fun updateWeatherSourceBadge() {
+        val badgeRes = when (WeatherSourceConfig.getActiveSource(this)) {
+            WeatherSourceId.OPEN_METEO -> R.drawable.wx_source_open_meteo
+            WeatherSourceId.WXDATA -> R.drawable.wx_source_wxdata
+        }
+        binding.weatherSourceBadge.setImageResource(badgeRes)
+    }
+
+    /** The Rivers tab only shows once the feature is enabled and gauges are selected in
+     *  Settings - both only change while this activity is paused (Settings is a separate
+     *  Activity), so re-checking here on every resume is enough, no need to watch AppState. */
+    private fun updateRiverTabVisibility() {
+        val showRiversTab = RiverGaugeSettings.isEnabled(this) && RiverGaugeSettings.getSelectedGauges(this).isNotEmpty()
+        binding.infoPanelTabBar.riversTabButton.visibility = if (showRiversTab) View.VISIBLE else View.GONE
+        if (!showRiversTab && currentInfoPanel == InfoPanelView.RIVERS) {
+            selectTab(InfoPanelView.NEWS)
+        }
+    }
+
+    /** A tap anywhere on screen while QUIET wakes the display and holds it ACTIVE for a few
+     *  minutes; a tap anywhere while a Past/Daily card preview is showing extends its revert
+     *  countdown instead of letting it lapse mid-interaction; a tap anywhere while the tab
+     *  auto-cycle is running (or already paused) pauses/extends it too. */
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        lastInteractionMillis = System.currentTimeMillis()
+        if (manualNightActive) {
+            manualNightActive = false
+            screenPowerController.apply(AppState.uiState.value.lightMode)
+            syncNightOverlay(AppState.uiState.value)
+            return
+        }
+        if (AppState.uiState.value.lightMode == LightMode.QUIET && !AppSettings.isForcedNightMode(this)) {
+            startWakeOverride()
+        }
+        if (forecastPreviewRevertJob != null) {
+            scheduleForecastPreviewRevert()
+        }
+        if (autoCycleJob != null || autoCycleResumeJob != null) {
+            pauseAutoCycle()
+        }
+    }
+
+    /** Lux text tap: from a tap-woken screen, drops straight back to night mode instead of waiting
+     *  out [WAKE_OVERRIDE_DURATION_MS]; while the sensor says ACTIVE, shows night mode until the next tap. */
+    private fun toggleNightMode() {
+        if (AppSettings.isForcedNightMode(this)) return
+        if (wakeOverrideActive) {
+            wakeOverrideJob?.cancel()
+            wakeOverrideActive = false
+        } else if (AppState.uiState.value.lightMode == LightMode.ACTIVE) {
+            manualNightActive = true
+            screenPowerController.apply(LightMode.QUIET)
+        } else {
+            return
+        }
+        if (!manualNightActive) screenPowerController.apply(AppState.uiState.value.lightMode)
+        syncNightOverlay(AppState.uiState.value)
+    }
+
+    private fun startWakeOverride() {
+        wakeOverrideActive = true
+        screenPowerController.apply(LightMode.ACTIVE)
+        syncNightOverlay(AppState.uiState.value)
+        wakeOverrideJob?.cancel()
+        wakeOverrideJob = lifecycleScope.launch {
+            delay(WAKE_OVERRIDE_DURATION_MS)
+            wakeOverrideActive = false
+            screenPowerController.apply(AppState.uiState.value.lightMode)
+            syncNightOverlay(AppState.uiState.value)
+        }
+    }
+
+    /** Shows the night layout while the light sensor says QUIET and no tap-to-wake override is
+     *  active, hides it otherwise. While showing, a once-a-minute loop keeps the clock current;
+     *  weather changes re-render it right away (detected by object identity, since this runs on
+     *  every AppState tick). */
+    private fun syncNightOverlay(state: UiState) {
+        val forced = AppSettings.isForcedNightMode(this)
+        val shouldShow = forced || manualNightActive || (state.lightMode == LightMode.QUIET && !wakeOverrideActive)
+        if (!shouldShow) {
+            nightRefreshJob?.cancel()
+            nightRefreshJob = null
+            nightModePanel.hide()
+            applySystemBarInsetPadding(nightModePanel.root)
+            nightRenderedForecast = null
+            nightRenderedWeather = null
+            return
+        }
+        nightModePanel.show()
+        if (nightRefreshJob == null) {
+            nightRefreshJob = lifecycleScope.launch {
+                while (true) {
+                    renderNightOverlay()
+                    delay(60_000L - System.currentTimeMillis() % 60_000L + 50L)
+                }
+            }
+        } else if (state.weatherForecast !== nightRenderedForecast || state.currentWeather !== nightRenderedWeather) {
+            lifecycleScope.launch { renderNightOverlay() }
+        }
+    }
+
+    private suspend fun renderNightOverlay() {
+        val state = AppState.uiState.value
+        nightRenderedForecast = state.weatherForecast
+        nightRenderedWeather = state.currentWeather
+        val now = System.currentTimeMillis()
+        val pastPoints = withContext(Dispatchers.IO) {
+            weatherMetricsHistoryStore.getHistorySince(now - TimeUnit.HOURS.toMillis(NightModePanel.WINDOW_HOURS.toLong()))
+        }
+        nightModePanel.render(AppState.uiState.value, pastPoints, now)
+    }
+
+    private fun showNewsArticle(item: NewsItem) {
+        activeSensorHistoryId = null
+        showInfoPanel(InfoPanelView.ARTICLE)
+        articlePanel.load(item)
+    }
+
+    private fun closeArticle() {
+        articlePanel.close()
+        showInfoPanel(InfoPanelView.NEWS)
+    }
+
+    private fun visibleSensors(sensors: List<SensorReading>): List<SensorReading> {
+        val hiddenIds = AppSettings.getHiddenSensorIds(this)
+        return sensors
+            .filter { it.id !in hiddenIds }
+            .map { sensor ->
+                val label = AppSettings.getSensorLabel(this, sensor.id)
+                if (label != null) sensor.copy(roomName = label) else sensor
+            }
+    }
+
+    /** Pads [view] by the system bars on all four sides, added on top of its existing padding. */
+    private fun applySystemBarInsetPadding(view: View) {
+        val baseLeft = view.paddingLeft
+        val baseTop = view.paddingTop
+        val baseRight = view.paddingRight
+        val baseBottom = view.paddingBottom
+        ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(baseLeft + bars.left, baseTop + bars.top, baseRight + bars.right, baseBottom + bars.bottom)
+            insets
+        }
+    }
+
+    // Not gated to STARTED: the light-triggered "wake the screen" action must
+    // apply its window flags even while the activity is merely STOPPED
+    // (screen off but not destroyed), otherwise the tablet never wakes back up.
+    private fun observeState() {
+        lifecycleScope.launch {
+            AppState.uiState.collect { state ->
+                if (!wakeOverrideActive && !manualNightActive) {
+                    screenPowerController.apply(state.lightMode)
+                }
+                syncRainHold(state)
+                handleLightModeTransition(state.lightMode)
+                syncNightOverlay(state)
+                binding.currentLuxText.text = state.currentLux?.let { "${it.roundToInt()} lux" } ?: "-- lux"
+                sensorAdapter.submit(visibleSensors(state.sensors))
+                sensorsUpdatedAtMillis = state.sensorsUpdatedAtMillis
+                updateSensorsTitle()
+                newsPanel.onStateUpdated(state.newsItemsBySource)
+                latestForecast = state.weatherForecast
+                refreshOpenPanelIfNeeded()
+
+                if (viewingDayOffset == 0) {
+                    bindLiveWeather(state)
+                }
+
+                val error = state.lastError
+                binding.sensorErrorText.text = error?.let { "Sensor error: $it" }
+                binding.sensorErrorText.visibility = if (error != null) View.VISIBLE else View.GONE
+
+                binding.infoPanelTabBar.root.setBackgroundColor(
+                    getColor(if (state.networkReachable) R.color.bg_panel_bottom else R.color.red)
+                )
+                updateWeatherDateTimeBackground(state)
+
+                // Stays red until the Errors panel is opened and cleared, independent of whether
+                // the live network/weather problem that caused them has since recovered - so a
+                // transient failure isn't lost the moment the date/time bar goes back to normal.
+                binding.settingsButton.imageTintList = ColorStateList.valueOf(
+                    getColor(if (state.errorLog.isNotEmpty()) R.color.red_dark else R.color.text_secondary)
+                )
+            }
+        }
+    }
+
+    /**
+     * Forces the info panel to News and starts the 5-minute tab auto-cycle whenever the room
+     * light wakes the tablet from QUIET; stops the cycle on the way back to QUIET so a later
+     * wake always starts a fresh rotation instead of resuming a stale one.
+     *
+     * Both directions are skipped while [autoCycleResumeJob] is running: a light-sensor blip
+     * (e.g. a hand shadowing the sensor while tapping the screen) can flip the mode to QUIET
+     * and back to ACTIVE within seconds, and without this guard that flip would blow away an
+     * in-progress tap-pause and jump the tab back to News mid-interaction.
+     */
+    private fun handleLightModeTransition(newMode: LightMode) {
+        val previousMode = lastLightMode
+        lastLightMode = newMode
+        if (previousMode == LightMode.QUIET && newMode == LightMode.ACTIVE) {
+            // syncRainHold runs first in the same state tick and may already have pinned the
+            // radar on a light wake; forcing News here would count as a manual change and
+            // dismiss the hold.
+            if (autoCycleResumeJob == null && !rainHoldActive) {
+                selectTab(InfoPanelView.NEWS)
+                startAutoCycle()
+            }
+        } else if (newMode == LightMode.QUIET && autoCycleResumeJob == null) {
+            stopAutoCycle()
+        }
+    }
+
+    /** Keeps the radar showing while rain (>= [RAIN_HOLD_PCT]% in the next 24h, or >= [RAIN_HOLD_PCT]%
+     *  this hour, or any nonzero current precipitation inches) is forecast/observed and
+     *  nobody is using the screen; reverts to News + auto-cycle once the forecast goes dry.
+     *  Runs on every AppState tick. */
+    private fun syncRainHold(state: UiState) {
+        if (state.weatherForecast == null && state.currentWeather == null) return
+        val now = System.currentTimeMillis()
+        val hourly = state.weatherForecast?.hourly.orEmpty()
+        val forecastRain = hourly.any {
+            it.timeMillis in now..(now + TimeUnit.HOURS.toMillis(24)) && (it.precipitationChancePct ?: 0) >= RAIN_HOLD_PCT
+        }
+        // "Current" percent = the hourly entry in effect now (latest one that has already started).
+        val currentEntry = hourly.filter { it.timeMillis <= now && now - it.timeMillis < TimeUnit.HOURS.toMillis(1) }
+            .maxByOrNull { it.timeMillis }
+        val currentRain = (currentEntry?.precipitationChancePct ?: 0) >= RAIN_HOLD_PCT ||
+            (state.currentWeather?.precipitationIn ?: 0.0) > 0.0
+        val rainLikely = forecastRain || currentRain
+        val night = state.lightMode == LightMode.QUIET
+        if (night) {
+            rainHoldActive = false
+            return
+        }
+        if (!rainLikely) {
+            rainHoldDismissed = false
+            if (rainHoldActive) {
+                rainHoldActive = false
+                rainHoldSwitching = true
+                selectTab(InfoPanelView.NEWS)
+                rainHoldSwitching = false
+                startAutoCycle()
+            }
+            return
+        }
+        val idle = now - lastInteractionMillis >= RAIN_HOLD_IDLE_MS
+        if (!rainHoldActive && !rainHoldDismissed && idle) {
+            rainHoldActive = true
+            stopAutoCycle()
+            rainHoldSwitching = true
+            selectTab(InfoPanelView.RADAR)
+            rainHoldSwitching = false
+        }
+    }
+
+    private fun startAutoCycle() {
+        autoCycleJob?.cancel()
+        autoCycleJob = lifecycleScope.launch {
+            var index = 0
+            while (true) {
+                delay(AUTO_CYCLE_INTERVAL_MS)
+                index = (index + 1) % AUTO_CYCLE_TABS.size
+                selectTab(AUTO_CYCLE_TABS[index])
+            }
+        }
+    }
+
+    private fun stopAutoCycle() {
+        autoCycleJob?.cancel()
+        autoCycleJob = null
+        autoCycleResumeJob?.cancel()
+        autoCycleResumeJob = null
+    }
+
+    /** Pauses the auto-cycle in response to a tap anywhere on screen ([onUserInteraction]),
+     *  then restarts it after [AUTO_CYCLE_PAUSE_MS] of no further taps. */
+    private fun pauseAutoCycle() {
+        autoCycleJob?.cancel()
+        autoCycleJob = null
+        autoCycleResumeJob?.cancel()
+        autoCycleResumeJob = lifecycleScope.launch {
+            delay(AUTO_CYCLE_PAUSE_MS)
+            autoCycleResumeJob = null
+            startAutoCycle()
+        }
+    }
+
+    /** Re-renders whichever chart-based panel is currently open, so its data doesn't go
+     *  stale while left visible. News/Forecast already self-refresh via [observeState] above. */
+    private fun refreshOpenPanelIfNeeded() {
+        when (currentInfoPanel) {
+            InfoPanelView.SENSOR_GRAPHS -> refreshSensorGraphs()
+            InfoPanelView.SENSOR_CHART -> activeSensorHistoryId?.let { refreshSensorChart(it) }
+            InfoPanelView.FORECAST -> refreshForecastPanel()
+            InfoPanelView.RIVERS -> refreshRiverGraphs()
+            else -> Unit
+        }
+    }
+
+    private fun bindLiveWeather(state: UiState) {
+        val conditions = state.currentWeather
+        // A raw exception message (e.g. a connect-timeout string) must never land in this
+        // 44sp display - stale data is treated the same as no data rather than shown as if live.
+        val isStale = conditions != null &&
+            System.currentTimeMillis() - conditions.observedAtMillis > STALE_WEATHER_THRESHOLD_MS
+        val liveConditions = conditions.takeUnless { isStale }
+
+        // No live reading (never loaded, or stale past the threshold above): rather than a
+        // status message crammed into this 44sp display (it doesn't fit and reads as a
+        // truncated fragment), hide the temperature entirely and swap the icon for the
+        // "Not Available" art - same fallback already used for an unrecognized condition code.
+        binding.currentTempText.visibility = if (liveConditions != null) View.VISIBLE else View.GONE
+        binding.tempTrendText.visibility = if (liveConditions != null) View.VISIBLE else View.GONE
+        binding.tempTrend4hText.visibility = if (liveConditions != null) View.VISIBLE else View.GONE
+        binding.currentTempText.text = liveConditions?.temperatureF?.roundToInt()?.let { "$it°F" } ?: ""
+        binding.tempTrendText.text = if (liveConditions != null) formatSignedDelta(state.tempTrendNextHourF, "°F/1hr") else ""
+        binding.tempTrend4hText.text = if (liveConditions != null) formatSignedDelta(state.tempTrendNext4HourF, "°F/4hr") else ""
+
+        // No live reading (never loaded, or stale past the threshold above): hide the whole
+        // data grid instead of filling it with "--" placeholders - a wall of dashes reads as
+        // data that's technically present but empty, when what's actually true is "unavailable."
+        binding.weatherDetailsGrid.visibility = if (liveConditions != null) View.VISIBLE else View.GONE
+        if (liveConditions != null) {
+            binding.weatherIcon.setImageResource(weatherIconRes(liveConditions.iconKey))
+            binding.weatherBackgroundImage.setImageResource(weatherBackgroundRes(liveConditions.iconKey, liveConditions.windSpeedMph))
+            binding.conditionValueText.text = liveConditions.conditionText
+            binding.humidityValueText.text = liveConditions.humidityPct?.roundToInt()?.let { "$it%" } ?: "--"
+            setWindSpeedDirectionRowVisible(true)
+            setWindSpeed(liveConditions.windSpeedMph)
+            binding.windDirectionValueText.text = formatWindDirection(liveConditions.windDirectionDeg)
+            setPrecipitation(liveConditions.precipitationIn, System.currentTimeMillis())
+            binding.pressureValueText.text = formatPressure(liveConditions.pressureInHg, state.pressureTrend6hInHg)
+        } else {
+            binding.weatherIcon.setImageResource(R.drawable.wx_sun_44d)
+        }
+
+        val extremes = state.dailyExtremes
+        binding.tempHighValueText.text = formatExtreme(extremes.tempHighF, "°F")
+        binding.tempLowValueText.text = formatExtreme(extremes.tempLowF, "°F")
+        binding.windHighValueText.text = formatExtreme(extremes.windHighMph, " mph")
+        binding.windLowValueText.text = formatExtreme(extremes.windLowMph, " mph")
+
+        val historicalAverage = state.historicalTempAverage
+        updateLastYearLabel()
+        bindLastYearRow(historicalAverage?.avgLowF, historicalAverage?.avgHighF)
+    }
+
+    /**
+     * The lyMax/lyMinValueText fields mean different things depending on the active weather
+     * source: Open-Meteo backs them with last year's real observed average
+     * ([com.landenlabs.homewx.weather.openmeteo.OpenMeteoWeatherProvider.getHistoricalDailyAverage]),
+     * while WxData backs them with a 10-30 year NCDC climate normal for the same calendar days
+     * ([com.landenlabs.homewx.weather.wxdata.WxDataWeatherProvider.getHistoricalDailyAverage]) -
+     * different statistics, so the label switches to stay honest about which one is showing.
+     */
+    private fun updateLastYearLabel() {
+        val isNormal = WeatherSourceConfig.getActiveSource(this) == WeatherSourceId.WXDATA
+        if (binding.lyMaxLabelText != null) {
+            binding.lyMaxLabelText?.setText(if (isNormal) R.string.wx_lbl_normal_max else R.string.wx_lbl_ly_max)
+            binding.lyMinLabelText.setText(if (isNormal) R.string.wx_lbl_normal_min else R.string.wx_lbl_ly_min)
+        } else {
+            binding.lyMinLabelText.setText(if (isNormal) R.string.wx_lbl_normal else R.string.wx_lbl_ly)
+        }
+    }
+
+    /**
+     * Portrait/sw720dp-land's 4-column grid has separate lyMinLabelText/lyMaxLabelText rows
+     * (see [updateLastYearLabel]) so min and max show side by side already; the single-column
+     * landscape layouts drop the max row entirely and fold both values into lyMinValueText as
+     * "<min>/<max>" instead - lyMaxValueText is null there (view absent from that layout).
+     */
+    private fun bindLastYearRow(lowF: Double?, highF: Double?) {
+        val lowText = lowF?.roundToInt()?.let { "$it°F" } ?: "--"
+        val highText = highF?.roundToInt()?.let { "$it°F" } ?: "--"
+        if (binding.lyMaxValueText != null) {
+            binding.lyMinValueText.text = lowText
+            binding.lyMaxValueText?.text = highText
+        } else {
+            binding.lyMinValueText.text = if (lowF == null && highF == null) "--" else "$lowText/$highText"
+        }
+    }
+
+    /** Current wind speed/direction only means something for an actual observation (live or a
+     *  past point) - a forecast day has no single "current" wind, just the low/high/average
+     *  already shown elsewhere, so [bindForecastWeather] hides this row instead of filling it
+     *  with an average speed and an always-"--" direction. */
+    private fun setWindSpeedDirectionRowVisible(visible: Boolean) {
+        val visibility = if (visible) View.VISIBLE else View.GONE
+        binding.windSpeedLabelText.visibility = visibility
+        binding.windSpeedValueText.visibility = visibility
+        binding.windDirectionLabelText.visibility = visibility
+        binding.windDirectionValueText.visibility = visibility
+    }
+
+    private fun bindSnapshotWeather(snapshot: DailySnapshot) {
+        // [bindLiveWeather] hides this grid when there's no live reading - undo that here since
+        // a snapshot always has at least placeholder values worth showing.
+        binding.weatherDetailsGrid.visibility = View.VISIBLE
+        binding.weatherIcon.setImageResource(weatherIconRes(snapshot.iconKey ?: "wx_sun_44d"))
+        binding.weatherBackgroundImage.setImageResource(weatherBackgroundRes(snapshot.iconKey ?: "wx_sun_44d", snapshot.windSpeedMph))
+        binding.currentTempText.text = snapshot.tempF?.roundToInt()?.let { "$it°F" } ?: "--"
+        binding.tempTrendText.text = ""
+        binding.conditionValueText.text = snapshot.conditionText ?: "--"
+        binding.humidityValueText.text = snapshot.humidityPct?.roundToInt()?.let { "$it%" } ?: "--"
+        setWindSpeedDirectionRowVisible(true)
+        setWindSpeed(snapshot.windSpeedMph)
+        binding.windDirectionValueText.text = formatWindDirection(snapshot.windDirectionDeg)
+        setPrecipitation(snapshot.precipitationIn, snapshot.dayStartMillis)
+        binding.pressureValueText.text = snapshot.pressureInHg?.let { "%.2f in".format(it) } ?: "--"
+        binding.tempHighValueText.text = formatExtreme(toExtreme(snapshot.tempHighF, snapshot.tempHighAtMillis), "°F")
+        binding.tempLowValueText.text = formatExtreme(toExtreme(snapshot.tempLowF, snapshot.tempLowAtMillis), "°F")
+        binding.windHighValueText.text = formatExtreme(toExtreme(snapshot.windHighMph, snapshot.windHighAtMillis), " mph")
+        binding.windLowValueText.text = formatExtreme(toExtreme(snapshot.windLowMph, snapshot.windLowAtMillis), " mph")
+        updateLastYearLabel()
+        bindLastYearRow(snapshot.lyAvgLowF, snapshot.lyAvgHighF)
+    }
+
+    /** Only the weather provider's own forecast fields are used here - no sensor override, unlike [bindLiveWeather]. */
+    private fun bindForecastWeather(entry: DailyForecastEntry) {
+        // See [bindSnapshotWeather] - same undo of [bindLiveWeather]'s no-data grid hiding.
+        binding.weatherDetailsGrid.visibility = View.VISIBLE
+        binding.weatherIcon.setImageResource(weatherIconRes(entry.iconKey))
+        binding.weatherBackgroundImage.setImageResource(weatherBackgroundRes(entry.iconKey, windSpeedMph = null))
+        binding.currentTempText.text = entry.highF?.roundToInt()?.let { "$it°F" } ?: "--"
+        binding.tempTrendText.text = entry.lowF?.roundToInt()?.let { "Low $it°F" } ?: ""
+        binding.conditionValueText.text = entry.conditionText
+        binding.humidityValueText.text = entry.humidityAvgPct?.roundToInt()?.let { "$it%" } ?: "--"
+        setWindSpeedDirectionRowVisible(false)
+        // With a time (WxData): "60% (3pm)", matching the current-conditions extremes' style.
+        // Without one (Open-Meteo, which has no per-hour timestamp for this): plain "60%".
+        binding.precipitationValueText.text = toExtreme(entry.precipitationChancePct?.toDouble(), entry.precipitationChanceAtMillis)
+            ?.let { formatExtreme(it, "%") }
+            ?: entry.precipitationChancePct?.let { "$it%" } ?: "--"
+        binding.precipitationValueText.setTypeface(null, Typeface.NORMAL)
+        binding.pressureValueText.text = entry.pressureAtNoonInHg?.let { "%.2f in".format(it) } ?: "--"
+        binding.tempHighValueText.text = entry.highF?.roundToInt()?.let { "$it°F" } ?: "--"
+        binding.tempLowValueText.text = entry.lowF?.roundToInt()?.let { "$it°F" } ?: "--"
+        binding.windHighValueText.text = toExtreme(entry.windMaxMph, entry.windMaxAtMillis)
+            ?.let { formatExtreme(it, " mph") }
+            ?: entry.windMaxMph?.roundToInt()?.let { "$it mph" } ?: "--"
+        binding.windLowValueText.text = entry.windMinMph?.roundToInt()?.let { "$it mph" } ?: "--"
+        updateLastYearLabel()
+        bindLastYearRow(entry.normalLowF, entry.normalHighF)
+    }
+
+    /** A tapped "Past" card - [WeatherMetricsPoint] only carries temp/wind/precip/pressure/icon
+     *  (recorded per-poll history, not a full conditions snapshot), so condition/humidity/wind
+     *  direction and the high-low/normal rows - none of which this data has - show "--" rather
+     *  than something misleading. */
+    private fun bindPastPoint(point: WeatherMetricsPoint) {
+        // See [bindSnapshotWeather] - same undo of [bindLiveWeather]'s no-data grid hiding.
+        binding.weatherDetailsGrid.visibility = View.VISIBLE
+        binding.weatherIcon.setImageResource(weatherIconRes(point.iconKey ?: "wx_sun_44d"))
+        binding.weatherBackgroundImage.setImageResource(weatherBackgroundRes(point.iconKey ?: "wx_sun_44d", point.windSpeedMph))
+        binding.currentTempText.text = point.temperatureF?.roundToInt()?.let { "$it°F" } ?: "--"
+        binding.tempTrendText.text = ""
+        binding.tempTrend4hText.text = ""
+        binding.conditionValueText.text = "--"
+        binding.humidityValueText.text = "--"
+        setWindSpeedDirectionRowVisible(true)
+        setWindSpeed(point.windSpeedMph)
+        binding.windDirectionValueText.text = "--"
+        setPrecipitation(point.precipitationIn, point.timestampMillis)
+        binding.pressureValueText.text = point.pressureInHg?.let { "%.2f in".format(it) } ?: "--"
+        binding.tempHighValueText.text = "--"
+        binding.tempLowValueText.text = "--"
+        binding.windHighValueText.text = "--"
+        binding.windLowValueText.text = "--"
+        updateLastYearLabel()
+        bindLastYearRow(null, null)
+    }
+
+    private fun toExtreme(value: Double?, atMillis: Long?): DailyExtreme? =
+        if (value != null && atMillis != null) DailyExtreme(value, atMillis) else null
+
+    private fun forecastEntryForOffset(offsetDays: Int): DailyForecastEntry? {
+        val targetDayMillis = startOfDay(System.currentTimeMillis()) + offsetDays * DAY_MILLIS
+        return latestForecast?.daily?.firstOrNull { isSameDay(it.dateMillis, targetDayMillis) }
+    }
+
+    private fun goToOlderDay() {
+        cancelForecastPreviewRevert()
+        viewingPastPoint = null
+        viewingDayOffset -= 1
+        loadViewedDay()
+    }
+
+    private fun goToNewerDay() {
+        val nextOffset = viewingDayOffset + 1
+        if (nextOffset > 0 && forecastEntryForOffset(nextOffset) == null) {
+            Toast.makeText(this, "No forecast data available", Toast.LENGTH_SHORT).show()
+            return
+        }
+        cancelForecastPreviewRevert()
+        viewingPastPoint = null
+        viewingDayOffset = nextOffset
+        loadViewedDay()
+    }
+
+    /** A "Daily" card tapped in the forecast panel - reuses the same [viewingDayOffset]/
+     *  [loadViewedDay] plumbing swiping the weather panel uses, so it renders identically to
+     *  swiping to that day, but additionally arms the 10-minute auto-revert since (unlike a
+     *  swipe) a card tap is a passing "peek" rather than deliberate day-by-day navigation. */
+    private fun showTappedForecastDay(entry: DailyForecastEntry) {
+        viewingPastPoint = null
+        viewingDayOffset = ((startOfDay(entry.dateMillis) - startOfDay(System.currentTimeMillis())) / DAY_MILLIS).toInt()
+        loadViewedDay()
+        scheduleForecastPreviewRevert()
+    }
+
+    /** A "Past" card tapped in the forecast panel - a specific recorded instant, not a whole
+     *  calendar day, so it's shown via [viewingPastPoint] instead of [viewingDayOffset]. Same
+     *  auto-revert as [showTappedForecastDay]. */
+    private fun showTappedPastPoint(point: WeatherMetricsPoint) {
+        viewingDayOffset = 0
+        viewingPastPoint = point
+        bindPastPoint(point)
+        binding.weatherDateTimeText.text = "${weatherDateTimeFormat.format(Date(point.timestampMillis))} (recorded)"
+        updateWeatherDateTimeBackground()
+        scheduleForecastPreviewRevert()
+    }
+
+    /** (Re)starts the countdown back to live weather; [onUserInteraction] calls this again on
+     *  every touch anywhere in the app while it's running, so it only actually fires after
+     *  [FORECAST_PREVIEW_TIMEOUT_MS] with no interaction at all. */
+    private fun scheduleForecastPreviewRevert() {
+        forecastPreviewRevertJob?.cancel()
+        forecastPreviewRevertJob = lifecycleScope.launch {
+            delay(FORECAST_PREVIEW_TIMEOUT_MS)
+            forecastPreviewRevertJob = null
+            viewingPastPoint = null
+            viewingDayOffset = 0
+            loadViewedDay()
+        }
+    }
+
+    private fun cancelForecastPreviewRevert() {
+        forecastPreviewRevertJob?.cancel()
+        forecastPreviewRevertJob = null
+    }
+
+    private fun loadViewedDay() {
+        if (viewingDayOffset == 0) {
+            bindLiveWeather(AppState.uiState.value)
+            binding.weatherDateTimeText.text = weatherDateTimeFormat.format(Date())
+            updateWeatherDateTimeBackground()
+            return
+        }
+        val dayMillis = startOfDay(System.currentTimeMillis()) + viewingDayOffset * DAY_MILLIS
+        if (viewingDayOffset > 0) {
+            val entry = forecastEntryForOffset(viewingDayOffset)
+            if (entry == null) {
+                Toast.makeText(this, "No forecast data available", Toast.LENGTH_SHORT).show()
+                viewingDayOffset -= 1
+                return
+            }
+            bindForecastWeather(entry)
+            binding.weatherDateTimeText.text = "${historicalDayFormat.format(Date(dayMillis))} (forecast)"
+            updateWeatherDateTimeBackground()
+            return
+        }
+        lifecycleScope.launch {
+            val snapshot = withContext(Dispatchers.IO) { dailySnapshotStore.getSnapshot(dayMillis) }
+            if (snapshot == null) {
+                // Nothing saved that far back yet - bounce back to the nearest day that has data.
+                Toast.makeText(this@MainActivity, "No saved data for that day yet", Toast.LENGTH_SHORT).show()
+                viewingDayOffset += 1
+                return@launch
+            }
+            bindSnapshotWeather(snapshot)
+            binding.weatherDateTimeText.text = historicalDayFormat.format(Date(dayMillis))
+            updateWeatherDateTimeBackground()
+        }
+    }
+
+    /** Red overrides the current/forecast/past mode color whenever the device is offline or the
+     *  most recent fetch failed on any of the network-backed endpoints (weather, sensors, or
+     *  rivers if enabled), so the title row itself flags the problem instead of only the
+     *  (larger, easier-to-miss) tab bar - and instead of dumping the raw error into the weather
+     *  display. Every one of these fields is cleared back to null on that endpoint's very next
+     *  successful poll (see HomeWxMonitorService), so this reverts to the normal background on
+     *  its own the moment everything is healthy again - no separate "recovered" step needed. */
+    private fun updateWeatherDateTimeBackground(state: UiState = AppState.uiState.value) {
+        val riversFailing = RiverGaugeSettings.isEnabled(this) && state.riverError != null
+        val networkFailing = !state.networkReachable ||
+            state.weatherError != null ||
+            state.lastError != null ||
+            riversFailing
+        val colorRes = if (networkFailing) {
+            R.color.red
+        } else when {
+            viewingPastPoint != null -> R.color.weather_title_bg_past
+            viewingDayOffset > 0 -> R.color.weather_title_bg_forecast
+            viewingDayOffset < 0 -> R.color.weather_title_bg_past
+            else -> R.color.weather_title_bg_current
+        }
+        binding.weatherDateTimeText.setBackgroundColor(getColor(colorRes))
+    }
+
+    private fun formatSignedDelta(delta: Double?, unit: String): String =
+        delta?.roundToInt()?.let { "%+d%s".format(it, unit) } ?: ""
+
+    private fun formatWindDirection(degrees: Double?): String {
+        if (degrees == null) return "--"
+        val directions = listOf(
+            "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+            "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"
+        )
+        val index = ((degrees / 22.5) + 0.5).toInt().mod(directions.size)
+        return "${directions[index]} (${degrees.roundToInt()}°)"
+    }
+
+    private fun formatPressure(pressureInHg: Double?, trend6hInHg: Double?): CharSequence {
+        val pressure = pressureInHg?.let { "%.2f in".format(it) } ?: "--"
+        val trend = trend6hInHg?.let { " (%+.2f)".format(it) }.orEmpty()
+        return shrinkParenthetical("$pressure$trend")
+    }
+
+    private fun formatExtreme(extreme: DailyExtreme?, unit: String): CharSequence {
+        if (extreme == null) return "--"
+        val hour = hourOnlyFormat.format(Date(extreme.atMillis))
+        return shrinkParenthetical("${extreme.value.roundToInt()}$unit ($hour)")
+    }
+
+    /** Wind speed emphasis: bold from 10 mph, bold + light red from 20 mph. */
+    private fun setWindSpeed(mph: Double?) {
+        val tv = binding.windSpeedValueText
+        tv.text = mph?.roundToInt()?.let { "$it mph" } ?: "--"
+        tv.setTypeface(null, if (mph != null && mph > 10) Typeface.BOLD else Typeface.NORMAL)
+        tv.setTextColor(ContextCompat.getColor(this, if (mph != null && mph >= 20) R.color.wind_strong else R.color.text_primary))
+    }
+
+    /** Measured precipitation amounts (not the forecast-chance fallback) are bold when non-zero. */
+    private fun setPrecipitation(precipitationIn: Double?, forDayMillis: Long) {
+        val tv = binding.precipitationValueText
+        tv.text = formatPrecipitation(precipitationIn, forDayMillis)
+        tv.setTypeface(null, if (precipitationIn != null && precipitationIn > 0) Typeface.BOLD else Typeface.NORMAL)
+    }
+
+    /** Rain actually falling is more informative than a forecast guess, so a non-zero measured
+     *  amount wins; otherwise neither provider exposes a real "chance right now", so this falls
+     *  back to the highest hourly chance of rain forecast for [forDayMillis]'s calendar day. */
+    private fun formatPrecipitation(precipitationIn: Double?, forDayMillis: Long): String {
+        if (precipitationIn != null && precipitationIn > 0) return "%.2f in".format(precipitationIn)
+        val maxChancePct = latestForecast?.hourly
+            ?.filter { isSameDay(it.timeMillis, forDayMillis) }
+            ?.mapNotNull { it.precipitationChancePct }
+            ?.maxOrNull()
+        return maxChancePct?.let { "$it%" } ?: "--"
+    }
+
+    /** Renders a trailing "(...)" annotation at 75% of the surrounding text size. */
+    private fun shrinkParenthetical(text: String): CharSequence {
+        val start = text.indexOf('(')
+        val end = text.indexOf(')', start.coerceAtLeast(0))
+        if (start == -1 || end == -1) return text
+        return SpannableString(text).apply {
+            setSpan(RelativeSizeSpan(0.75f), start, end + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+    }
+
+    private fun showInfoPanel(panel: InfoPanelView) {
+        if (rainHoldActive && !rainHoldSwitching && panel != InfoPanelView.RADAR) {
+            // Someone manually changed the panel: release the hold and don't re-enter it until
+            // the forecast has gone dry once.
+            rainHoldActive = false
+            rainHoldDismissed = true
+        }
+        currentInfoPanel = panel
+        newsPanel.root.visibility = if (panel == InfoPanelView.NEWS) View.VISIBLE else View.GONE
+        sensorChartPanel.root.visibility = if (panel == InfoPanelView.SENSOR_CHART) View.VISIBLE else View.GONE
+        articlePanel.root.visibility = if (panel == InfoPanelView.ARTICLE) View.VISIBLE else View.GONE
+        forecastPanel.root.visibility = if (panel == InfoPanelView.FORECAST) View.VISIBLE else View.GONE
+        sensorGraphsPanel.root.visibility = if (panel == InfoPanelView.SENSOR_GRAPHS) View.VISIBLE else View.GONE
+        radarPanel.root.visibility = if (panel == InfoPanelView.RADAR) View.VISIBLE else View.GONE
+        riverGraphsPanel.root.visibility = if (panel == InfoPanelView.RIVERS) View.VISIBLE else View.GONE
+        if (panel != InfoPanelView.RADAR) radarPanel.stopAnimation()
+        when (panel) {
+            InfoPanelView.FORECAST -> forecastPanel.resetGraphView()
+            InfoPanelView.SENSOR_CHART -> sensorChartPanel.resetView()
+            InfoPanelView.SENSOR_GRAPHS -> sensorGraphsPanel.resetView()
+            InfoPanelView.RIVERS -> riverGraphsPanel.resetView()
+            else -> Unit
+        }
+        updateTabSelection(panel)
+    }
+
+    /** Tints whichever of the five tab bar icons matches [panel]; SENSOR_CHART/ARTICLE aren't
+     *  tabs, so none of the five show selected while either of those is showing. */
+    private fun updateTabSelection(panel: InfoPanelView) {
+        val selectedColor = getColor(R.color.accent_cool)
+        val unselectedColor = getColor(R.color.text_secondary)
+        binding.infoPanelTabBar.newsTabButton.imageTintList =
+            ColorStateList.valueOf(if (panel == InfoPanelView.NEWS) selectedColor else unselectedColor)
+        binding.infoPanelTabBar.forecastTabButton.imageTintList =
+            ColorStateList.valueOf(if (panel == InfoPanelView.FORECAST) selectedColor else unselectedColor)
+        binding.infoPanelTabBar.sensorGraphsTabButton.imageTintList =
+            ColorStateList.valueOf(if (panel == InfoPanelView.SENSOR_GRAPHS) selectedColor else unselectedColor)
+        binding.infoPanelTabBar.radarTabButton.imageTintList =
+            ColorStateList.valueOf(if (panel == InfoPanelView.RADAR) selectedColor else unselectedColor)
+        binding.infoPanelTabBar.riversTabButton.imageTintList =
+            ColorStateList.valueOf(if (panel == InfoPanelView.RIVERS) selectedColor else unselectedColor)
+    }
+
+    /** Switches the info panel to [panel]. Tab-bar taps pause the auto-cycle via [onUserInteraction]
+     *  rather than this function - it's also called by the auto-cycle timer itself. */
+    private fun selectTab(panel: InfoPanelView) {
+        activeSensorHistoryId = null
+        showInfoPanel(panel)
+        when (panel) {
+            InfoPanelView.SENSOR_GRAPHS -> refreshSensorGraphs()
+            InfoPanelView.FORECAST -> refreshForecastPanel()
+            InfoPanelView.RADAR -> radarPanel.refresh()
+            InfoPanelView.RIVERS -> refreshRiverGraphs()
+            else -> Unit
+        }
+    }
+
+    private fun showSensorHistory(reading: SensorReading) {
+        if (currentInfoPanel == InfoPanelView.SENSOR_CHART && activeSensorHistoryId == reading.id) {
+            // Tapping the same row again closes the chart and returns to the news panel.
+            activeSensorHistoryId = null
+            showInfoPanel(InfoPanelView.NEWS)
+            return
+        }
+        activeSensorHistoryId = reading.id
+        showInfoPanel(InfoPanelView.SENSOR_CHART)
+        refreshSensorChart(reading.id)
+    }
+
+    private fun refreshSensorChart(sensorId: String) {
+        // Live values (and the room name, in case it's since changed in Settings) refresh
+        // synchronously from the current state; the history plot needs an async DB read.
+        visibleSensors(AppState.uiState.value.sensors).firstOrNull { it.id == sensorId }?.let { reading ->
+            sensorChartPanel.setSensor(reading.roomName, reading.tempF, reading.humidityPct)
+        }
+        lifecycleScope.launch {
+            val sinceMillis = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(48)
+            val history = withContext(Dispatchers.IO) {
+                sensorHistoryStore.getHistorySince(sensorId, sinceMillis)
+            }
+            // The sensor may no longer be the active one if the user already switched to a
+            // different sensor (or closed the chart) before this returned.
+            if (activeSensorHistoryId == sensorId) {
+                val tempPoints = history.mapNotNull { point -> point.tempF?.let { point.timestampMillis to it } }
+                val humidityPoints = history.mapNotNull { point -> point.humidityPct?.let { point.timestampMillis to it } }
+                sensorChartPanel.render(tempPoints, humidityPoints)
+            }
+        }
+    }
+
+    /** Forecast panel's "Past" range shows the same recorded weather-metrics history the old
+     *  top-level graphs tab used to - fetched here regardless of which of its 3 sub-tabs is
+     *  currently showing, same as [latestForecast] already is. Older days beyond the short-term
+     *  detail buffer are backfilled from the permanent one-sample-per-day archive, so "Past" isn't
+     *  limited to the last 48h even though the fine-grained buffer is. */
+    private fun refreshForecastPanel() {
+        val forecast = latestForecast ?: return
+        lifecycleScope.launch {
+            val sinceMillis = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(48)
+            val todayStart = startOfDay(System.currentTimeMillis())
+            val pastPoints = withContext(Dispatchers.IO) {
+                val dailyPoints = weatherMetricsHistoryStore.getDailyHistoryBefore(sinceMillis)
+                val recentPoints = weatherMetricsHistoryStore.getHistorySince(sinceMillis)
+                dailyPoints + recentPoints
+            }
+            // The last 7 recorded days - the Daily table's past rows (see buildDailyTableRows).
+            val recentDailySnapshots = withContext(Dispatchers.IO) {
+                listOf(7L, 6L, 5L, 4L, 3L, 2L, 1L).mapNotNull { daysAgo -> dailySnapshotStore.getSnapshot(todayStart - daysAgo * DAY_MILLIS) }
+            }
+            if (currentInfoPanel != InfoPanelView.FORECAST) return@launch
+            forecastPanel.render(forecast, pastPoints, recentDailySnapshots)
+        }
+    }
+
+    /** One temperature chart per sensor currently shown in the SENSORS list (i.e. not hidden
+     *  via settings) - mirrors [visibleSensors]'s filtering so the graphs match the list. */
+    private fun refreshSensorGraphs() {
+        val sensors = visibleSensors(AppState.uiState.value.sensors)
+        sensorGraphsPanel.setSensors(sensors)
+        lifecycleScope.launch {
+            // Fetches everything the store has retained (not just 48h) - SensorGraphsPanel does
+            // its own client-side trim to the radio-selected period, and needs the full history
+            // on hand to know whether more than 48h exists at all.
+            sensors.forEach { sensor ->
+                val history = withContext(Dispatchers.IO) {
+                    sensorHistoryStore.getHistorySince(sensor.id, 0L)
+                }
+                val tempPoints = history.mapNotNull { point -> point.tempF?.let { point.timestampMillis to it } }
+                val humidityPoints = history.mapNotNull { point -> point.humidityPct?.let { point.timestampMillis to it } }
+                if (currentInfoPanel != InfoPanelView.SENSOR_GRAPHS) return@launch
+                sensorGraphsPanel.render(sensor.id, tempPoints, humidityPoints)
+            }
+        }
+    }
+
+    /** One chart per currently-selected river gauge (Settings > Rivers), mirroring
+     *  [refreshSensorGraphs]. Current values come from [AppState] (already in memory); history
+     *  needs an async DB read per gauge. */
+    private fun refreshRiverGraphs() {
+        val gauges = RiverGaugeSettings.getSelectedGauges(this).map { gauge ->
+            RiverGaugeSettings.getGaugeLabel(this, gauge.siteId)?.let { gauge.copy(name = it) } ?: gauge
+        }
+        riverGraphsPanel.setGauges(gauges, AppState.uiState.value.riverReadings)
+        lifecycleScope.launch {
+            val sinceMillis = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(48)
+            gauges.forEach { gauge ->
+                val history = withContext(Dispatchers.IO) {
+                    riverHistoryStore.getHistorySince(gauge.siteId, sinceMillis)
+                }
+                val levelPoints = history.mapNotNull { point -> point.gageHeightFt?.let { point.timestampMillis to it } }
+                val flowPoints = history.mapNotNull { point -> point.dischargeCfs?.let { point.timestampMillis to it } }
+                if (currentInfoPanel != InfoPanelView.RIVERS) return@launch
+                riverGraphsPanel.render(gauge.siteId, levelPoints, flowPoints)
+            }
+        }
+    }
+
+    private fun startClock() {
+        lifecycleScope.launch {
+            while (true) {
+                if (viewingDayOffset == 0) {
+                    binding.weatherDateTimeText.text = weatherDateTimeFormat.format(Date())
+                }
+                updateSensorsTitle()
+                delay(30_000L)
+            }
+        }
+    }
+
+    private fun updateSensorsTitle() {
+        val updatedAt = sensorsUpdatedAtMillis
+        val suffix = if (updatedAt == null) {
+            ""
+        } else {
+            val elapsedMinutes = (System.currentTimeMillis() - updatedAt) / 60_000L
+            if (elapsedMinutes < 1) " (just now)" else " ($elapsedMinutes min ago)"
+        }
+        binding.sensorsTitleText.text = "SENSORS$suffix"
+    }
+
+    companion object {
+        private const val SWIPE_THRESHOLD_PX = 80
+        private const val DAY_MILLIS = 24 * 60 * 60 * 1000L
+        private const val STALE_WEATHER_THRESHOLD_MS = 60 * 60 * 1000L
+        private const val WAKE_OVERRIDE_DURATION_MS = 5 * 60 * 1000L
+        private const val FORECAST_PREVIEW_TIMEOUT_MS = 10 * 60 * 1000L
+        private const val RAIN_HOLD_PCT = 50
+        private const val RAIN_HOLD_IDLE_MS = 60 * 1000L
+        private const val AUTO_CYCLE_INTERVAL_MS = 5 * 60 * 1000L
+        private const val AUTO_CYCLE_PAUSE_MS = 10 * 60 * 1000L
+        private val AUTO_CYCLE_TABS = listOf(
+            InfoPanelView.NEWS, InfoPanelView.FORECAST, InfoPanelView.SENSOR_GRAPHS
+        )
+    }
+}
+
+/** Which of the mutually-exclusive views is showing in the info panel. NEWS/FORECAST/
+ *  SENSOR_GRAPHS/RADAR are the four tab bar destinations; SENSOR_CHART/ARTICLE are reached other
+ *  ways (tapping a sensor row / a news item) and leave the tab bar showing nothing selected. */
+private enum class InfoPanelView { NEWS, SENSOR_CHART, ARTICLE, FORECAST, SENSOR_GRAPHS, RADAR, RIVERS }

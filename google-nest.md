@@ -2,7 +2,7 @@
 
 HomeWx reads the thermostat's temperature and furnace run state through Google's
 Smart Device Management (SDM) API, also called Device Access.
-Client code: `app/src/main/java/com/dlang/homewx/data/NestApiClient.kt`.
+Client code: `app/src/main/java/com/landenlabs/homewx/data/NestApiClient.kt`.
 
 Credentials go in `local.properties` (gitignored) and reach the app as `BuildConfig` fields:
 

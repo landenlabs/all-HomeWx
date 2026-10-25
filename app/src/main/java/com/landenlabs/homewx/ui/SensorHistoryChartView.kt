@@ -1,0 +1,161 @@
+package com.landenlabs.homewx.ui
+
+import android.content.Context
+import android.text.Spannable
+import android.text.SpannableStringBuilder
+import android.text.style.ForegroundColorSpan
+import android.view.View
+import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.core.content.ContextCompat
+import com.landenlabs.homewx.R
+import com.landenlabs.homewx.settings.AppSettings
+import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.components.YAxis
+import com.github.mikephil.charting.formatter.ValueFormatter
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlin.math.roundToInt
+
+/**
+ * One sensor's temperature+humidity history chart: a room-name watermark behind the plot,
+ * dual-axis humidity (left, blue) / temp (right, yellow) lines with green day dividers, and a
+ * legend row below standing in for MPAndroidChart's own legend - a Temp/Humidity color key at
+ * the start, the sensor's current values centered in the row, and the room name at the end.
+ * The watermark+chart frame and legend row shells come from [LineChartSetup] - shared with
+ * [RiverGaugeChartView] (Level/Flow instead of Temp/Humidity), so a change to that shell (e.g.
+ * the watermark's vertical position) only needs to happen once.
+ *
+ * Shared by [SensorGraphsPanel] (one instance per currently-visible sensor) and
+ * [SensorChartPanel] (one instance, for whichever sensor row was tapped on the weather panel).
+ * [view] has no layout params set - callers size/margin it for their own parent.
+ */
+class SensorHistoryChartView(private val context: Context) {
+
+    private val hourOnlyFormat = SimpleDateFormat("h a", Locale.getDefault())
+    private val xAxisValueFormatter = object : ValueFormatter() {
+        override fun getFormattedValue(value: Float): String = hourOnlyFormat.format(Date(value.toLong() * 1000L))
+    }
+
+    private val chart = LineChart(context)
+    private val watermark: TextView
+    private val valuesText: TextView
+    private val nameText: TextView
+    val view: View
+
+    init {
+        LineChartSetup.configure(chart, context, description = null, xAxisValueFormatter, minMarkerAxis = YAxis.AxisDependency.RIGHT)
+        chart.axisLeft.apply {
+            valueFormatter = object : ValueFormatter() {
+                override fun getFormattedValue(value: Float): String = "${value.toInt()}%"
+            }
+            textColor = ContextCompat.getColor(context, R.color.accent_cool)
+        }
+        LineChartSetup.enableRightAxis(
+            chart,
+            textColor = ContextCompat.getColor(context, R.color.accent_warm),
+            valueFormatter = object : ValueFormatter() {
+                override fun getFormattedValue(value: Float): String = "${value.toInt()}°"
+            }
+        )
+        LineChartSetup.setThresholdLines(
+            chart, context,
+            listOf(
+                LineChartSetup.ThresholdLine(100f, R.color.white),
+                LineChartSetup.ThresholdLine(32f, R.color.accent_purple)
+            ),
+            axis = chart.axisRight
+        )
+        // The legend row built below replaces MPAndroidChart's own built-in legend with
+        // Temp/Humidity key + current values + room name, so the chart's legend stays disabled
+        // here (LineChartSetup.configure already turns it off by default).
+
+        val (chartFrame, builtWatermark) = LineChartSetup.buildWatermarkedChartFrame(context, chart)
+        watermark = builtWatermark
+
+        val (legendRow, builtValuesText, builtNameText) = LineChartSetup.buildLegendRow(
+            context,
+            listOf(R.color.accent_warm to "Temp", R.color.accent_cool to "Humidity")
+        )
+        valuesText = builtValuesText
+        nameText = builtNameText
+
+        view = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(chartFrame)
+            addView(legendRow)
+        }
+    }
+
+    fun resetView() = LineChartSetup.resetView(chart)
+
+    fun setOnLongPress(onLongPress: () -> Unit) = LineChartSetup.setOnLongPress(chart, onLongPress)
+
+    /** Cheap to call often (e.g. every state tick) - updates the watermark, the legend row's
+     *  room name, and its current-values text, all independent of the (async-loaded) history. */
+    fun setRoomNameAndCurrentValues(roomName: String, tempF: Double?, humidityPct: Double?) {
+        watermark.text = roomName
+        nameText.text = roomName
+
+        val spans = SpannableStringBuilder()
+        tempF?.let {
+            spans.append("${it.roundToInt()}°", ForegroundColorSpan(ContextCompat.getColor(context, R.color.accent_warm)), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        humidityPct?.let {
+            if (spans.isNotEmpty()) spans.append("  ")
+            spans.append("${it.roundToInt()}%", ForegroundColorSpan(ContextCompat.getColor(context, R.color.accent_cool)), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        valuesText.text = spans
+    }
+
+    fun renderHistory(tempPoints: List<Pair<Long, Double>>, humidityPoints: List<Pair<Long, Double>>) {
+        val allTimestamps = (tempPoints.map { it.first } + humidityPoints.map { it.first }).distinct().sorted()
+        LineChartSetup.setLimitLines(chart, context, LineChartSetup.dayBoundaryXValues(allTimestamps))
+        LineChartSetup.renderDualAxis(
+            chart,
+            context,
+            leftSeries = smoothIfFlat(humidityPoints),
+            leftColorRes = R.color.accent_cool,
+            leftLabel = "Humidity",
+            rightSeries = smoothIfFlat(tempPoints),
+            rightColorRes = R.color.accent_warm,
+            rightLabel = "Temp",
+            leftAxisRange = LineChartSetup.PERCENT_AXIS_RANGE
+        )
+    }
+
+    /**
+     * Noise in a sensor reading is only visually distracting when the surrounding data is
+     * otherwise flat - a real trend spanning several units drowns it out on its own. So only
+     * smooth a point when its own local window is flat; otherwise leave that point as-is. The
+     * check is local (per point, over its own trailing window) rather than computed once over
+     * the whole series, so one wider swing elsewhere in the 48h history can't disqualify
+     * smoothing for an otherwise-calm stretch.
+     *
+     * The window is a trailing time span, not a fixed sample count - poll cadence on this app
+     * varies a lot (as little as ~20s apart back-to-back, as much as ~80min apart in Quiet
+     * mode), so a fixed count of samples covers wildly different amounts of real time depending
+     * on when it lands. A time-based window smooths consistently regardless of polling cadence.
+     * Both the window length and the flatness threshold are user-tunable (Settings > Display -
+     * [AppSettings.getSmoothingWindowMinutes]/[AppSettings.getFlatRangeThreshold]).
+     *
+     * Since [renderHistory] plots humidity against the fixed [LineChartSetup.PERCENT_AXIS_RANGE]
+     * (0-100%) rather than an auto-scaled axis, per-sample jitter of up to ~1 point reads as the
+     * small wiggle it actually is - but this smoothing still keeps a genuinely flat stretch (e.g.
+     * a real range of ~2 points) from looking busier than it needs to.
+     */
+    private fun smoothIfFlat(points: List<Pair<Long, Double>>): List<Pair<Long, Double>> {
+        if (points.size < 2) return points
+        val windowMillis = AppSettings.getSmoothingWindowMinutes(context) * 60_000L
+        val flatRangeThreshold = AppSettings.getFlatRangeThreshold(context)
+        var windowStart = 0
+        return points.mapIndexed { index, (timeMillis, value) ->
+            while (points[windowStart].first < timeMillis - windowMillis) windowStart++
+            val window = points.subList(windowStart, index + 1).map { it.second }
+            val localRange = window.max() - window.min()
+            val smoothedValue = if (localRange < flatRangeThreshold) window.average() else value
+            timeMillis to smoothedValue
+        }
+    }
+}
