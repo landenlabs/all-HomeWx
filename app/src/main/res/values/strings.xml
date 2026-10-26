@@ -93,6 +93,8 @@
     <string name="settings_weather_source_label">Weather source</string>
     <string name="settings_weather_interval_label">Refresh interval (minutes)</string>
     <string name="settings_forecast_days_label">Forecast days</string>
+    <string name="weather_notification_channel_name">All HomeWx Weather</string>
+    <string name="settings_weather_notification_switch">Show weather notification (expands to next 6 hours)</string>
     <string name="settings_daily_spline_switch">Smooth daily/past forecast graphs (spline)</string>
     <string name="settings_dark_map_switch">Dark map theme (off = light)</string>
     <string name="settings_section_display">DISPLAY</string>

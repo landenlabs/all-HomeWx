@@ -2,6 +2,7 @@ package com.landenlabs.homewx.state
 
 import com.landenlabs.homewx.model.AppErrorEntry
 import com.landenlabs.homewx.model.UiState
+import com.landenlabs.homewx.Telemetry
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,6 +56,7 @@ object AppState {
      *  knowing which line/library call actually threw it. */
     fun recordError(source: String, throwable: Throwable) {
         val summary = throwable.message ?: throwable.javaClass.simpleName
+        Telemetry.recordNonFatal(source, throwable)
         recordError(source, "$summary\n\n${throwable.stackTraceToString()}")
     }
 

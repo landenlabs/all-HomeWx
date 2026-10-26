@@ -1,6 +1,9 @@
 package com.landenlabs.homewx.settings
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.widget.Toast
@@ -27,6 +30,7 @@ import com.landenlabs.homewx.data.WeatherMetricsHistoryStore
 import com.landenlabs.homewx.databinding.ActivitySettingsBinding
 import com.landenlabs.homewx.model.SensorReading
 import com.landenlabs.homewx.news.WebRequestLogger
+import com.landenlabs.homewx.notification.WeatherNotification
 import com.landenlabs.homewx.rivers.GaugeSite
 import com.landenlabs.homewx.rivers.RiverGaugeRepository
 import com.landenlabs.homewx.rivers.RiverGaugeSettings
@@ -56,6 +60,12 @@ class SettingsActivity : AppCompatActivity() {
         override fun createIntent(context: android.content.Context, input: String) =
             super.createIntent(context, input).putExtra(DocumentsContract.EXTRA_INITIAL_URI, downloadsUri)
     }) { uri -> uri?.let { runBackupTask { BackupManager.export(this, contentResolver.openOutputStream(it)!!).let { rows -> getString(R.string.backup_export_done, rows) } } } }
+
+    // Android 13+ needs a runtime grant before the weather notification can be shown; if it's
+    // refused, flip the switch back off so it doesn't claim to be enabled.
+    private val notificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) binding.weatherNotificationSwitch.isChecked = false
+    }
 
     private val importLauncher = registerForActivityResult(object : ActivityResultContracts.OpenDocument() {
         override fun createIntent(context: android.content.Context, input: Array<String>) =
@@ -451,6 +461,15 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.dailySplineSwitch.isChecked = AppSettings.isDailyWeatherSplineEnabled(this)
         binding.darkMapSwitch.isChecked = AppSettings.isDarkMapTheme(this)
+        binding.weatherNotificationSwitch.setOnCheckedChangeListener(null)
+        binding.weatherNotificationSwitch.isChecked = AppSettings.isWeatherNotificationEnabled(this)
+        binding.weatherNotificationSwitch.setOnCheckedChangeListener { _, checked ->
+            if (checked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
 
         val overrideEnabled = AppSettings.isTempSensorOverrideEnabled(this)
         binding.tempOverrideSwitch.isChecked = overrideEnabled
@@ -497,6 +516,8 @@ class SettingsActivity : AppCompatActivity() {
         AppSettings.setLightThresholdLux(this, progressToLux(binding.lightThresholdSlider.progress).toFloat())
         AppSettings.setDailyWeatherSplineEnabled(this, binding.dailySplineSwitch.isChecked)
         AppSettings.setDarkMapTheme(this, binding.darkMapSwitch.isChecked)
+        AppSettings.setWeatherNotificationEnabled(this, binding.weatherNotificationSwitch.isChecked)
+        WeatherNotification.refresh(this)
 
         val selectedSource = WeatherSourceId.values()[binding.weatherSourceSpinner.selectedItemPosition]
         WeatherSourceConfig.setActiveSource(this, selectedSource)

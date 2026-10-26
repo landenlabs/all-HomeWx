@@ -7,6 +7,14 @@ plugins {
     id("com.android.application")
 }
 
+// Firebase config is per-developer and gitignored; without it the Firebase plugins would fail the
+// build, so they are only applied when google-services.json is present (Telemetry no-ops otherwise).
+val hasFirebaseConfig = file("google-services.json").exists()
+if (hasFirebaseConfig) {
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
+}
+
 val localProperties = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) {
@@ -93,6 +101,10 @@ dependencies {
     implementation("com.squareup.okhttp3:logging-interceptor:5.5.0")
     implementation("com.google.code.gson:gson:2.14.0")
     implementation("org.greenrobot:eventbus:3.3.1")
+
+    implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-crashlytics")
 
     testImplementation("junit:junit:4.13.2")
 }

@@ -29,6 +29,7 @@ import com.landenlabs.homewx.power.LightSensorMonitor
 import com.landenlabs.homewx.rivers.RiverGaugeRepository
 import com.landenlabs.homewx.rivers.RiverGaugeSettings
 import com.landenlabs.homewx.settings.AppSettings
+import com.landenlabs.homewx.notification.WeatherNotification
 import com.landenlabs.homewx.state.AppState
 import com.landenlabs.homewx.weather.DailyExtreme
 import com.landenlabs.homewx.weather.DailyExtremes
@@ -244,6 +245,7 @@ class HomeWxMonitorService : LifecycleService() {
                     }
                     consecutiveFailures = 0
                     applyTempSensorOverrideToCurrentConditions()
+                    WeatherNotification.refresh(applicationContext)
                     refreshDailyExtremes()
                     refreshHistoricalAverageIfNewDay()
                     saveTodaySnapshot()

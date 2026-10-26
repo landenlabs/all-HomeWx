@@ -206,6 +206,20 @@
         app:layout_constraintEnd_toEndOf="@id/weatherBackgroundImage"
         tools:src="@drawable/wx_source_wxdata" />
 
+    <!-- App launcher icon, mirroring the weather source badge in the opposite (bottom-start)
+         corner of the weather panel image. Decorative only. -->
+    <ImageView
+        android:id="@+id/appIconBadge"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_margin="12dp"
+        android:alpha="0.85"
+        android:contentDescription="@null"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_launcher"
+        app:layout_constraintBottom_toBottomOf="@id/weatherBackgroundImage"
+        app:layout_constraintStart_toStartOf="@id/weatherBackgroundImage" />
+
     <!-- SENSORS SECTION -->
     <View
         android:id="@+id/topDivider"

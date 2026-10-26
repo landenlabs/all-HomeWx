@@ -17,6 +17,7 @@ class HomeWxApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        Telemetry.init(this)
         // A disk cache (on top of Picasso's in-memory LRU) keeps RSS thumbnails
         // available across app/process restarts instead of re-fetching every time.
         val client = OkHttpClient.Builder()

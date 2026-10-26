@@ -99,4 +99,16 @@
         android:src="@drawable/ic_settings"
         app:tint="@color/text_secondary" />
 
+    <!-- App launcher icon, dimmed so it doesn't compete with the night readouts. -->
+    <ImageView
+        android:id="@+id/nightAppIcon"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_gravity="bottom|start"
+        android:layout_margin="12dp"
+        android:alpha="0.5"
+        android:contentDescription="@null"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_launcher" />
+
 </FrameLayout>

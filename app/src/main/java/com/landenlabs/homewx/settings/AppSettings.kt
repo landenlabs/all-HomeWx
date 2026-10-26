@@ -25,6 +25,7 @@ object AppSettings {
     private const val KEY_FLAT_RANGE_THRESHOLD = "flat_range_threshold"
     private const val KEY_DARK_MAP_THEME = "dark_map_theme"
     private const val KEY_DAILY_WEATHER_SPLINE_ENABLED = "daily_weather_spline_enabled"
+    private const val KEY_WEATHER_NOTIFICATION_ENABLED = "weather_notification_enabled"
 
     const val DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES = 30
     const val MIN_WEATHER_SAMPLE_INTERVAL_MINUTES = 1
@@ -144,6 +145,14 @@ object AppSettings {
 
     fun setDailyWeatherSplineEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit { putBoolean(KEY_DAILY_WEATHER_SPLINE_ENABLED, enabled) }
+    }
+
+    /** Whether the optional current-conditions / next-6-hours notification is shown. */
+    fun isWeatherNotificationEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_WEATHER_NOTIFICATION_ENABLED, false)
+
+    fun setWeatherNotificationEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit { putBoolean(KEY_WEATHER_NOTIFICATION_ENABLED, enabled) }
     }
 
     /** Whether the Radar tab's base map uses the dark (Esri Dark Gray Canvas) tiles instead of the
