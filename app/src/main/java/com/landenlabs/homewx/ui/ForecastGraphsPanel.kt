@@ -756,6 +756,6 @@ class ForecastGraphsPanel(container: ViewGroup) {
         }
 
         /** Default left-axis range (inHg) for the pressure overlay; widened only if data exceeds it. */
-        private val PRESSURE_DEFAULT_AXIS_RANGE_INHG = 27.0f to 32.0f
+        private val PRESSURE_DEFAULT_AXIS_RANGE_INHG = 29.5f to 30.5f
     }
 }

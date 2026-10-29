@@ -389,8 +389,8 @@ object LineChartSetup {
         chart.axisLeft.textColor = overlayColor
         chart.axisLeft.valueFormatter = overlayValueFormatter
         // Fixed default range, widened (never narrowed) only when the data falls outside it.
-        chart.axisLeft.axisMinimum = minOf(overlayDefaultRange.first, floor(overlayPoints.minOf { it.second }).toFloat())
-        chart.axisLeft.axisMaximum = maxOf(overlayDefaultRange.second, ceil(overlayPoints.maxOf { it.second }).toFloat())
+        chart.axisLeft.axisMinimum = minOf(overlayDefaultRange.first, (floor(overlayPoints.minOf { it.second } * 10) / 10).toFloat())
+        chart.axisLeft.axisMaximum = maxOf(overlayDefaultRange.second, (ceil(overlayPoints.maxOf { it.second } * 10) / 10).toFloat())
         chart.invalidate()
     }
 
