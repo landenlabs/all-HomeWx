@@ -198,7 +198,7 @@ private fun WxCurrentConditions.toCurrentConditions(): CurrentConditions = Curre
     windSpeedMph = windSpeed?.toDouble(),
     windDirectionDeg = windDirection?.toDouble(),
     precipitationIn = precip1Hour?.toDouble(),
-    pressureInHg = pressureAltimeter?.toDouble(),
+    pressureInHg = pressureMeanSeaLevel?.toDouble()?.toInHg(),
     conditionText = wxPhraseLong ?: "",
     iconKey = iconKeyFor(iconCode ?: 44, dayOrNight),
     observedAtMillis = (validTimeUtc ?: (System.currentTimeMillis() / 1000L)) * 1000L
@@ -212,7 +212,7 @@ private fun WxHourlyForecast.toHourlyEntries(): List<HourlyForecastEntry> =
             temperatureF = sample.temperature.finiteOrNull(),
             windSpeedMph = sample.windSpeed.finiteOrNull(),
             precipitationChancePct = sample.precipPercent.takeIf { !it.isNaN() }?.roundToInt(),
-            pressureInHg = sample.pressureAltimeter.finiteOrNull(),
+            pressureInHg = sample.pressureMeanSeaLevel.finiteOrNull()?.toInHg(),
             conditionText = sample.weatherNarrative ?: "",
             iconKey = iconKeyFor(sample.iconCode, dayOrNight?.getOrNull(i))
         )
@@ -264,8 +264,8 @@ private fun List<Pair<Long, WxWeatherSample>>.toDailyEntry(
     val noonSample = minByOrNull { (t, _) -> abs(t - noonMillis) }?.second ?: first().second
     // pressureAltimeter is flagged "Restricted" in the wxdata source - this API key's plan
     // doesn't return it for the Hourly Forecast endpoint (it comes back NaN every hour), so
-    // fall back to pressureMeanSeaLevel, which isn't restricted and is actually populated.
-    val noonPressure = noonSample.pressureAltimeter.finiteOrNull() ?: noonSample.pressureMeanSeaLevel.finiteOrNull()
+    // use pressureMeanSeaLevel everywhere (current, hourly, daily noon), which isn't restricted.
+    val noonPressure = noonSample.pressureMeanSeaLevel.finiteOrNull()?.toInHg()
 
     calendar.timeInMillis = noonMillis
     val monthDay = (calendar.get(Calendar.MONTH) + 1) * 100 + calendar.get(Calendar.DAY_OF_MONTH)
@@ -291,3 +291,7 @@ private fun List<Pair<Long, WxWeatherSample>>.toDailyEntry(
         normalLowF = normal?.lowF
     )
 }
+
+/** Mean-sea-level pressure can arrive in millibars (~1013) rather than inHg (~29.92); anything
+ *  above 100 can't be inHg, so convert it. */
+private fun Double.toInHg(): Double = if (this > 100.0) this * 0.0295299830714 else this

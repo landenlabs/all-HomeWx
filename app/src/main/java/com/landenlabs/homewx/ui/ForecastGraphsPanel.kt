@@ -295,6 +295,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
             binding.forecastPrecipChartView, context,
             if (range == ForecastRange.PAST) emptyList() else PRECIPITATION_CHANCE_THRESHOLDS
         )
+        LineChartSetup.resetOverlayAxes(binding.forecastPrecipChartView)
 
         when (range) {
             ForecastRange.HOURLY -> {
@@ -326,13 +327,23 @@ class ForecastGraphsPanel(container: ViewGroup) {
                     R.string.forecast_no_wind_data, R.string.forecast_no_wind,
                     valueFormatter = windValueFormatter
                 )
+                // Pressure rides along as a 2nd line on the left axis, pushing the percentage to the
+                // right axis - so the percent thresholds move with it.
+                val pressureOverlay = hours.mapNotNull { h -> h.pressureInHg?.let { h.timeMillis to it } }.takeIf { it.size >= 2 }.orEmpty()
+                if (pressureOverlay.isNotEmpty()) {
+                    binding.forecastPrecipWatermarkText.setText(R.string.forecast_graph_precipitation_chance_pressure_watermark)
+                    LineChartSetup.setThresholdLines(binding.forecastPrecipChartView, context, emptyList())
+                    LineChartSetup.setThresholdLines(
+                        binding.forecastPrecipChartView, context, PRECIPITATION_CHANCE_THRESHOLDS, binding.forecastPrecipChartView.axisRight
+                    )
+                }
                 renderMetric(
                     binding.forecastPrecipSection, binding.forecastPrecipChartFrame, binding.forecastPrecipChartView, binding.forecastPrecipEmptyText, binding.forecastPrecipMaxValueText,
                     binding.forecastPrecipWatermarkText, binding.forecastPrecipTitleText,
                     hours.mapNotNull { h -> h.precipitationChancePct?.let { h.timeMillis to it.toDouble() } },
                     R.string.forecast_no_precipitation_data, R.string.forecast_no_precipitation,
                     R.color.accent_cool, filled = true, valueFormatter = pctValueFormatter,
-                    fixedAxisRange = LineChartSetup.PERCENT_AXIS_RANGE
+                    fixedAxisRange = LineChartSetup.PERCENT_AXIS_RANGE, leftOverlayPoints = pressureOverlay
                 )
             }
             ForecastRange.DAILY -> {
@@ -622,7 +633,8 @@ class ForecastGraphsPanel(container: ViewGroup) {
         filled: Boolean = false,
         spline: Boolean = false,
         valueFormatter: (Double) -> String = { it.roundToInt().toString() },
-        fixedAxisRange: Pair<Float, Float>? = null
+        fixedAxisRange: Pair<Float, Float>? = null,
+        leftOverlayPoints: List<Pair<Long, Double>> = emptyList()
     ) {
         val noData = points.size < 2
         val allZero = !noData && allZeroMessageRes != null && points.all { it.second == 0.0 }
@@ -636,7 +648,14 @@ class ForecastGraphsPanel(container: ViewGroup) {
         } else {
             chart.visibility = View.VISIBLE
             emptyText.visibility = View.GONE
-            LineChartSetup.render(chart, context, points, colorRes, filled, spline, fixedAxisRange)
+            if (leftOverlayPoints.isNotEmpty() && fixedAxisRange != null) {
+                LineChartSetup.renderWithLeftOverlay(
+                    chart, context, points, colorRes, filled, fixedAxisRange,
+                    leftOverlayPoints, R.color.accent_warm, PRESSURE_DEFAULT_AXIS_RANGE_INHG, pressureAxisFormatter
+                )
+            } else {
+                LineChartSetup.render(chart, context, points, colorRes, filled, spline, fixedAxisRange)
+            }
             maxValueText.text = valueFormatter(points.maxOf { it.second })
         }
     }
@@ -719,5 +738,14 @@ class ForecastGraphsPanel(container: ViewGroup) {
         private val pctValueFormatter: (Double) -> String = { v -> "${v.roundToInt()}%" }
         private val precipInValueFormatter: (Double) -> String = { v -> "%.2f in".format(v) }
         private val pressureValueFormatter: (Double) -> String = { v -> "%.2f inHg".format(v) }
+
+        /** Left-axis tick labels for the hourly precip chart's pressure overlay - just the number;
+         *  the unit lives in the tap-marker/pressure chart. */
+        private val pressureAxisFormatter = object : ValueFormatter() {
+            override fun getFormattedValue(value: Float): String = "%.2f".format(value)
+        }
+
+        /** Default left-axis range (inHg) for the pressure overlay; widened only if data exceeds it. */
+        private val PRESSURE_DEFAULT_AXIS_RANGE_INHG = 27.0f to 32.0f
     }
 }

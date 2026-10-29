@@ -25,6 +25,8 @@ import com.github.mikephil.charting.formatter.ValueFormatter
 import com.github.mikephil.charting.listener.ChartTouchListener
 import com.github.mikephil.charting.listener.OnChartGestureListener
 import java.util.Calendar
+import kotlin.math.ceil
+import kotlin.math.floor
 
 /** Shared axis/touch setup and data-binding for every [LineChart] in the info panel (sensor history + weather graphs). */
 object LineChartSetup {
@@ -330,6 +332,68 @@ object LineChartSetup {
         chart.invalidate()
     }
 
+    /** Undoes whatever [renderWithLeftOverlay] left on [chart]'s axes (a pressure formatter on the
+     *  left axis, a fixed range and threshold lines on the right) - charts are reused across
+     *  renders, and the forecast panel's precip chart only overlays pressure for some ranges. */
+    fun resetOverlayAxes(chart: LineChart) {
+        chart.axisLeft.valueFormatter = null
+        chart.axisRight.removeAllLimitLines()
+        chart.axisRight.resetAxisMinimum()
+        chart.axisRight.resetAxisMaximum()
+    }
+
+    /** Like [render], but also plots [overlayPoints] as a second, unfilled line against the LEFT
+     *  y-axis (colored/labelled in [overlayColorRes] via [overlayValueFormatter], auto-scaled but
+     *  pinned to [overlayDefaultRange] unless the data exceeds it). [points] move
+     *  to the RIGHT axis, pinned to [rightAxisRange] - the hourly precipitation-chance chart's
+     *  % (right) + pressure (left) combo. Call [resetOverlayAxes] before the next non-overlay render. */
+    fun renderWithLeftOverlay(
+        chart: LineChart,
+        context: Context,
+        points: List<Pair<Long, Double>>,
+        colorRes: Int,
+        filled: Boolean,
+        rightAxisRange: Pair<Float, Float>,
+        overlayPoints: List<Pair<Long, Double>>,
+        overlayColorRes: Int,
+        overlayDefaultRange: Pair<Float, Float>,
+        overlayValueFormatter: ValueFormatter
+    ) {
+        fun toDataSet(series: List<Pair<Long, Double>>, color: Int, axis: YAxis.AxisDependency) =
+            LineDataSet(series.map { (timeMillis, value) -> Entry(timeMillis / 1000f, value.toFloat()) }, null).apply {
+                this.color = color
+                lineWidth = 2f
+                setDrawCircles(false)
+                setDrawValues(false)
+                mode = LineDataSet.Mode.LINEAR
+                axisDependency = axis
+            }
+
+        val color = ContextCompat.getColor(context, colorRes)
+        val overlayColor = ContextCompat.getColor(context, overlayColorRes)
+        // The (possibly filled) series goes first so the overlay line draws on top of the fill.
+        val primary = toDataSet(points, color, YAxis.AxisDependency.RIGHT).apply {
+            if (filled) {
+                setDrawFilled(true)
+                fillColor = color
+                fillAlpha = 100
+            }
+        }
+        chart.data = LineData(primary, toDataSet(overlayPoints, overlayColor, YAxis.AxisDependency.LEFT))
+
+        enableRightAxis(chart, color, object : ValueFormatter() {
+            override fun getFormattedValue(value: Float): String = "${value.toInt()}%"
+        })
+        chart.axisRight.axisMinimum = rightAxisRange.first
+        chart.axisRight.axisMaximum = rightAxisRange.second
+        chart.axisLeft.textColor = overlayColor
+        chart.axisLeft.valueFormatter = overlayValueFormatter
+        // Fixed default range, widened (never narrowed) only when the data falls outside it.
+        chart.axisLeft.axisMinimum = minOf(overlayDefaultRange.first, floor(overlayPoints.minOf { it.second }).toFloat())
+        chart.axisLeft.axisMaximum = maxOf(overlayDefaultRange.second, ceil(overlayPoints.maxOf { it.second }).toFloat())
+        chart.invalidate()
+    }
+
     /**
      * MPAndroidChart auto-scales an axis tightly to its data's own min/max (plus a small ~10%
      * padding), which is fine for a series with real range, but makes a genuinely near-flat
@@ -339,18 +403,18 @@ object LineChartSetup {
      * series reads as flat instead of zoomed-in-on-itself. Only kicks in below that floor -
      * a series with a real, wider range still gets MPAndroidChart's normal auto-scaling.
      */
-    private fun applyMinimumAxisSpan(axis: YAxis, values: List<Double>) {
+    private fun applyMinimumAxisSpan(axis: YAxis, values: List<Double>, minSpan: Double = MIN_AXIS_SPAN) {
         if (values.size < 2) return
         val dataMin = values.min()
         val dataMax = values.max()
-        if (dataMax - dataMin >= MIN_AXIS_SPAN) {
+        if (dataMax - dataMin >= minSpan) {
             axis.resetAxisMinimum()
             axis.resetAxisMaximum()
             return
         }
         val center = (dataMin + dataMax) / 2.0
-        axis.axisMinimum = (center - MIN_AXIS_SPAN / 2.0).toFloat()
-        axis.axisMaximum = (center + MIN_AXIS_SPAN / 2.0).toFloat()
+        axis.axisMinimum = (center - minSpan / 2.0).toFloat()
+        axis.axisMaximum = (center + minSpan / 2.0).toFloat()
     }
 
     /** Like [render], but for the one chart in the app that plots two related series
