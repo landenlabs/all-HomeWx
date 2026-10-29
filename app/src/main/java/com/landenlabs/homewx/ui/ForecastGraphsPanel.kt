@@ -396,6 +396,16 @@ class ForecastGraphsPanel(container: ViewGroup) {
                 val lowSeries = series({ it.temperatureF }, { it.lowF })
                 val windSeries = series({ it.windSpeedMph }, { it.windMaxMph })
                 val precipSeries = series({ it.precipitationChancePct?.toDouble() }, { it.precipitationChancePct?.toDouble() })
+                // Pressure rides along as a 2nd (yellow) line on the left axis, as on Hourly. Only
+                // wxdata fills the daily noon pressure; Open-Meteo days contribute nothing.
+                val pressureOverlay = series({ it.pressureInHg }, { it.pressureAtNoonInHg }).takeIf { it.size >= 2 }.orEmpty()
+                if (pressureOverlay.isNotEmpty()) {
+                    binding.forecastPrecipWatermarkText.setText(R.string.forecast_graph_precipitation_chance_pressure_watermark)
+                    LineChartSetup.setThresholdLines(binding.forecastPrecipChartView, context, emptyList())
+                    LineChartSetup.setThresholdLines(
+                        binding.forecastPrecipChartView, context, PRECIPITATION_CHANCE_THRESHOLDS, binding.forecastPrecipChartView.axisRight
+                    )
+                }
                 renderDailyTemp(
                     highSeries, lowSeries, spline
                 )
@@ -412,7 +422,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
                     precipSeries,
                     R.string.forecast_no_precipitation_data, R.string.forecast_no_precipitation,
                     R.color.accent_cool, filled = true, spline = spline, valueFormatter = pctValueFormatter,
-                    fixedAxisRange = LineChartSetup.PERCENT_AXIS_RANGE
+                    fixedAxisRange = LineChartSetup.PERCENT_AXIS_RANGE, leftOverlayPoints = pressureOverlay
                 )
             }
             ForecastRange.PAST -> {

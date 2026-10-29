@@ -111,4 +111,15 @@
         android:scaleType="fitCenter"
         android:src="@drawable/ic_launcher" />
 
+    <!-- Active weather source's logo (set in code), dimmed like the app icon opposite it. -->
+    <ImageView
+        android:id="@+id/nightSourceIcon"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="12dp"
+        android:alpha="0.5"
+        android:contentDescription="@null"
+        android:scaleType="fitCenter" />
+
 </FrameLayout>

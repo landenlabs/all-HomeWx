@@ -13,6 +13,8 @@ import com.landenlabs.homewx.data.WeatherMetricsPoint
 import com.landenlabs.homewx.databinding.PanelNightModeBinding
 import com.landenlabs.homewx.model.UiState
 import com.landenlabs.homewx.settings.AppSettings
+import com.landenlabs.homewx.weather.WeatherSourceConfig
+import com.landenlabs.homewx.weather.WeatherSourceId
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.Entry
@@ -61,6 +63,13 @@ class NightModePanel(context: Context) {
 
     fun show() {
         applyBrightness()
+        // Re-read on every show so a source change in Settings is picked up.
+        binding.nightSourceIcon.setImageResource(
+            when (WeatherSourceConfig.getActiveSource(context)) {
+                WeatherSourceId.OPEN_METEO -> R.drawable.wx_source_open_meteo
+                WeatherSourceId.WXDATA -> R.drawable.wx_source_wxdata
+            }
+        )
         binding.root.visibility = View.VISIBLE
     }
 
