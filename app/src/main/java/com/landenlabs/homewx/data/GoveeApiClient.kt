@@ -1,6 +1,5 @@
 package com.landenlabs.homewx.data
 
-import com.landenlabs.homewx.BuildConfig
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -27,7 +26,8 @@ class GoveeApiException(message: String) : Exception(message)
  * Thin client for the Govee OpenAPI (https://developer.govee.com).
  * Blocking network calls - callers must invoke from a background dispatcher.
  */
-class GoveeApiClient(private val apiKey: String = BuildConfig.GOVEE_API_KEY) {
+/** [apiKey] is read on every request so a key changed in Settings applies without a restart. */
+class GoveeApiClient(private val apiKey: () -> String) {
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -40,7 +40,7 @@ class GoveeApiClient(private val apiKey: String = BuildConfig.GOVEE_API_KEY) {
         val request = Request.Builder()
             .url("$BASE_URL/user/devices")
             .header("Content-Type", "application/json")
-            .header("Govee-API-Key", apiKey)
+            .header("Govee-API-Key", apiKey())
             .get()
             .build()
 
@@ -81,7 +81,7 @@ class GoveeApiClient(private val apiKey: String = BuildConfig.GOVEE_API_KEY) {
         val request = Request.Builder()
             .url("$BASE_URL/device/state")
             .header("Content-Type", "application/json")
-            .header("Govee-API-Key", apiKey)
+            .header("Govee-API-Key", apiKey())
             .post(payload.toString().toRequestBody(jsonMediaType))
             .build()
 

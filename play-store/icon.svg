@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 108 108">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1B2A4A"/>
+      <stop offset="1" stop-color="#0B1220"/>
+    </linearGradient>
+    <linearGradient id="house" gradientUnits="userSpaceOnUse" x1="54" y1="36" x2="54" y2="70">
+      <stop offset="0" stop-color="#1E2952" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#4444FF"/>
+    </linearGradient>
+  </defs>
+  <rect width="108" height="108" fill="url(#bg)"/>
+  <!-- same geometry as app/src/main/res/drawable/ic_launcher.xml, scaled to sit inside the Play icon safe zone -->
+  <g transform="translate(54 56) scale(1.3) translate(-54 -45)">
+    <path fill="none" stroke="#FF6F00" stroke-width="1.5" stroke-linecap="round"
+      d="m 69,40 a 12,12 0 1,1 0,-0.01 z m -12,-18 v -4 m 0,32 v 4 m -17,-17 h -4 m 38,0 h 4 m -29,-12 l -3,-3 m 24,24 l 3,3 m -24,0 l -3,3 m 24,-24 l 3,-3"/>
+    <path fill="#FFA000" d="m 69,40 a 12,12 0 1,1 0,-0.01 z"/>
+    <path fill="url(#house)" stroke="#4444FF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"
+      d="M 34,70 V 52 L 54,36 L 74,52 V 70 H 34 Z M 49,70 V 58 H 59 V 70"/>
+    <path fill="#E2E8F0" stroke="#64748B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+      d="M 32,66 H 52 A 6,6 0 0,0 52,54 A 5,5 0 0,0 47.5,50 A 8,8 0 0,0 32.5,52 A 6,6 0 0,0 32,66 Z"/>
+  </g>
+</svg>

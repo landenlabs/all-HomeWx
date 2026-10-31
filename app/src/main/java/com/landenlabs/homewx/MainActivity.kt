@@ -38,10 +38,13 @@ import com.landenlabs.homewx.rivers.RiverGaugeSettings
 import com.landenlabs.homewx.data.RiverHistoryStore
 import com.landenlabs.homewx.service.HomeWxMonitorService
 import com.landenlabs.homewx.settings.AppSettings
+import com.landenlabs.homewx.settings.IdlePanel
+import com.landenlabs.homewx.settings.IdleSubPanelKeys
 import com.landenlabs.homewx.settings.SettingsActivity
 import com.landenlabs.homewx.state.AppState
 import com.landenlabs.homewx.ui.ArticlePanel
 import com.landenlabs.homewx.ui.ForecastPanel
+import com.landenlabs.homewx.ui.ForecastRange
 import com.landenlabs.homewx.ui.NewsPanel
 import com.landenlabs.homewx.ui.RadarPanel
 import com.landenlabs.homewx.ui.RiverGraphsPanel
@@ -142,6 +145,8 @@ class MainActivity : AppCompatActivity() {
      *  after [AUTO_CYCLE_PAUSE_MS] of no further taps. Restarted on every [onUserInteraction] call
      *  so continued tapping keeps extending the pause, same pattern as [wakeOverrideJob]. */
     private var autoCycleResumeJob: Job? = null
+    /** The idle panel setting last applied, so [onResume] can re-apply it after Settings changed it. */
+    private var lastIdleConfig = ""
 
     /** Full-screen night layout, drawn over everything while the light sensor says QUIET (and
      *  no tap-to-wake override is active) - see [syncNightOverlay]. */
@@ -218,6 +223,10 @@ class MainActivity : AppCompatActivity() {
         binding.infoPanelTabBar.radarTabButton.setOnClickListener { selectTab(InfoPanelView.RADAR) }
         binding.infoPanelTabBar.riversTabButton.setOnClickListener { selectTab(InfoPanelView.RIVERS) }
         showInfoPanel(InfoPanelView.NEWS)
+        // Cycle mode starts on News with no rotation until the first light wake (unchanged); any
+        // other idle panel is shown straight away.
+        lastIdleConfig = idleConfig()
+        if (AppSettings.getIdlePanel(this) != IdlePanel.CYCLE) applyIdlePanel()
 
         HomeWxMonitorService.start(this)
 
@@ -245,6 +254,10 @@ class MainActivity : AppCompatActivity() {
         sensorAdapter.submit(visibleSensors(AppState.uiState.value.sensors))
         updateRiverTabVisibility()
         updateWeatherSourceBadge()
+        if (idleConfig() != lastIdleConfig) {
+            lastIdleConfig = idleConfig()
+            applyIdlePanel()
+        }
         // Coming back to the foreground (e.g. the device waking after a long screen-off
         // stretch) is exactly when stale data is most likely and most visible - force the
         // weather poll loop to check in now instead of waiting out whatever's left of its
@@ -292,7 +305,10 @@ class MainActivity : AppCompatActivity() {
         if (forecastPreviewRevertJob != null) {
             scheduleForecastPreviewRevert()
         }
-        if (autoCycleJob != null || autoCycleResumeJob != null) {
+        // A fixed idle panel has no cycle to pause, but taps still restart the countdown that
+        // returns to it. Not while rain pins the radar - that hold manages its own panel.
+        val returnsToFixedPanel = AppSettings.getIdlePanel(this) != IdlePanel.CYCLE && !rainHoldActive
+        if (autoCycleJob != null || autoCycleResumeJob != null || returnsToFixedPanel) {
             pauseAutoCycle()
         }
     }
@@ -462,8 +478,7 @@ class MainActivity : AppCompatActivity() {
             // radar on a light wake; forcing News here would count as a manual change and
             // dismiss the hold.
             if (autoCycleResumeJob == null && !rainHoldActive) {
-                selectTab(InfoPanelView.NEWS)
-                startAutoCycle()
+                applyIdlePanel()
             }
         } else if (newMode == LightMode.QUIET && autoCycleResumeJob == null) {
             stopAutoCycle()
@@ -497,9 +512,8 @@ class MainActivity : AppCompatActivity() {
             if (rainHoldActive) {
                 rainHoldActive = false
                 rainHoldSwitching = true
-                selectTab(InfoPanelView.NEWS)
+                applyIdlePanel()
                 rainHoldSwitching = false
-                startAutoCycle()
             }
             return
         }
@@ -510,6 +524,46 @@ class MainActivity : AppCompatActivity() {
             rainHoldSwitching = true
             selectTab(InfoPanelView.RADAR)
             rainHoldSwitching = false
+        }
+    }
+
+    private fun idleConfig() = "${AppSettings.getIdlePanel(this)}|${AppSettings.getIdleSubPanel(this)}"
+
+    /** Shows the Settings > Idle Panel choice. Cycle starts on News and rotates the top tabs;
+     *  every other choice stops any rotation and shows its panel (and sub-tab) until a tap. */
+    private fun applyIdlePanel() {
+        val subKey = AppSettings.getIdleSubPanel(this)
+        when (AppSettings.getIdlePanel(this)) {
+            IdlePanel.CYCLE -> {
+                selectTab(InfoPanelView.NEWS)
+                startAutoCycle()
+            }
+            IdlePanel.NEWS -> {
+                stopAutoCycle()
+                selectTab(InfoPanelView.NEWS)
+                newsPanel.selectSubPanel(subKey)
+            }
+            IdlePanel.WEATHER -> {
+                stopAutoCycle()
+                selectTab(InfoPanelView.FORECAST)
+                forecastPanel.selectRange(
+                    when (subKey) {
+                        IdleSubPanelKeys.WEATHER_PAST -> ForecastRange.PAST
+                        IdleSubPanelKeys.WEATHER_HOURLY -> ForecastRange.HOURLY
+                        IdleSubPanelKeys.WEATHER_RAIN -> ForecastRange.RAIN
+                        else -> ForecastRange.DAILY
+                    }
+                )
+            }
+            IdlePanel.SENSOR -> {
+                stopAutoCycle()
+                selectTab(InfoPanelView.SENSOR_GRAPHS)
+            }
+            IdlePanel.MAP -> {
+                stopAutoCycle()
+                selectTab(InfoPanelView.RADAR)
+                radarPanel.selectLayer(subKey)
+            }
         }
     }
 
@@ -541,7 +595,7 @@ class MainActivity : AppCompatActivity() {
         autoCycleResumeJob = lifecycleScope.launch {
             delay(AUTO_CYCLE_PAUSE_MS)
             autoCycleResumeJob = null
-            startAutoCycle()
+            if (AppSettings.getIdlePanel(this@MainActivity) == IdlePanel.CYCLE) startAutoCycle() else applyIdlePanel()
         }
     }
 

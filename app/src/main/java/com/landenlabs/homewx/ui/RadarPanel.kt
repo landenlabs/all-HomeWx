@@ -12,6 +12,7 @@ import androidx.lifecycle.LifecycleCoroutineScope
 import com.landenlabs.homewx.R
 import com.landenlabs.homewx.databinding.PanelRadarBinding
 import com.landenlabs.homewx.settings.AppSettings
+import com.landenlabs.homewx.settings.IdleSubPanelKeys
 import com.landenlabs.homewx.state.AppState
 import com.landenlabs.homewx.weather.HomeLocation
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +50,21 @@ import java.util.concurrent.atomic.AtomicInteger
 
 private const val HOME_ZOOM = 7.0
 private const val LIVE_TILE_URL = "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/"
+
+// IEM's "Q2" radar-based rainfall estimate, summed over the last 72 hours (inches). A rolling
+// total, not a series of time steps, so it has no history frames and no animation. Same host and
+// {z}/{x}/{y} order as the NEXRAD layer above; the server sends max-age=300, so osmdroid's disk
+// cache expires it on its own like the live radar tiles.
+private const val RAIN_72H_TILE_URL = "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/q2-p72h-900913/"
+private const val RAIN_72H_MAX_ZOOM = 10 // data is ~1 km; deeper zooms would only be upscaled
+
+// NOAA WPC quantitative precipitation forecast, cumulative over the next 72 hours (days 1-3).
+// An ArcGIS MapServer with no pre-rendered tiles, so [WpcQpfTileSource] asks it to render each
+// tile on demand via /export. Layer 9 is "QPF 72 Hour Day 1-3" in that service.
+private const val WPC_QPF_EXPORT_URL = "https://mapservices.weather.noaa.gov/vector/rest/services/precip/wpc_qpf/MapServer/export"
+private const val WPC_QPF_72H_LAYER = 9
+private const val WPC_QPF_MAX_ZOOM = 10
+private const val WEB_MERCATOR_WORLD_METERS = 40075016.685578488
 
 // IEM's time-indexed national composite layer, distinct from the live-only layer above -
 // each 5-minute UTC mark back to 2011 is addressable as ridge::USCOMP-N0Q-<yyyyMMddHHmm>.
@@ -112,7 +128,32 @@ private val RETRY_REDRAW_DELAYS_MS = longArrayOf(1_000L, 3_000L)
 private enum class RadarLayer(val maxZoom: Int, val stepMinutes: Int, val gibsLayer: String?, val gibsMatrixSet: String?) {
     RADAR(18, RADAR_STEP_MINUTES, null, null),
     CLOUDS(7, SATELLITE_STEP_MINUTES, "GOES-East_ABI_GeoColor", "GoogleMapsCompatible_Level7"),
-    INFRARED(6, SATELLITE_STEP_MINUTES, "GOES-East_ABI_Band13_Clean_Infrared", "GoogleMapsCompatible_Level6")
+    INFRARED(6, SATELLITE_STEP_MINUTES, "GOES-East_ABI_Band13_Clean_Infrared", "GoogleMapsCompatible_Level6"),
+
+    /** 72-hour rainfall total; [stepMinutes] is unused since it is never animated. */
+    RAIN_72H(RAIN_72H_MAX_ZOOM, RADAR_STEP_MINUTES, null, null),
+
+    /** Forecast 72-hour rainfall total; same no-animation treatment as [RAIN_72H]. */
+    RAIN_FORECAST_72H(WPC_QPF_MAX_ZOOM, RADAR_STEP_MINUTES, null, null);
+
+    val isSatellite: Boolean get() = gibsLayer != null
+    val isAnimatable: Boolean get() = this != RAIN_72H && this != RAIN_FORECAST_72H
+}
+
+/** WPC QPF rendered per tile: converts the tile's z/x/y to its Web Mercator bounding box and
+ *  requests that box from the MapServer's export endpoint as a transparent 256px PNG. [name] must
+ *  be unique per fetch window - osmdroid's disk cache is keyed by source name, and this server
+ *  sends max-age=0 - so [liveTileSource] stamps it with the current hour. */
+private class WpcQpfTileSource(name: String) :
+    OnlineTileSourceBase(name, 0, WPC_QPF_MAX_ZOOM, 256, ".png", arrayOf(WPC_QPF_EXPORT_URL)) {
+    override fun getTileURLString(pMapTileIndex: Long): String {
+        val tileMeters = WEB_MERCATOR_WORLD_METERS / (1 shl MapTileIndex.getZoom(pMapTileIndex))
+        val minX = -WEB_MERCATOR_WORLD_METERS / 2 + MapTileIndex.getX(pMapTileIndex) * tileMeters
+        val maxY = WEB_MERCATOR_WORLD_METERS / 2 - MapTileIndex.getY(pMapTileIndex) * tileMeters
+        return "$baseUrl?bbox=$minX,${maxY - tileMeters},${minX + tileMeters},$maxY" +
+            "&bboxSR=3857&imageSR=3857&size=256,256&format=png32&transparent=true" +
+            "&layers=show:$WPC_QPF_72H_LAYER&f=image"
+    }
 }
 
 /** GIBS WMTS tile source for one [RadarLayer] at one [timeStamp] (ISO-8601 UTC, or "default"
@@ -215,19 +256,24 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
             val selected = when (checkedId) {
                 R.id.radarLayerClouds -> RadarLayer.CLOUDS
                 R.id.radarLayerInfrared -> RadarLayer.INFRARED
+                R.id.radarLayerRain72 -> RadarLayer.RAIN_72H
+                R.id.radarLayerRainForecast72 -> RadarLayer.RAIN_FORECAST_72H
                 else -> RadarLayer.RADAR
             }
             if (selected == layer) return@setOnCheckedChangeListener
             // Also stops a running animation: its frames were built for the old layer.
             stopAnimation()
             layer = selected
-            bordersOverlay.isEnabled = layer != RadarLayer.RADAR
+            // Only the opaque satellite imagery needs the borders drawn over it; radar and the
+            // rainfall total are transparent where there's no data, so the base map shows through.
+            bordersOverlay.isEnabled = layer.isSatellite
+            applyPlayButtonState()
             applyLayerAlpha()
             showLiveFrame()
             Log.i(TAG, "layer switched to $layer: zoom=${binding.radarMapView.zoomLevelDouble} " +
                 "overlayEnabled=${radarOverlay.isEnabled} overlays=${binding.radarMapView.overlays.size} " +
                 "providerSource=${radarTileProvider.tileSource.name()} alpha=${layerAlpha()}")
-            if (layer != RadarLayer.RADAR) probeLiveTile()
+            if (layer.isSatellite) probeLiveTile()
         }
 
         lifecycleScope.launch {
@@ -235,6 +281,7 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
             binding.radarMapView.invalidate()
         }
 
+        applyPlayButtonState()
         binding.radarPlayButton.setOnClickListener {
             if (animationJob == null) startAnimation() else stopAnimation()
         }
@@ -293,12 +340,34 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
         RadarLayer.RADAR -> 1f
         RadarLayer.CLOUDS -> CLOUDS_ALPHA
         RadarLayer.INFRARED -> INFRARED_ALPHA
+        RadarLayer.RAIN_72H, RadarLayer.RAIN_FORECAST_72H -> 1f
+    }
+
+    /** The rainfall total is a single rolling sum with no frames to step through, so its play
+     *  button is dimmed and inert; every other layer animates as before. */
+    private fun applyPlayButtonState() {
+        binding.radarPlayButton.isEnabled = layer.isAnimatable
+        binding.radarPlayButton.alpha = if (layer.isAnimatable) 1f else 0.3f
     }
 
     private fun applyLayerAlpha() {
         radarOverlay.setColorFilter(
             if (layerAlpha() >= 1f) null
             else ColorMatrixColorFilter(ColorMatrix().apply { setScale(1f, 1f, 1f, layerAlpha()) })
+        )
+    }
+
+    /** Picks the layer named by an [IdleSubPanelKeys] Map key (default: radar) through the same
+     *  radio group a tap would use, so animation stop, alpha and borders all follow. */
+    fun selectLayer(key: String) {
+        binding.radarLayerGroup.check(
+            when (key) {
+                IdleSubPanelKeys.MAP_CLOUDS -> R.id.radarLayerClouds
+                IdleSubPanelKeys.MAP_IR -> R.id.radarLayerInfrared
+                IdleSubPanelKeys.MAP_RAIN_PAST -> R.id.radarLayerRain72
+                IdleSubPanelKeys.MAP_RAIN_FORECAST -> R.id.radarLayerRainForecast72
+                else -> R.id.radarLayerRadar
+            }
         )
     }
 
@@ -320,6 +389,7 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
     }
 
     private fun startAnimation() {
+        if (!layer.isAnimatable) return
         val frameTimes = buildFrameTimestamps()
         Log.i(TAG, "startAnimation: ${frameTimes.size} frames, oldest=${frameTimes.first()} newest=${frameTimes.last()}")
         animationJob = lifecycleScope.launch {
@@ -435,7 +505,14 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
         radarTileProvider.tileSource = source
         radarTileProvider.clearTileCache()
         binding.radarMapView.invalidate()
-        binding.radarUpdatedText.text = "Updated ${updatedAtFormat.format(Date())}"
+        binding.radarUpdatedText.text = context.getString(
+            when (layer) {
+                RadarLayer.RAIN_72H -> R.string.radar_rain_72h_updated
+                RadarLayer.RAIN_FORECAST_72H -> R.string.radar_rain_forecast_72h_updated
+                else -> R.string.radar_updated
+            },
+            updatedAtFormat.format(Date())
+        )
         // Requests still queued from the previous source/layer (often at a zoom the new source
         // doesn't have) fail after the swap, and osmdroid neither retries them nor redraws on
         // failure - SimpleInvalidationHandler only reacts to success - so those tiles stay blank
@@ -476,6 +553,8 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
 
     private fun liveTileSource(): OnlineTileSourceBase = when (layer) {
         RadarLayer.RADAR -> XYTileSource("IEM-NEXRAD", 0, 18, 256, ".png", arrayOf(LIVE_TILE_URL))
+        RadarLayer.RAIN_72H -> XYTileSource("IEM-Q2-72H", 0, RAIN_72H_MAX_ZOOM, 256, ".png", arrayOf(RAIN_72H_TILE_URL))
+        RadarLayer.RAIN_FORECAST_72H -> WpcQpfTileSource("WPC-QPF-72H-${frameTimestampFormat.format(Date()).take(10)}")
         // The newest frame that should exist by now, named by its own timestamp so each new
         // 10-minute frame gets a fresh disk-cache key rather than depending on cache expiry.
         else -> historyTileSource(buildFrameTimestamps().last())
@@ -483,7 +562,7 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
 
     private fun historyTileSource(time: Date): OnlineTileSourceBase {
         val stamp = frameTimestampFormat.format(time)
-        if (layer != RadarLayer.RADAR) {
+        if (layer.isSatellite) {
             return GibsTileSource("GIBS-${layer.name}-$stamp", layer, gibsTimeFormat.format(time))
         }
         return XYTileSource(

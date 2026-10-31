@@ -1,7 +1,7 @@
 package com.landenlabs.homewx.model
 
 import com.landenlabs.homewx.news.NewsItem
-import com.landenlabs.homewx.news.NewsSourceId
+import com.landenlabs.homewx.news.NewsSource
 import com.landenlabs.homewx.rivers.GaugeReading
 import com.landenlabs.homewx.weather.CurrentConditions
 import com.landenlabs.homewx.weather.DailyExtremes
@@ -38,7 +38,7 @@ data class UiState(
     val historicalTempAverage: HistoricalTempAverage? = null,
     val weatherError: String? = null,
     val lastError: String? = null,
-    val newsItemsBySource: Map<NewsSourceId, List<NewsItem>> = emptyMap(),
+    val newsItemsBySource: Map<NewsSource, List<NewsItem>> = emptyMap(),
     val networkReachable: Boolean = true,
     val riverReadings: Map<String, GaugeReading> = emptyMap(),
     val riverReadingsUpdatedAtMillis: Long? = null,

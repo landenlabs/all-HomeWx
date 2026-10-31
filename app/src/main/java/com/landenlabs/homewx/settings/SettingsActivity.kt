@@ -29,6 +29,7 @@ import com.landenlabs.homewx.data.DailySnapshotStore
 import com.landenlabs.homewx.data.WeatherMetricsHistoryStore
 import com.landenlabs.homewx.databinding.ActivitySettingsBinding
 import com.landenlabs.homewx.model.SensorReading
+import com.landenlabs.homewx.news.UsStates
 import com.landenlabs.homewx.news.WebRequestLogger
 import com.landenlabs.homewx.notification.WeatherNotification
 import com.landenlabs.homewx.rivers.GaugeSite
@@ -48,6 +49,8 @@ class SettingsActivity : AppCompatActivity() {
     private var sensorVisibilityCheckBoxes: List<CheckBox> = emptyList()
     private var sensorLabelEditTexts: List<EditText> = emptyList()
     private val riverGaugeRepository = RiverGaugeRepository()
+    private val credentialDialogs = CredentialDialogs(this) { bindAccountStatus() }
+    private var idleSubPanels: List<IdleSubPanel> = emptyList()
     private var riverGaugeCandidates: List<GaugeSite> = emptyList()
     private var riverGaugeCheckBoxes: List<CheckBox> = emptyList()
     private var riverGaugeLabelEditTexts: List<EditText> = emptyList()
@@ -106,16 +109,21 @@ class SettingsActivity : AppCompatActivity() {
         }
         binding.importButton.setOnClickListener { importLauncher.launch(arrayOf("application/zip", "application/octet-stream")) }
 
+        binding.goveeEditButton.setOnClickListener { credentialDialogs.showGovee() }
+        binding.wyzeEditButton.setOnClickListener { credentialDialogs.showWyze() }
+        binding.feedsEditButton.setOnClickListener { credentialDialogs.showFeeds() }
+        binding.droughtEditButton.setOnClickListener { credentialDialogs.showDrought() }
+
         binding.versionInfoText.text = getString(
             R.string.settings_version_info,
             BuildConfig.VERSION_NAME,
-            BuildConfig.VERSION_CODE,
-            BuildConfig.BUILD_TIME,
+            buildDateLabel(),
             WeatherMetricsHistoryStore.DB_VERSION,
             DailySnapshotStore.DB_VERSION
         )
 
         setUpWeatherSourceSpinner()
+        setUpIdlePanelSpinners()
         setUpSensorSpinner()
         setUpSensorVisibilityCheckBoxes()
         setUpScreenBrightnessSlider()
@@ -139,6 +147,16 @@ class SettingsActivity : AppCompatActivity() {
         lifecycleScope.launch {
             AppState.uiState.collect { state -> updateErrorsButton(state.errorLog.size) }
         }
+    }
+
+    /** BuildConfig.BUILD_TIME ("yyyy-MM-dd HH:mm") as a date-only "31-Oct-26"; the raw string if it can't be parsed. */
+    private fun buildDateLabel(): String {
+        val built = try {
+            java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).parse(BuildConfig.BUILD_TIME)
+        } catch (e: java.text.ParseException) {
+            null
+        }
+        return built?.let { java.text.SimpleDateFormat("dd-MMM-yy", java.util.Locale.US).format(it) } ?: BuildConfig.BUILD_TIME
     }
 
     private fun updateErrorsButton(errorCount: Int) {
@@ -242,6 +260,41 @@ class SettingsActivity : AppCompatActivity() {
         // Only one source exists today - nothing to switch between yet, but the
         // spinner already works once WeatherProviderFactory grows a second branch.
         binding.weatherSourceSpinner.isEnabled = sources.size > 1
+    }
+
+    private fun setUpIdlePanelSpinners() {
+        binding.idlePanelSpinner.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            IdlePanel.values().map { getString(it.labelRes) }
+        )
+        binding.idlePanelSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                // Switching to a different panel starts on its default tab; coming back to the
+                // saved panel (or the initial bind) restores the saved tab.
+                val panel = IdlePanel.values()[position]
+                val savedKey = if (panel == AppSettings.getIdlePanel(this@SettingsActivity)) {
+                    AppSettings.getIdleSubPanel(this@SettingsActivity)
+                } else {
+                    IdleSubPanelKeys.DEFAULT
+                }
+                bindIdleSubPanels(panel, savedKey)
+            }
+
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+        }
+    }
+
+    /** Fills the tab spinner for [panel] and selects [selectedKey]; disabled when the panel has no tabs to pick. */
+    private fun bindIdleSubPanels(panel: IdlePanel, selectedKey: String) {
+        idleSubPanels = panel.subPanels(this)
+        binding.idleSubPanelSpinner.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            idleSubPanels.map { it.label }
+        )
+        binding.idleSubPanelSpinner.setSelection(idleSubPanels.indexOfFirst { it.key == selectedKey }.coerceAtLeast(0))
+        binding.idleSubPanelSpinner.isEnabled = idleSubPanels.isNotEmpty()
     }
 
     private fun setUpSensorSpinner() {
@@ -461,6 +514,10 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.dailySplineSwitch.isChecked = AppSettings.isDailyWeatherSplineEnabled(this)
         binding.darkMapSwitch.isChecked = AppSettings.isDarkMapTheme(this)
+        bindAccountStatus()
+        val idlePanel = AppSettings.getIdlePanel(this)
+        binding.idlePanelSpinner.setSelection(idlePanel.ordinal)
+        bindIdleSubPanels(idlePanel, AppSettings.getIdleSubPanel(this))
         binding.weatherNotificationSwitch.setOnCheckedChangeListener(null)
         binding.weatherNotificationSwitch.isChecked = AppSettings.isWeatherNotificationEnabled(this)
         binding.weatherNotificationSwitch.setOnCheckedChangeListener { _, checked ->
@@ -497,6 +554,23 @@ class SettingsActivity : AppCompatActivity() {
         rebuildRiverGaugeCheckBoxes(riverGaugeCandidates, checkedSiteIds = riverGaugeCandidates.map { it.siteId }.toSet())
     }
 
+    /** Refreshes the one-line status under each Accounts & Feeds row. These are saved by their own
+     *  dialogs, so they sit outside [bindCurrentValues]'s Undo and [saveSettings]'s auto-save. */
+    private fun bindAccountStatus() {
+        binding.goveeStatusText.text = if (CredentialStore.hasGovee(this)) {
+            getString(R.string.settings_accounts_govee_set)
+        } else {
+            getString(R.string.settings_accounts_not_set)
+        }
+        binding.wyzeStatusText.text = if (CredentialStore.hasWyze(this)) {
+            getString(R.string.settings_accounts_wyze_set, CredentialStore.getWyzeUser(this))
+        } else {
+            getString(R.string.settings_accounts_not_set)
+        }
+        binding.feedsStatusText.text = AppSettings.getNewsSources(this).joinToString(", ") { it.label }
+        AppSettings.getDroughtState(this).let { binding.droughtStatusText.text = "${UsStates.nameOf(it)} ($it)" }
+    }
+
     private fun saveSettings() {
         val minutes = binding.weatherIntervalEditText.text.toString().toIntOrNull()
             ?: AppSettings.DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES
@@ -518,6 +592,12 @@ class SettingsActivity : AppCompatActivity() {
         AppSettings.setDarkMapTheme(this, binding.darkMapSwitch.isChecked)
         AppSettings.setWeatherNotificationEnabled(this, binding.weatherNotificationSwitch.isChecked)
         WeatherNotification.refresh(this)
+
+        AppSettings.setIdlePanel(
+            this,
+            IdlePanel.values()[binding.idlePanelSpinner.selectedItemPosition],
+            idleSubPanels.getOrNull(binding.idleSubPanelSpinner.selectedItemPosition)?.key ?: IdleSubPanelKeys.DEFAULT
+        )
 
         val selectedSource = WeatherSourceId.values()[binding.weatherSourceSpinner.selectedItemPosition]
         WeatherSourceConfig.setActiveSource(this, selectedSource)

@@ -37,6 +37,17 @@ object AppState {
         _refreshRequested.tryEmit(Unit)
     }
 
+    private val _configChanged = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** Fires when credentials or RSS feeds are saved in Settings, so the pollers that use them
+     *  (see [com.landenlabs.homewx.service.HomeWxMonitorService]) and the News tabs pick the new
+     *  values up now instead of at their next scheduled poll. */
+    val configChanged: SharedFlow<Unit> get() = _configChanged
+
+    fun notifyConfigChanged() {
+        _configChanged.tryEmit(Unit)
+    }
+
     private const val MAX_ERROR_LOG_ENTRIES = 5
 
     /** Rolling log of the most recent failures across every poller (newest first), capped at

@@ -33,8 +33,8 @@ android {
         versionCode = 60420
         versionName = "6.04.20"
 
-        val goveeApiKey = localProperties.getProperty("GOVEE_API_KEY") ?: ""
-        buildConfigField("String", "GOVEE_API_KEY", "\"$goveeApiKey\"")
+        // GOVEE_API_KEY / WYZE_USER / WYZE_PWD are per build type (see buildTypes): debug seeds them
+        // from local.properties, release ships empty and the user enters them in Settings.
 
         // Google Nest (SDM) thermostat credentials; see NestApiClient.
         for (key in listOf("NEST_PROJECT_ID", "NEST_CLIENT_ID", "NEST_CLIENT_SECRET", "NEST_REFRESH_TOKEN")) {
@@ -44,24 +44,24 @@ android {
         val sunApiKey =localProperties.getProperty("SUN_API_KEY") ?: ""
         buildConfigField("String", "SUN_API_KEY", "\"$sunApiKey\"")
 
-        val wyzeLogin = localProperties.getProperty("WYZE_LOGIN") ?: ""
-        buildConfigField("String", "WYZE_LOGIN", "\"$wyzeLogin\"")
-
-        val wyzeUser = localProperties.getProperty("WYZE_USER") ?: ""
-        buildConfigField("String", "WYZE_USER", "\"$wyzeUser\"")
-
-        val wyzePwd = localProperties.getProperty("WYZE_PWD") ?: ""
-        buildConfigField("String", "WYZE_PWD", "\"$wyzePwd\"")
-
-        val wyzeCameras = localProperties.getProperty("WYZE_CAMERAS") ?: ""
-        buildConfigField("String", "WYZE_CAMERAS", "\"$wyzeCameras\"")
-
         val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date())
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
     }
 
     buildTypes {
+        // Default (first-run) credentials for the Credentials & Feeds dialogs in Settings; see
+        // CredentialStore. Only debug builds read local.properties - a release bundle must never
+        // carry anyone's personal keys.
+        debug {
+            for (key in listOf("GOVEE_API_KEY", "WYZE_USER", "WYZE_PWD")) {
+                val value = (localProperties.getProperty(key) ?: "").replace("\\", "\\\\").replace("\"", "\\\"")
+                buildConfigField("String", key, "\"$value\"")
+            }
+        }
         release {
+            for (key in listOf("GOVEE_API_KEY", "WYZE_USER", "WYZE_PWD")) {
+                buildConfigField("String", key, "\"\"")
+            }
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

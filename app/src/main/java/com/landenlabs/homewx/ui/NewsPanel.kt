@@ -16,12 +16,14 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleCoroutineScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.landenlabs.homewx.BuildConfig
 import com.landenlabs.homewx.R
 import com.landenlabs.homewx.databinding.PanelNewsBinding
 import com.landenlabs.homewx.news.LoggingWebViewClient
 import com.landenlabs.homewx.news.NewsItem
-import com.landenlabs.homewx.news.NewsSourceId
+import com.landenlabs.homewx.news.NewsSource
+import com.landenlabs.homewx.settings.AppSettings
+import com.landenlabs.homewx.settings.CredentialStore
+import com.landenlabs.homewx.settings.IdleSubPanelKeys
 import com.landenlabs.homewx.state.AppState
 import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.launch
@@ -84,7 +86,7 @@ private fun loadTrackingClient(
     }
 }
 
-/** Tab-tag sentinel for the Drought sub-tab, distinguishing it from a [NewsSourceId] tag on the
+/** Tab-tag sentinel for the Drought sub-tab, distinguishing it from a [NewsSource] tag on the
  *  same [TabLayout]. */
 private object DroughtTabTag
 
@@ -113,8 +115,8 @@ class NewsPanel(
     val root: View get() = binding.root
 
     private val adapter = NewsAdapter(onItemClick = onArticleClick)
-    private var selectedSource = NewsSourceId.values().first()
-    private var latestItemsBySource: Map<NewsSourceId, List<NewsItem>> = emptyMap()
+    private var selectedSource = AppSettings.getNewsSources(container.context).first()
+    private var latestItemsBySource: Map<NewsSource, List<NewsItem>> = emptyMap()
     private var droughtState = WebViewLoadState.NOT_LOADED
     private var stocksState = WebViewLoadState.NOT_LOADED
     private var wyzeState = WebViewLoadState.NOT_LOADED
@@ -124,7 +126,7 @@ class NewsPanel(
      *  a fresh attempt. */
     private var wyzeLoginSubmitted = false
 
-    /** Guards against requesting [BuildConfig.WYZE_CAMERAS] more than once per login attempt, in
+    /** Guards against requesting [WYZE_CAMERAS_URL] more than once per login attempt, in
      *  case the auth domain fires onPageFinished more than once after submit - reset alongside
      *  [wyzeLoginSubmitted] in [loadWyze]. */
     private var wyzeCamerasRequested = false
@@ -139,6 +141,12 @@ class NewsPanel(
      *  (showing [R.string.wyze_login_loop_detected] instead) until the user taps to retry, which
      *  clears this and resets the counter. */
     private var wyzeLoginBroken = false
+
+    /** The Wyze user/password last seen by [rebuildTabs], to spot an edit in Settings. */
+    private var lastWyzeLogin: Pair<String, String>? = null
+
+    /** The drought-map state last loaded, to spot a change in Settings. */
+    private var lastDroughtState: String? = null
 
     init {
         container.addView(root)
@@ -215,10 +223,15 @@ class NewsPanel(
             }
         }
 
+        // Feeds or the Wyze login were edited in Settings: rebuild the tabs to match.
+        lifecycleScope.launch {
+            AppState.configChanged.collect { rebuildTabs() }
+        }
+
         binding.newsTabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
                 when (val tag = tab.tag) {
-                    is NewsSourceId -> {
+                    is NewsSource -> {
                         selectedSource = tag
                         showNewsList()
                     }
@@ -230,21 +243,63 @@ class NewsPanel(
             override fun onTabUnselected(tab: TabLayout.Tab) = Unit
             override fun onTabReselected(tab: TabLayout.Tab) = Unit
         })
-        NewsSourceId.values().forEach { source ->
-            binding.newsTabLayout.addTab(binding.newsTabLayout.newTab().setText(source.label).apply { tag = source })
-        }
-        binding.newsTabLayout.addTab(
-            binding.newsTabLayout.newTab().setText(R.string.news_tab_drought).apply { tag = DroughtTabTag }
-        )
-        binding.newsTabLayout.addTab(
-            binding.newsTabLayout.newTab().setText(R.string.news_tab_stocks).apply { tag = StocksTabTag }
-        )
-        binding.newsTabLayout.addTab(
-            binding.newsTabLayout.newTab().setText(R.string.news_tab_wyze).apply { tag = WyzeTabTag }
-        )
+        rebuildTabs()
     }
 
-    fun onStateUpdated(itemsBySource: Map<NewsSourceId, List<NewsItem>>) {
+    /** (Re)creates the tab strip from the configured RSS feeds, then Drought, Stocks, and - only
+     *  while Wyze credentials are set - Wyze. Keeps the current tab selected when it still
+     *  exists. A changed Wyze login also resets the Wyze page so it signs in again on next visit. */
+    private fun rebuildTabs() {
+        val context = binding.root.context
+        val tabs = binding.newsTabLayout
+        // Selecting the Wyze tab opens its full-screen dialog, so never re-select it from here.
+        val previousTag = tabs.getTabAt(tabs.selectedTabPosition)?.tag?.takeIf { it != WyzeTabTag }
+        val wyzeLogin = CredentialStore.getWyzeUser(context) to CredentialStore.getWyzePassword(context)
+        if (wyzeLogin != lastWyzeLogin) {
+            lastWyzeLogin = wyzeLogin
+            wyzeState = WebViewLoadState.NOT_LOADED
+            wyzeLoginBroken = false
+            wyzeLoginAttempts = 0
+        }
+
+        val droughtStateCode = AppSettings.getDroughtState(context)
+        if (droughtStateCode != lastDroughtState) {
+            lastDroughtState = droughtStateCode
+            droughtState = WebViewLoadState.NOT_LOADED // next visit to the tab loads the new state's map
+        }
+
+        tabs.removeAllTabs()
+        val sources = AppSettings.getNewsSources(context)
+        sources.forEach { source ->
+            tabs.addTab(tabs.newTab().setText(source.label).apply { tag = source })
+        }
+        tabs.addTab(tabs.newTab().setText(R.string.news_tab_drought).apply { tag = DroughtTabTag })
+        tabs.addTab(tabs.newTab().setText(R.string.news_tab_stocks).apply { tag = StocksTabTag })
+        if (CredentialStore.hasWyze(context)) {
+            tabs.addTab(tabs.newTab().setText(R.string.news_tab_wyze).apply { tag = WyzeTabTag })
+        }
+
+        selectedSource = sources.first()
+        (0 until tabs.tabCount).firstOrNull { tabs.getTabAt(it)?.tag == previousTag }
+            ?.let { tabs.getTabAt(it)?.select() }
+        refresh()
+    }
+
+    /** Selects the sub-tab named by an [IdleSubPanelKeys] News key; the default (or a feed that's
+     *  no longer configured) lands on feed 1. */
+    fun selectSubPanel(key: String) {
+        val context = binding.root.context
+        val wanted: Any? = when (key) {
+            IdleSubPanelKeys.NEWS_FEED_2 -> AppSettings.getNewsFeed(context, 2)
+            IdleSubPanelKeys.NEWS_DROUGHT -> DroughtTabTag
+            IdleSubPanelKeys.NEWS_STOCKS -> StocksTabTag
+            else -> null
+        } ?: AppSettings.getNewsFeed(context, 1)
+        val tabs = binding.newsTabLayout
+        (0 until tabs.tabCount).firstOrNull { tabs.getTabAt(it)?.tag == wanted }?.let { tabs.getTabAt(it)?.select() }
+    }
+
+    fun onStateUpdated(itemsBySource: Map<NewsSource, List<NewsItem>>) {
         latestItemsBySource = itemsBySource
         refresh()
     }
@@ -303,7 +358,7 @@ class NewsPanel(
     private fun loadDroughtMonitor() {
         binding.droughtErrorText.visibility = View.GONE
         binding.droughtMonitorWebView.visibility = View.VISIBLE
-        binding.droughtMonitorWebView.loadUrl(DROUGHT_MONITOR_URL)
+        binding.droughtMonitorWebView.loadUrl(DROUGHT_MONITOR_URL + AppSettings.getDroughtState(binding.root.context))
     }
 
     private fun loadStocks() {
@@ -340,7 +395,7 @@ class NewsPanel(
         wyzeCamerasRequested = false
         binding.wyzeErrorText.visibility = View.GONE
         binding.wyzeWebView.visibility = View.VISIBLE
-        binding.wyzeWebView.loadUrl(BuildConfig.WYZE_LOGIN)
+        binding.wyzeWebView.loadUrl(WYZE_LOGIN_URL)
     }
 
     /** Drives the two-step Wyze sign-in: fill+submit the login form once it finishes loading,
@@ -349,7 +404,7 @@ class NewsPanel(
     private fun handleWyzePageFinished(url: String?) {
         val currentUrl = url ?: return
         when {
-            currentUrl.startsWith(BuildConfig.WYZE_LOGIN) && !wyzeLoginSubmitted -> {
+            currentUrl.startsWith(WYZE_LOGIN_URL) && !wyzeLoginSubmitted -> {
                 Log.d(TAG, "handleWyzePageFinished: login page loaded, submitting: $currentUrl")
                 wyzeLoginSubmitted = true
                 binding.wyzeWebView.evaluateJavascript(wyzeAutofillScript()) { result ->
@@ -359,13 +414,13 @@ class NewsPanel(
             wyzeLoginSubmitted && !wyzeCamerasRequested && currentUrl.contains("auth.wyze.com") -> {
                 Log.d(TAG, "handleWyzePageFinished: auth domain reached, opening cameras page: $currentUrl")
                 wyzeCamerasRequested = true
-                binding.wyzeWebView.loadUrl(BuildConfig.WYZE_CAMERAS)
+                binding.wyzeWebView.loadUrl(WYZE_CAMERAS_URL)
             }
             // Reaching the cameras page itself (not just requesting it above) is the actual
             // success signal - reset the counter so occasional legitimate re-logins across a long
             // session (e.g. after real network drops) don't eat into the same budget as a login
             // that's genuinely stuck bouncing back to itself.
-            currentUrl.startsWith(BuildConfig.WYZE_CAMERAS) && wyzeLoginAttempts != 0 -> {
+            currentUrl.startsWith(WYZE_CAMERAS_URL) && wyzeLoginAttempts != 0 -> {
                 Log.d(TAG, "handleWyzePageFinished: cameras page loaded, login succeeded - resetting attempt counter")
                 wyzeLoginAttempts = 0
             }
@@ -413,8 +468,8 @@ class NewsPanel(
      *  giving the page a moment to settle before filling in. Returns a short status string,
      *  logged by the caller, so which path ran is visible without attaching a debugger. */
     private fun wyzeAutofillScript(): String {
-        val email = JSONObject.quote(BuildConfig.WYZE_USER)
-        val password = JSONObject.quote(BuildConfig.WYZE_PWD)
+        val email = JSONObject.quote(CredentialStore.getWyzeUser(binding.root.context))
+        val password = JSONObject.quote(CredentialStore.getWyzePassword(binding.root.context))
         return """
             (function() {
                 function setNativeValue(el, value) {
@@ -461,7 +516,11 @@ class NewsPanel(
          *  transient hiccup; more than that means the login itself isn't completing. */
         private const val MAX_WYZE_LOGIN_ATTEMPTS = 3
 
-        private const val DROUGHT_MONITOR_URL = "https://droughtmonitor.unl.edu/CurrentMap/StateDroughtMonitor.aspx?NH"
+        private const val WYZE_LOGIN_URL = "https://auth.wyze.com/login"
+        private const val WYZE_CAMERAS_URL = "https://my.wyze.com/home"
+
+        /** The 2-letter state code is appended; see [AppSettings.getDroughtState]. */
+        private const val DROUGHT_MONITOR_URL = "https://droughtmonitor.unl.edu/CurrentMap/StateDroughtMonitor.aspx?"
 
         /** Free, ad-free TradingView "Market Overview" widget - no API key needed. Colors are
          *  hand-matched to this app's dark palette (bg_root/text_primary/accent_cool) rather than

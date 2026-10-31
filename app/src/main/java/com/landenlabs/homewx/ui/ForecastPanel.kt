@@ -265,6 +265,12 @@ class ForecastPanel(
         }
     }
 
+    /** Switches the Past / Hourly / Daily / Rain tab; unlike a tap it needs no user gesture. */
+    fun selectRange(wanted: ForecastRange) {
+        val tabs = binding.forecastRangeTabLayout
+        (0 until tabs.tabCount).firstOrNull { tabs.getTabAt(it)?.tag == wanted }?.let { tabs.getTabAt(it)?.select() }
+    }
+
     /** Called when this panel is made visible - see [ForecastGraphsPanel.resetView]. */
     fun resetGraphView() {
         graphsPanel.resetView()

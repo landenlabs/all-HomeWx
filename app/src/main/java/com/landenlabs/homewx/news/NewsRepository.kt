@@ -14,7 +14,7 @@ class NewsRepository(
         .readTimeout(10, TimeUnit.SECONDS)
         .build()
 ) {
-    suspend fun fetchFeed(source: NewsSourceId): List<NewsItem> = withContext(Dispatchers.IO) {
+    suspend fun fetchFeed(source: NewsSource): List<NewsItem> = withContext(Dispatchers.IO) {
         val request = Request.Builder().url(source.feedUrl).build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {

@@ -24,11 +24,11 @@ import com.landenlabs.homewx.data.SensorHistoryStore
 import com.landenlabs.homewx.data.WeatherMetricsHistoryStore
 import com.landenlabs.homewx.model.LightMode
 import com.landenlabs.homewx.news.NewsRepository
-import com.landenlabs.homewx.news.NewsSourceId
 import com.landenlabs.homewx.power.LightSensorMonitor
 import com.landenlabs.homewx.rivers.RiverGaugeRepository
 import com.landenlabs.homewx.rivers.RiverGaugeSettings
 import com.landenlabs.homewx.settings.AppSettings
+import com.landenlabs.homewx.settings.CredentialStore
 import com.landenlabs.homewx.notification.WeatherNotification
 import com.landenlabs.homewx.state.AppState
 import com.landenlabs.homewx.weather.DailyExtreme
@@ -61,7 +61,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 class HomeWxMonitorService : LifecycleService() {
 
     private val lightSensorMonitor by lazy { LightSensorMonitor(applicationContext) }
-    private val goveeRepository = GoveeRepository()
+    private val goveeRepository = GoveeRepository(apiKey = { CredentialStore.getGoveeApiKey(applicationContext) })
     private val sensorHistoryStore by lazy { SensorHistoryStore(applicationContext) }
     private val weatherMetricsHistoryStore by lazy { WeatherMetricsHistoryStore(applicationContext) }
     private val dailySnapshotStore by lazy { DailySnapshotStore(applicationContext) }
@@ -270,7 +270,7 @@ class HomeWxMonitorService : LifecycleService() {
         lifecycleScope.launch {
             while (true) {
                 // Each source is fetched independently so one feed failing doesn't blank out the other.
-                val items = NewsSourceId.values().associateWith { source ->
+                val items = AppSettings.getNewsSources(applicationContext).associateWith { source ->
                     runCatching { newsRepository.fetchFeed(source) }.getOrElse { e ->
                         Log.w(TAG, "News feed $source failed", e)
                         AppState.recordError("News:$source", e)
@@ -278,7 +278,7 @@ class HomeWxMonitorService : LifecycleService() {
                     }
                 }
                 AppState.uiState.update { it.copy(newsItemsBySource = items) }
-                delay(NEWS_POLL_INTERVAL_MS)
+                withTimeoutOrNull(NEWS_POLL_INTERVAL_MS) { AppState.configChanged.first() }
             }
         }
 
@@ -375,9 +375,9 @@ class HomeWxMonitorService : LifecycleService() {
     private suspend fun waitForNextPoll(consecutiveFailures: Int, normalIntervalMs: Long) {
         val delayMs = retryDelayMs(consecutiveFailures, normalIntervalMs)
         if (consecutiveFailures > 0) {
-            withTimeoutOrNull(delayMs) { merge(AppState.networkRecovered, AppState.refreshRequested).first() }
+            withTimeoutOrNull(delayMs) { merge(AppState.networkRecovered, AppState.refreshRequested, AppState.configChanged).first() }
         } else {
-            withTimeoutOrNull(delayMs) { AppState.refreshRequested.first() }
+            withTimeoutOrNull(delayMs) { merge(AppState.refreshRequested, AppState.configChanged).first() }
         }
     }
 

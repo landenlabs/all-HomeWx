@@ -2,6 +2,8 @@ package com.landenlabs.homewx.settings
 
 import android.content.Context
 import androidx.core.content.edit
+import com.landenlabs.homewx.news.NewsSource
+import com.landenlabs.homewx.news.UsStates
 
 /**
  * Config for the daily high/low tracking - no settings screen yet, but the storage/
@@ -26,6 +28,11 @@ object AppSettings {
     private const val KEY_DARK_MAP_THEME = "dark_map_theme"
     private const val KEY_DAILY_WEATHER_SPLINE_ENABLED = "daily_weather_spline_enabled"
     private const val KEY_WEATHER_NOTIFICATION_ENABLED = "weather_notification_enabled"
+    private const val KEY_NEWS_FEED_LABEL_PREFIX = "news_feed_label_"
+    private const val KEY_NEWS_FEED_URL_PREFIX = "news_feed_url_"
+    private const val KEY_DROUGHT_STATE = "drought_state"
+    private const val KEY_IDLE_PANEL = "idle_panel"
+    private const val KEY_IDLE_SUB_PANEL = "idle_sub_panel"
 
     const val DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES = 30
     const val MIN_WEATHER_SAMPLE_INTERVAL_MINUTES = 1
@@ -162,6 +169,63 @@ object AppSettings {
 
     fun setDarkMapTheme(context: Context, enabled: Boolean) {
         prefs(context).edit { putBoolean(KEY_DARK_MAP_THEME, enabled) }
+    }
+
+    /** The configured RSS feeds, in tab order: feed 1 always, feed 2 only if it has a URL. A feed
+     *  slot never saved falls back to its default; one saved with a blank URL is switched off. */
+    fun getNewsSources(context: Context): List<NewsSource> =
+        listOfNotNull(getNewsFeed(context, 1), getNewsFeed(context, 2))
+
+    /** Slot [slot] (1 or 2) as saved, the default if never saved, or null if it's switched off. */
+    fun getNewsFeed(context: Context, slot: Int): NewsSource? {
+        val prefs = prefs(context)
+        val default = if (slot == 1) NewsSource.DEFAULT_FEED_1 else NewsSource.DEFAULT_FEED_2
+        if (!prefs.contains(KEY_NEWS_FEED_URL_PREFIX + slot)) return default
+        val url = prefs.getString(KEY_NEWS_FEED_URL_PREFIX + slot, null)?.takeIf { it.isNotBlank() } ?: return null
+        val label = prefs.getString(KEY_NEWS_FEED_LABEL_PREFIX + slot, null)?.takeIf { it.isNotBlank() }
+        return NewsSource(label ?: android.net.Uri.parse(url).host.orEmpty().removePrefix("www."), url)
+    }
+
+    /** Saves slot [slot]; a null/blank [url] switches the slot off (feed 1 is validated as
+     *  required by the caller). */
+    fun setNewsFeed(context: Context, slot: Int, label: String?, url: String?) {
+        prefs(context).edit {
+            putString(KEY_NEWS_FEED_URL_PREFIX + slot, url?.trim().orEmpty())
+            putString(KEY_NEWS_FEED_LABEL_PREFIX + slot, label?.trim().orEmpty())
+        }
+    }
+
+    fun resetNewsFeeds(context: Context) {
+        prefs(context).edit {
+            for (slot in 1..2) {
+                remove(KEY_NEWS_FEED_URL_PREFIX + slot)
+                remove(KEY_NEWS_FEED_LABEL_PREFIX + slot)
+            }
+        }
+    }
+
+    /** The panel to settle on when idle; [IdlePanel.CYCLE] (the original rotation) if never set. */
+    fun getIdlePanel(context: Context): IdlePanel =
+        IdlePanel.values().firstOrNull { it.name == prefs(context).getString(KEY_IDLE_PANEL, null) } ?: IdlePanel.CYCLE
+
+    /** Key into [IdlePanel.subPanels] for the idle panel's sub-tab; empty for its default tab. */
+    fun getIdleSubPanel(context: Context): String =
+        prefs(context).getString(KEY_IDLE_SUB_PANEL, null).orEmpty()
+
+    fun setIdlePanel(context: Context, panel: IdlePanel, subPanelKey: String) {
+        prefs(context).edit {
+            putString(KEY_IDLE_PANEL, panel.name)
+            putString(KEY_IDLE_SUB_PANEL, subPanelKey)
+        }
+    }
+
+    /** 2-letter code of the state whose US Drought Monitor map the Drought tab shows. */
+    fun getDroughtState(context: Context): String =
+        prefs(context).getString(KEY_DROUGHT_STATE, null)?.takeIf { code -> UsStates.all.any { it.first == code } }
+            ?: UsStates.DEFAULT_CODE
+
+    fun setDroughtState(context: Context, code: String) {
+        prefs(context).edit { putString(KEY_DROUGHT_STATE, code) }
     }
 
     fun getHiddenSensorIds(context: Context): Set<String> =
