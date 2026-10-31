@@ -30,8 +30,8 @@ android {
         applicationId = "com.landenlabs.all_homewx"
         minSdk = 28 // wxdata's AAR declares minSdk 28 (see wxdata-integration-notes.md)
         targetSdk = 37
-        versionCode = 60420
-        versionName = "6.04.20"
+        versionCode = 61032
+        versionName = "6.10.32"
 
         // GOVEE_API_KEY / WYZE_USER / WYZE_PWD / SUN_API_KEY (the WxData key) are per build type (see buildTypes): debug seeds them
         // from local.properties, release ships empty and the user enters them in Settings.
@@ -72,6 +72,25 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+// Include the version in output file names: HomeWx-6.10.31-release.apk / HomeWx-6.10.31-release.aab.
+// archivesName covers the APK; the bundle is renamed after the bundle task since its name
+// isn't consistently derived from archivesName across AGP versions.
+val versionedName = "HomeWx-${android.defaultConfig.versionName}"
+base.archivesName.set(versionedName)
+
+tasks.configureEach {
+    val match = Regex("bundle(Debug|Release)").matchEntire(name) ?: return@configureEach
+    val variant = match.groupValues[1].lowercase()
+    doLast {
+        val dir = layout.buildDirectory.dir("outputs/bundle/$variant").get().asFile
+        val target = File(dir, "$versionedName-$variant.aab")
+        dir.listFiles { f -> f.extension == "aab" && f.name != target.name }?.forEach { old ->
+            target.delete()
+            old.renameTo(target)
+        }
     }
 }
 
