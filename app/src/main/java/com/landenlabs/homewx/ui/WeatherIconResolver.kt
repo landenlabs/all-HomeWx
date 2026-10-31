@@ -65,17 +65,26 @@ private val PRECIPITATION_ICON_CODES = setOf(4, 8, 9, 10, 11, 12, 13, 14, 16, 40
 private val CLEAR_ICON_CODES = setOf(31, 32, 33, 34)
 private const val WINDY_THRESHOLD_MPH = 20.0
 
+/** The four weather backgrounds. [key] is the name used in user-supplied files:
+ *  `wx_bg_<key>[_anything].jpg|png|webp` - see [UserBackgroundImages]. */
+enum class WeatherBackground(val key: String, val res: Int) {
+    CLEAR("clear", R.drawable.wx_bg_clear),
+    CLOUDY("cloudy", R.drawable.wx_bg_cloudy),
+    RAINY("rainy", R.drawable.wx_bg_rainy),
+    WINDY("windy", R.drawable.wx_bg_windy)
+}
+
 /**
- * Picks a wx-images background photo for the weather panel from the current condition's
+ * Picks which background the weather panel shows from the current condition's
  * icon code plus wind speed - there's no WMO code for "windy", so wind speed is its own
  * signal. Precipitation (rain or snow) always wins; wind wins over clear/cloudy otherwise.
  */
-fun weatherBackgroundRes(iconKey: String, windSpeedMph: Double?): Int {
+fun weatherBackground(iconKey: String, windSpeedMph: Double?): WeatherBackground {
     val iconCode = iconKey.removePrefix("wx_sun_").dropLast(1).toIntOrNull()
     return when {
-        iconCode in PRECIPITATION_ICON_CODES -> R.drawable.wx_bg_rainy
-        windSpeedMph != null && windSpeedMph >= WINDY_THRESHOLD_MPH -> R.drawable.wx_bg_windy
-        iconCode in CLEAR_ICON_CODES -> R.drawable.wx_bg_clear
-        else -> R.drawable.wx_bg_cloudy
+        iconCode in PRECIPITATION_ICON_CODES -> WeatherBackground.RAINY
+        windSpeedMph != null && windSpeedMph >= WINDY_THRESHOLD_MPH -> WeatherBackground.WINDY
+        iconCode in CLEAR_ICON_CODES -> WeatherBackground.CLEAR
+        else -> WeatherBackground.CLOUDY
     }
 }

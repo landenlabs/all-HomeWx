@@ -36,6 +36,8 @@ import com.landenlabs.homewx.rivers.GaugeSite
 import com.landenlabs.homewx.rivers.RiverGaugeRepository
 import com.landenlabs.homewx.rivers.RiverGaugeSettings
 import com.landenlabs.homewx.state.AppState
+import com.landenlabs.homewx.ui.UserBackgroundImages
+import com.landenlabs.homewx.ui.WeatherBackground
 import com.landenlabs.homewx.weather.WeatherSourceConfig
 import com.landenlabs.homewx.weather.WeatherSourceId
 import kotlinx.coroutines.Dispatchers
@@ -50,6 +52,17 @@ class SettingsActivity : AppCompatActivity() {
     private var sensorLabelEditTexts: List<EditText> = emptyList()
     private val riverGaugeRepository = RiverGaugeRepository()
     private val credentialDialogs = CredentialDialogs(this) { bindAccountStatus() }
+
+    // The folder grant is persisted so the app can keep reading it after a restart. Like the
+    // Accounts dialogs, a choice here is saved immediately rather than on leaving the screen.
+    private val backgroundFolderLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { folder ->
+        folder?.let {
+            contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            AppSettings.getBackgroundFolder(this)?.takeIf { old -> old != it }?.let(::releaseFolderGrant)
+            AppSettings.setBackgroundFolder(this, it)
+            bindBackgroundFolderStatus()
+        }
+    }
     private var idleSubPanels: List<IdleSubPanel> = emptyList()
     private var weatherSources: List<WeatherSourceId> = emptyList()
     private var riverGaugeCandidates: List<GaugeSite> = emptyList()
@@ -115,6 +128,12 @@ class SettingsActivity : AppCompatActivity() {
         binding.wxdataEditButton.setOnClickListener { credentialDialogs.showWxData() }
         binding.feedsEditButton.setOnClickListener { credentialDialogs.showFeeds() }
         binding.droughtEditButton.setOnClickListener { credentialDialogs.showDrought() }
+        binding.backgroundFolderChooseButton.setOnClickListener { backgroundFolderLauncher.launch(null) }
+        binding.backgroundFolderClearButton.setOnClickListener {
+            AppSettings.getBackgroundFolder(this)?.let(::releaseFolderGrant)
+            AppSettings.setBackgroundFolder(this, null)
+            bindBackgroundFolderStatus()
+        }
 
         binding.versionInfoText.text = getString(
             R.string.settings_version_info,
@@ -516,6 +535,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.dailySplineSwitch.isChecked = AppSettings.isDailyWeatherSplineEnabled(this)
         binding.darkMapSwitch.isChecked = AppSettings.isDarkMapTheme(this)
         bindAccountStatus()
+        bindBackgroundFolderStatus()
         val idlePanel = AppSettings.getIdlePanel(this)
         binding.idlePanelSpinner.setSelection(idlePanel.ordinal)
         bindIdleSubPanels(idlePanel, AppSettings.getIdleSubPanel(this))
@@ -553,6 +573,42 @@ class SettingsActivity : AppCompatActivity() {
         // all checked, rather than an empty list (a fresh search is one Find tap away).
         riverGaugeCandidates = RiverGaugeSettings.getSelectedGauges(this)
         rebuildRiverGaugeCheckBoxes(riverGaugeCandidates, checkedSiteIds = riverGaugeCandidates.map { it.siteId }.toSet())
+    }
+
+    private fun releaseFolderGrant(folder: android.net.Uri) {
+        try {
+            contentResolver.releasePersistableUriPermission(folder, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        } catch (e: SecurityException) {
+            // Already gone (revoked, or never persisted) - nothing to release.
+        }
+    }
+
+    /** Shows which folder is in use and how many images in it match the naming scheme, so a
+     *  misnamed file is easy to spot. Scans off the main thread. */
+    private fun bindBackgroundFolderStatus() {
+        val folder = AppSettings.getBackgroundFolder(this)
+        binding.backgroundFolderClearButton.isEnabled = folder != null
+        if (folder == null) {
+            binding.backgroundFolderStatusText.setText(R.string.settings_bg_folder_builtin)
+            return
+        }
+        lifecycleScope.launch {
+            val (name, images) = withContext(Dispatchers.IO) {
+                UserBackgroundImages.folderName(this@SettingsActivity, folder) to
+                    UserBackgroundImages.scanFolder(this@SettingsActivity, folder)
+            }
+            val count = { background: WeatherBackground -> images[background]?.size ?: 0 }
+            val total = WeatherBackground.values().sumOf(count)
+            binding.backgroundFolderStatusText.text = when {
+                name == null -> getString(R.string.settings_bg_folder_unreadable)
+                total == 0 -> getString(R.string.settings_bg_folder_none, name)
+                else -> getString(
+                    R.string.settings_bg_folder_found, name, total,
+                    count(WeatherBackground.CLEAR), count(WeatherBackground.CLOUDY),
+                    count(WeatherBackground.RAINY), count(WeatherBackground.WINDY)
+                )
+            }
+        }
     }
 
     /** Refreshes the one-line status under each Accounts & Feeds row. These are saved by their own

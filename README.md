@@ -58,8 +58,9 @@ come back on, so it needs no manual on/off.
 ### Features
 
 **Weather**
-- Current conditions with a background image that follows the weather, daily high/low, and
-  1-hour and 4-hour temperature trends.
+- Current conditions with a background image that follows the weather (clear, cloudy, rainy or
+  windy), daily high/low, and 1-hour and 4-hour temperature trends. You can supply your own
+  background images, see below.
 - Past, Hourly and Daily views, each as cards, graphs (temperature, wind, precipitation,
   pressure) or a table. Tap a Past or Daily card to preview that day on the left.
 - Rain tab: weekly precipitation totals for the last 12 weeks.
@@ -108,6 +109,15 @@ Open **Settings** (the gear icon) and use **Accounts & Feeds**:
 | WxData weather | Your WxData API key. Without it WxData is hidden from **Weather source** and Open-Meteo is used. |
 | News feeds | One or two RSS feed URLs (https) and tab names. **Defaults** restores the built-in feeds. |
 | Drought map | The state shown on the Drought tab. Defaults to NH. |
+
+**Your own background images:** in **Settings > Display** choose a folder with **Choose folder...**.
+Name files `wx_bg_clear`, `wx_bg_cloudy`, `wx_bg_rainy` or `wx_bg_windy`, optionally followed by
+`_` and any text, with a `.jpg`, `.png` or `.webp` extension, for example `wx_bg_clear_001.png`,
+`wx_bg_clear_002.jpg` or `wx_bg_clear_bigsky.webp`. Add as many per condition as you like. The
+app shows one for the current weather and moves to the next one each hour. A condition with no
+matching file uses the built-in image, and **Clear** returns to the built-in images entirely. The
+app can read only the folder you choose, and the status line under the button shows how many
+matching files it found.
 
 Credentials are stored on the tablet only, encrypted with the Android Keystore, and are
 not included in a settings export. Release builds ship with no credentials. Other

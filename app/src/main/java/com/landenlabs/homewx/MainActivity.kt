@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
+import android.net.Uri
 import android.os.Bundle
 import android.text.Spannable
 import android.text.SpannableString
@@ -51,7 +52,8 @@ import com.landenlabs.homewx.ui.RiverGraphsPanel
 import com.landenlabs.homewx.ui.SensorAdapter
 import com.landenlabs.homewx.ui.SensorChartPanel
 import com.landenlabs.homewx.ui.SensorGraphsPanel
-import com.landenlabs.homewx.ui.weatherBackgroundRes
+import com.landenlabs.homewx.ui.UserBackgroundImages
+import com.landenlabs.homewx.ui.weatherBackground
 import com.landenlabs.homewx.ui.weatherIconRes
 import com.landenlabs.homewx.weather.DailyExtreme
 import com.landenlabs.homewx.weather.DailyForecastEntry
@@ -147,6 +149,15 @@ class MainActivity : AppCompatActivity() {
     private var autoCycleResumeJob: Job? = null
     /** The idle panel setting last applied, so [onResume] can re-apply it after Settings changed it. */
     private var lastIdleConfig = ""
+
+    private val userBackgrounds by lazy { UserBackgroundImages(this) }
+    /** What the weather background currently shows: a built-in drawable id (Int) or a user image (Uri). */
+    private var shownBackground: Any? = null
+    /** The user image being decoded right now, so repeated state ticks don't restart the same load. */
+    private var loadingBackground: Uri? = null
+    private var backgroundLoadJob: Job? = null
+    private var lastBackgroundIconKey: String? = null
+    private var lastBackgroundWindMph: Double? = null
 
     /** Full-screen night layout, drawn over everything while the light sensor says QUIET (and
      *  no tap-to-wake override is active) - see [syncNightOverlay]. */
@@ -259,6 +270,7 @@ class MainActivity : AppCompatActivity() {
         sensorAdapter.submit(visibleSensors(AppState.uiState.value.sensors))
         updateRiverTabVisibility()
         updateWeatherSourceBadge()
+        reloadUserBackgrounds()
         if (idleConfig() != lastIdleConfig) {
             lastIdleConfig = idleConfig()
             applyIdlePanel()
@@ -641,7 +653,7 @@ class MainActivity : AppCompatActivity() {
         binding.weatherDetailsGrid.visibility = if (liveConditions != null) View.VISIBLE else View.GONE
         if (liveConditions != null) {
             binding.weatherIcon.setImageResource(weatherIconRes(liveConditions.iconKey))
-            binding.weatherBackgroundImage.setImageResource(weatherBackgroundRes(liveConditions.iconKey, liveConditions.windSpeedMph))
+            setWeatherBackground(liveConditions.iconKey, liveConditions.windSpeedMph)
             binding.conditionValueText.text = liveConditions.conditionText
             binding.humidityValueText.text = liveConditions.humidityPct?.roundToInt()?.let { "$it%" } ?: "--"
             setWindSpeedDirectionRowVisible(true)
@@ -716,7 +728,7 @@ class MainActivity : AppCompatActivity() {
         // a snapshot always has at least placeholder values worth showing.
         binding.weatherDetailsGrid.visibility = View.VISIBLE
         binding.weatherIcon.setImageResource(weatherIconRes(snapshot.iconKey ?: "wx_sun_44d"))
-        binding.weatherBackgroundImage.setImageResource(weatherBackgroundRes(snapshot.iconKey ?: "wx_sun_44d", snapshot.windSpeedMph))
+        setWeatherBackground(snapshot.iconKey ?: "wx_sun_44d", snapshot.windSpeedMph)
         binding.currentTempText.text = snapshot.tempF?.roundToInt()?.let { "$it°F" } ?: "--"
         binding.tempTrendText.text = ""
         binding.conditionValueText.text = snapshot.conditionText ?: "--"
@@ -739,7 +751,7 @@ class MainActivity : AppCompatActivity() {
         // See [bindSnapshotWeather] - same undo of [bindLiveWeather]'s no-data grid hiding.
         binding.weatherDetailsGrid.visibility = View.VISIBLE
         binding.weatherIcon.setImageResource(weatherIconRes(entry.iconKey))
-        binding.weatherBackgroundImage.setImageResource(weatherBackgroundRes(entry.iconKey, windSpeedMph = null))
+        setWeatherBackground(entry.iconKey, windSpeedMph = null)
         binding.currentTempText.text = entry.highF?.roundToInt()?.let { "$it°F" } ?: "--"
         binding.tempTrendText.text = entry.lowF?.roundToInt()?.let { "Low $it°F" } ?: ""
         binding.conditionValueText.text = entry.conditionText
@@ -770,7 +782,7 @@ class MainActivity : AppCompatActivity() {
         // See [bindSnapshotWeather] - same undo of [bindLiveWeather]'s no-data grid hiding.
         binding.weatherDetailsGrid.visibility = View.VISIBLE
         binding.weatherIcon.setImageResource(weatherIconRes(point.iconKey ?: "wx_sun_44d"))
-        binding.weatherBackgroundImage.setImageResource(weatherBackgroundRes(point.iconKey ?: "wx_sun_44d", point.windSpeedMph))
+        setWeatherBackground(point.iconKey ?: "wx_sun_44d", point.windSpeedMph)
         binding.currentTempText.text = point.temperatureF?.roundToInt()?.let { "$it°F" } ?: "--"
         binding.tempTrendText.text = ""
         binding.tempTrend4hText.text = ""
@@ -1147,6 +1159,49 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Sets the weather panel's background for a condition: one of the user's own images for it
+     *  (see [UserBackgroundImages]) when a folder is configured and has a match, else the built-in
+     *  photo. Called on every state tick, so it does nothing when the right image is already up. */
+    private fun setWeatherBackground(iconKey: String, windSpeedMph: Double?) {
+        lastBackgroundIconKey = iconKey
+        lastBackgroundWindMph = windSpeedMph
+        val background = weatherBackground(iconKey, windSpeedMph)
+        val userImage = userBackgrounds.pick(background, System.currentTimeMillis())
+        if (userImage == null) {
+            backgroundLoadJob?.cancel()
+            loadingBackground = null
+            if (shownBackground != background.res) {
+                binding.weatherBackgroundImage.setImageResource(background.res)
+                shownBackground = background.res
+            }
+            return
+        }
+        if (userImage == shownBackground || userImage == loadingBackground) return
+        backgroundLoadJob?.cancel()
+        loadingBackground = userImage
+        backgroundLoadJob = lifecycleScope.launch {
+            val bitmap = withContext(Dispatchers.IO) { userBackgrounds.decode(userImage, BACKGROUND_MAX_PX) }
+            loadingBackground = null
+            if (bitmap != null) {
+                binding.weatherBackgroundImage.setImageBitmap(bitmap)
+                shownBackground = userImage
+            } else {
+                // Unreadable (deleted, or access revoked): stop using it and show the next choice.
+                userBackgrounds.drop(userImage)
+                setWeatherBackground(iconKey, windSpeedMph)
+            }
+        }
+    }
+
+    /** Re-reads the folder chosen in Settings (files may have been added or removed) and re-applies
+     *  the current background. */
+    private fun reloadUserBackgrounds() {
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) { userBackgrounds.reload(AppSettings.getBackgroundFolder(this@MainActivity)) }
+            lastBackgroundIconKey?.let { setWeatherBackground(it, lastBackgroundWindMph) }
+        }
+    }
+
     /** Shows or hides the sensor rows to match the saved state; the weather image grows into the freed space. */
     private fun applySensorsCollapsed() {
         binding.sensorRecyclerView.visibility = if (AppSettings.isSensorsCollapsed(this)) View.GONE else View.VISIBLE
@@ -1166,6 +1221,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+        /** Longest side, in pixels, a user background is decoded to - larger photos are scaled down. */
+        private const val BACKGROUND_MAX_PX = 2048
         private const val SWIPE_THRESHOLD_PX = 80
         private const val DAY_MILLIS = 24 * 60 * 60 * 1000L
         private const val STALE_WEATHER_THRESHOLD_MS = 60 * 60 * 1000L

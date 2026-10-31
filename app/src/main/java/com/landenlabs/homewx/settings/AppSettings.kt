@@ -1,6 +1,7 @@
 package com.landenlabs.homewx.settings
 
 import android.content.Context
+import android.net.Uri
 import androidx.core.content.edit
 import com.landenlabs.homewx.news.NewsSource
 import com.landenlabs.homewx.news.UsStates
@@ -32,6 +33,7 @@ object AppSettings {
     private const val KEY_NEWS_FEED_URL_PREFIX = "news_feed_url_"
     private const val KEY_DROUGHT_STATE = "drought_state"
     private const val KEY_IDLE_PANEL = "idle_panel"
+    private const val KEY_BACKGROUND_FOLDER = "background_image_folder"
     private const val KEY_SENSORS_COLLAPSED = "sensors_collapsed"
     private const val KEY_IDLE_SUB_PANEL = "idle_sub_panel"
 
@@ -202,6 +204,17 @@ object AppSettings {
                 remove(KEY_NEWS_FEED_URL_PREFIX + slot)
                 remove(KEY_NEWS_FEED_LABEL_PREFIX + slot)
             }
+        }
+    }
+
+    /** Folder (a document-tree URI from the folder picker) holding the user's own weather
+     *  background images, or null to use the built-in ones. */
+    fun getBackgroundFolder(context: Context): Uri? =
+        prefs(context).getString(KEY_BACKGROUND_FOLDER, null)?.takeIf { it.isNotBlank() }?.let(Uri::parse)
+
+    fun setBackgroundFolder(context: Context, folder: Uri?) {
+        prefs(context).edit {
+            if (folder == null) remove(KEY_BACKGROUND_FOLDER) else putString(KEY_BACKGROUND_FOLDER, folder.toString())
         }
     }
 
