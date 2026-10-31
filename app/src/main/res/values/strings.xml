@@ -131,6 +131,13 @@
     <string name="cred_govee_title">Govee API key</string>
     <string name="cred_govee_help">Needed for the indoor sensor readings. Request a free key in the Govee Home app (Settings &gt; About Us &gt; Apply for API Key) or at developer.govee.com. Leave it empty to hide the sensors.</string>
     <string name="cred_govee_api_key">API key</string>
+    <string name="settings_accounts_wxdata">WxData weather</string>
+    <string name="settings_accounts_wxdata_set">API key set</string>
+    <string name="settings_accounts_wxdata_off">Not set - source hidden</string>
+    <string name="cred_wxdata_title">WxData API key</string>
+    <string name="cred_wxdata_help">Enables WxData as a weather source. Without a key it is not offered under Weather source and Open-Meteo is used.</string>
+    <string name="cred_wxdata_api_key">API key</string>
+    <string name="cred_wxdata_restart">Restart the app for the new WxData key to take effect.</string>
     <string name="cred_wyze_title">Wyze login</string>
     <string name="cred_wyze_help">Used to sign in to the Wyze camera page for you. Stored encrypted on this tablet only. Leave it empty to hide the Wyze tab.</string>
     <string name="cred_wyze_email">Email</string>

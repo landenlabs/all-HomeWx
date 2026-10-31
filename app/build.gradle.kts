@@ -33,16 +33,13 @@ android {
         versionCode = 60420
         versionName = "6.04.20"
 
-        // GOVEE_API_KEY / WYZE_USER / WYZE_PWD are per build type (see buildTypes): debug seeds them
+        // GOVEE_API_KEY / WYZE_USER / WYZE_PWD / SUN_API_KEY (the WxData key) are per build type (see buildTypes): debug seeds them
         // from local.properties, release ships empty and the user enters them in Settings.
 
         // Google Nest (SDM) thermostat credentials; see NestApiClient.
         for (key in listOf("NEST_PROJECT_ID", "NEST_CLIENT_ID", "NEST_CLIENT_SECRET", "NEST_REFRESH_TOKEN")) {
             buildConfigField("String", key, "\"${localProperties.getProperty(key) ?: ""}\"")
         }
-
-        val sunApiKey =localProperties.getProperty("SUN_API_KEY") ?: ""
-        buildConfigField("String", "SUN_API_KEY", "\"$sunApiKey\"")
 
         val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date())
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
@@ -53,13 +50,13 @@ android {
         // CredentialStore. Only debug builds read local.properties - a release bundle must never
         // carry anyone's personal keys.
         debug {
-            for (key in listOf("GOVEE_API_KEY", "WYZE_USER", "WYZE_PWD")) {
+            for (key in listOf("GOVEE_API_KEY", "WYZE_USER", "WYZE_PWD", "SUN_API_KEY")) {
                 val value = (localProperties.getProperty(key) ?: "").replace("\\", "\\\\").replace("\"", "\\\"")
                 buildConfigField("String", key, "\"$value\"")
             }
         }
         release {
-            for (key in listOf("GOVEE_API_KEY", "WYZE_USER", "WYZE_PWD")) {
+            for (key in listOf("GOVEE_API_KEY", "WYZE_USER", "WYZE_PWD", "SUN_API_KEY")) {
                 buildConfigField("String", key, "\"\"")
             }
             isMinifyEnabled = false

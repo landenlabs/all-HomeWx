@@ -201,6 +201,11 @@ class MainActivity : AppCompatActivity() {
         )
         binding.sensorRecyclerView.layoutManager = LinearLayoutManager(this)
         binding.sensorRecyclerView.adapter = sensorAdapter
+        binding.sensorsTitleText.setOnClickListener {
+            AppSettings.setSensorsCollapsed(this, !AppSettings.isSensorsCollapsed(this))
+            applySensorsCollapsed()
+        }
+        applySensorsCollapsed()
         binding.weatherBackgroundImage.setOnTouchListener { _, event -> weatherGestureDetector.onTouchEvent(event) }
         binding.settingsButton.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
 
@@ -1142,6 +1147,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Shows or hides the sensor rows to match the saved state; the weather image grows into the freed space. */
+    private fun applySensorsCollapsed() {
+        binding.sensorRecyclerView.visibility = if (AppSettings.isSensorsCollapsed(this)) View.GONE else View.VISIBLE
+        updateSensorsTitle()
+    }
+
     private fun updateSensorsTitle() {
         val updatedAt = sensorsUpdatedAtMillis
         val suffix = if (updatedAt == null) {
@@ -1150,7 +1161,8 @@ class MainActivity : AppCompatActivity() {
             val elapsedMinutes = (System.currentTimeMillis() - updatedAt) / 60_000L
             if (elapsedMinutes < 1) " (just now)" else " ($elapsedMinutes min ago)"
         }
-        binding.sensorsTitleText.text = "SENSORS$suffix"
+        val chevron = if (AppSettings.isSensorsCollapsed(this)) "▸" else "▾"
+        binding.sensorsTitleText.text = "SENSORS$suffix  $chevron"
     }
 
     companion object {

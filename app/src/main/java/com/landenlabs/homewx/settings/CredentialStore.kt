@@ -13,7 +13,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * Govee and Wyze account credentials entered in Settings > Credentials. Kept in their own prefs
+ * Govee, Wyze and WxData credentials entered in Settings > Accounts & Feeds. Kept in their own prefs
  * file, separate from [AppSettings], so [com.landenlabs.homewx.data.BackupManager]'s settings
  * export never carries them, and each value is encrypted with an Android Keystore key.
  *
@@ -27,6 +27,7 @@ object CredentialStore {
     private const val KEY_GOVEE_API_KEY = "govee_api_key"
     private const val KEY_WYZE_USER = "wyze_user"
     private const val KEY_WYZE_PASSWORD = "wyze_password"
+    private const val KEY_WXDATA_API_KEY = "wxdata_api_key"
 
     private const val KEYSTORE = "AndroidKeyStore"
     private const val KEY_ALIAS = "homewx_credentials_key"
@@ -45,6 +46,16 @@ object CredentialStore {
         set(context, KEY_WYZE_USER, user)
         set(context, KEY_WYZE_PASSWORD, password)
     }
+
+    /** WxData weather source key; the BuildConfig field is still named SUN_API_KEY after the
+     *  SDK's config constant ([com.wsi.wxdata.WxData.OVER_SUN]). */
+    fun getWxDataApiKey(context: Context): String = get(context, KEY_WXDATA_API_KEY, BuildConfig.SUN_API_KEY)
+
+    fun setWxDataApiKey(context: Context, value: String) = set(context, KEY_WXDATA_API_KEY, value)
+
+    fun hasWxData(context: Context): Boolean = getWxDataApiKey(context).isNotBlank()
+
+    fun isWxDataDefault(context: Context): Boolean = isDefault(context, KEY_WXDATA_API_KEY, BuildConfig.SUN_API_KEY)
 
     fun hasGovee(context: Context): Boolean = getGoveeApiKey(context).isNotBlank()
 

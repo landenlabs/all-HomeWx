@@ -51,6 +51,7 @@ class SettingsActivity : AppCompatActivity() {
     private val riverGaugeRepository = RiverGaugeRepository()
     private val credentialDialogs = CredentialDialogs(this) { bindAccountStatus() }
     private var idleSubPanels: List<IdleSubPanel> = emptyList()
+    private var weatherSources: List<WeatherSourceId> = emptyList()
     private var riverGaugeCandidates: List<GaugeSite> = emptyList()
     private var riverGaugeCheckBoxes: List<CheckBox> = emptyList()
     private var riverGaugeLabelEditTexts: List<EditText> = emptyList()
@@ -111,6 +112,7 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.goveeEditButton.setOnClickListener { credentialDialogs.showGovee() }
         binding.wyzeEditButton.setOnClickListener { credentialDialogs.showWyze() }
+        binding.wxdataEditButton.setOnClickListener { credentialDialogs.showWxData() }
         binding.feedsEditButton.setOnClickListener { credentialDialogs.showFeeds() }
         binding.droughtEditButton.setOnClickListener { credentialDialogs.showDrought() }
 
@@ -122,7 +124,6 @@ class SettingsActivity : AppCompatActivity() {
             DailySnapshotStore.DB_VERSION
         )
 
-        setUpWeatherSourceSpinner()
         setUpIdlePanelSpinners()
         setUpSensorSpinner()
         setUpSensorVisibilityCheckBoxes()
@@ -250,16 +251,19 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    /** Lists [WeatherSourceConfig.availableSources] - WxData only appears once it has an API key -
+     *  and selects the active one. Rebuilt whenever that key is added or cleared. */
     private fun setUpWeatherSourceSpinner() {
-        val sources = WeatherSourceId.values().toList()
+        weatherSources = WeatherSourceConfig.availableSources(this)
         binding.weatherSourceSpinner.adapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_dropdown_item,
-            sources.map { it.name }
+            weatherSources.map { it.name }
         )
-        // Only one source exists today - nothing to switch between yet, but the
-        // spinner already works once WeatherProviderFactory grows a second branch.
-        binding.weatherSourceSpinner.isEnabled = sources.size > 1
+        binding.weatherSourceSpinner.setSelection(
+            weatherSources.indexOf(WeatherSourceConfig.getActiveSource(this)).coerceAtLeast(0)
+        )
+        binding.weatherSourceSpinner.isEnabled = weatherSources.size > 1
     }
 
     private fun setUpIdlePanelSpinners() {
@@ -470,9 +474,6 @@ class SettingsActivity : AppCompatActivity() {
     /** Reloads every control from the last-saved [AppSettings] values, discarding any unsaved
      *  edits. Used both to populate the screen on open and to implement the Undo button. */
     private fun bindCurrentValues() {
-        val sources = WeatherSourceId.values().toList()
-        val activeIndex = sources.indexOf(WeatherSourceConfig.getActiveSource(this)).coerceAtLeast(0)
-        binding.weatherSourceSpinner.setSelection(activeIndex)
 
         val hiddenIds = AppSettings.getHiddenSensorIds(this)
         sensorVisibilityCheckBoxes.forEach { checkBox ->
@@ -557,6 +558,11 @@ class SettingsActivity : AppCompatActivity() {
     /** Refreshes the one-line status under each Accounts & Feeds row. These are saved by their own
      *  dialogs, so they sit outside [bindCurrentValues]'s Undo and [saveSettings]'s auto-save. */
     private fun bindAccountStatus() {
+        // Adding or clearing the WxData key changes which weather sources are offered.
+        setUpWeatherSourceSpinner()
+        binding.wxdataStatusText.text = getString(
+            if (CredentialStore.hasWxData(this)) R.string.settings_accounts_wxdata_set else R.string.settings_accounts_wxdata_off
+        )
         binding.goveeStatusText.text = if (CredentialStore.hasGovee(this)) {
             getString(R.string.settings_accounts_govee_set)
         } else {
@@ -599,8 +605,9 @@ class SettingsActivity : AppCompatActivity() {
             idleSubPanels.getOrNull(binding.idleSubPanelSpinner.selectedItemPosition)?.key ?: IdleSubPanelKeys.DEFAULT
         )
 
-        val selectedSource = WeatherSourceId.values()[binding.weatherSourceSpinner.selectedItemPosition]
-        WeatherSourceConfig.setActiveSource(this, selectedSource)
+        weatherSources.getOrNull(binding.weatherSourceSpinner.selectedItemPosition)?.let {
+            WeatherSourceConfig.setActiveSource(this, it)
+        }
 
         val overrideEnabled = binding.tempOverrideSwitch.isChecked
         val selectedSensorId = sensorIds.getOrNull(binding.tempOverrideSensorSpinner.selectedItemPosition)

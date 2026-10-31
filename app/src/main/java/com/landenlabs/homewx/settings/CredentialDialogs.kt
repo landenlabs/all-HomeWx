@@ -3,6 +3,7 @@ package com.landenlabs.homewx.settings
 import android.net.Uri
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.Toast
 import android.widget.ArrayAdapter
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -12,9 +13,11 @@ import com.landenlabs.homewx.R
 import com.landenlabs.homewx.databinding.DialogDroughtBinding
 import com.landenlabs.homewx.databinding.DialogFeedsBinding
 import com.landenlabs.homewx.databinding.DialogGoveeBinding
+import com.landenlabs.homewx.databinding.DialogWxdataBinding
 import com.landenlabs.homewx.databinding.DialogWyzeBinding
 import com.landenlabs.homewx.news.UsStates
 import com.landenlabs.homewx.state.AppState
+import com.landenlabs.homewx.weather.wxdata.WxDataWeatherProvider
 
 /**
  * The Govee / Wyze / RSS-feed / drought-state dialogs opened from Settings > Accounts & Feeds. Unlike the rest of
@@ -40,6 +43,34 @@ class CredentialDialogs(private val activity: AppCompatActivity, private val onC
                 changed()
                 true
             }
+    }
+
+    fun showWxData() {
+        val binding = DialogWxdataBinding.inflate(LayoutInflater.from(activity))
+        binding.wxdataApiKeyEditText.setText(CredentialStore.getWxDataApiKey(activity))
+        binding.wxdataDefaultNoteText.visibility = if (CredentialStore.isWxDataDefault(activity)) View.VISIBLE else View.GONE
+
+        dialogBuilder(R.string.cred_wxdata_title, binding.root)
+            .setNeutralButton(R.string.cred_clear) { _, _ ->
+                CredentialStore.setWxDataApiKey(activity, "")
+                wxDataKeyChanged()
+            }
+            .show()
+            .onSave {
+                CredentialStore.setWxDataApiKey(activity, binding.wxdataApiKeyEditText.text.toString())
+                wxDataKeyChanged()
+                true
+            }
+    }
+
+    /** The WxData SDK starts once per process. A first key starts it now; replacing a key it
+     *  already started with can't take effect until the app restarts, so say so. */
+    private fun wxDataKeyChanged() {
+        WxDataWeatherProvider.initialize(activity)
+        if (WxDataWeatherProvider.needsRestartForKey(activity)) {
+            Toast.makeText(activity, R.string.cred_wxdata_restart, Toast.LENGTH_LONG).show()
+        }
+        changed()
     }
 
     fun showWyze() {

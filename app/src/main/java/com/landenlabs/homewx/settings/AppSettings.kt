@@ -32,6 +32,7 @@ object AppSettings {
     private const val KEY_NEWS_FEED_URL_PREFIX = "news_feed_url_"
     private const val KEY_DROUGHT_STATE = "drought_state"
     private const val KEY_IDLE_PANEL = "idle_panel"
+    private const val KEY_SENSORS_COLLAPSED = "sensors_collapsed"
     private const val KEY_IDLE_SUB_PANEL = "idle_sub_panel"
 
     const val DEFAULT_WEATHER_SAMPLE_INTERVAL_MINUTES = 30
@@ -202,6 +203,14 @@ object AppSettings {
                 remove(KEY_NEWS_FEED_LABEL_PREFIX + slot)
             }
         }
+    }
+
+    /** Whether the SENSORS rows under the weather panel are collapsed; open until the user taps the title. */
+    fun isSensorsCollapsed(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_SENSORS_COLLAPSED, false)
+
+    fun setSensorsCollapsed(context: Context, collapsed: Boolean) {
+        prefs(context).edit { putBoolean(KEY_SENSORS_COLLAPSED, collapsed) }
     }
 
     /** The panel to settle on when idle; [IdlePanel.CYCLE] (the original rotation) if never set. */

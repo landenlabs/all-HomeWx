@@ -1,7 +1,7 @@
 package com.landenlabs.homewx.weather.wxdata
 
 import android.content.Context
-import com.landenlabs.homewx.BuildConfig
+import com.landenlabs.homewx.settings.CredentialStore
 import com.landenlabs.homewx.weather.CurrentConditions
 import com.landenlabs.homewx.weather.DailyForecastEntry
 import com.landenlabs.homewx.weather.GeoLocation
@@ -135,24 +135,40 @@ class WxDataWeatherProvider : WeatherProvider {
         private const val FETCH_TIMEOUT_SECONDS = 20L
         private const val DAILY_DERIVATION_DAYS = 7
 
+        /** The key [WxData] was initialized with, or null if it hasn't been (no key was set yet). */
+        @Volatile
+        private var initializedKey: String? = null
+
         /**
-         * Must be called once at app startup, before any [WxDataWeatherProvider] call - see
-         * [com.landenlabs.homewx.HomeWxApp]. Safe to call unconditionally regardless of which source
-         * is currently active: [WxData.initialize] is a one-time no-op on repeat calls, and this
-         * particular AAR build has `USE_PROVISIONING = false`, so it resolves the override
-         * config locally with no network round trip - unlike the sample app's WxDataHelper,
-         * which goes through the full provisioning service.
+         * Must run once before any [WxDataWeatherProvider] call: at app startup (see
+         * [com.landenlabs.homewx.HomeWxApp]) and again when a key is first saved in Settings. Safe to
+         * call unconditionally regardless of which source is currently active: it does nothing
+         * without a key (WxData isn't offered then) or once initialized, since [WxData.initialize]
+         * is a one-time no-op on repeat calls. This particular AAR build has `USE_PROVISIONING =
+         * false`, so it resolves the override config locally with no network round trip - unlike
+         * the sample app's WxDataHelper, which goes through the full provisioning service.
          */
+        @Synchronized
         fun initialize(context: Context) {
+            val apiKey = CredentialStore.getWxDataApiKey(context)
+            if (apiKey.isBlank() || initializedKey != null) return
+            initializedKey = apiKey
             WxData.getInstance().initialize(
-                context,
-                BuildConfig.SUN_API_KEY,
+                context.applicationContext,
+                apiKey,
                 object : WxData.InitializationListener {
                     override fun onWxDataInitializationSucceeded() = Unit
                     override fun onWxDataInitializationFailed(error: WxDataInitializationException?) = Unit
                 },
-                mapOf(WxData.OVER_SUN to BuildConfig.SUN_API_KEY)
+                mapOf(WxData.OVER_SUN to apiKey)
             )
+        }
+
+        /** True when the saved key differs from the one [WxData] started with; the SDK can't be
+         *  re-keyed in place, so the new key only applies after the app restarts. */
+        fun needsRestartForKey(context: Context): Boolean {
+            val started = initializedKey ?: return false
+            return started != CredentialStore.getWxDataApiKey(context)
         }
     }
 }
