@@ -33,3 +33,6 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# Private notes/scripts - kept in a separate private repo, never in this public one
+private/
