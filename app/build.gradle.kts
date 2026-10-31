@@ -30,8 +30,8 @@ android {
         applicationId = "com.landenlabs.all_homewx"
         minSdk = 28 // wxdata's AAR declares minSdk 28 (see wxdata-integration-notes.md)
         targetSdk = 37
-        versionCode = 61032
-        versionName = "6.10.32"
+        versionCode = 61033
+        versionName = "6.10.33"
 
         // GOVEE_API_KEY / WYZE_USER / WYZE_PWD / SUN_API_KEY (the WxData key) are per build type (see buildTypes): debug seeds them
         // from local.properties, release ships empty and the user enters them in Settings.
