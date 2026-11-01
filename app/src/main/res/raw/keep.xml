@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Resource shrinking (release builds) removes drawables with no static reference. The weather icons
+  are looked up by name at runtime - WeatherIconResolver does getIdentifier("wx_sun_NNd|n") from
+  the provider's icon code - so none of them look "used" except wx_sun_44d. Keep them all.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/wx_sun_*" />

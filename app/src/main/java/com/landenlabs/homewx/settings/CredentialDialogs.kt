@@ -3,7 +3,6 @@ package com.landenlabs.homewx.settings
 import android.net.Uri
 import android.view.LayoutInflater
 import android.view.View
-import android.widget.Toast
 import android.widget.ArrayAdapter
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -63,13 +62,9 @@ class CredentialDialogs(private val activity: AppCompatActivity, private val onC
             }
     }
 
-    /** The WxData SDK starts once per process. A first key starts it now; replacing a key it
-     *  already started with can't take effect until the app restarts, so say so. */
+    /** WxData (AAR 3.26+) re-applies a changed config in place, so a new key is live right away. */
     private fun wxDataKeyChanged() {
         WxDataWeatherProvider.initialize(activity)
-        if (WxDataWeatherProvider.needsRestartForKey(activity)) {
-            Toast.makeText(activity, R.string.cred_wxdata_restart, Toast.LENGTH_LONG).show()
-        }
         changed()
     }
 

@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "HomeWx"
+rootProject.name = "All-HomeWx"
 include(":app")

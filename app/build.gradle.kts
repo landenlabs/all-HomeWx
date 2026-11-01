@@ -30,8 +30,8 @@ android {
         applicationId = "com.landenlabs.all_homewx"
         minSdk = 28 // wxdata's AAR declares minSdk 28 (see wxdata-integration-notes.md)
         targetSdk = 37
-        versionCode = 61033
-        versionName = "6.10.33"
+        versionCode = 61034
+        versionName = "6.10.34"
 
         // GOVEE_API_KEY / WYZE_USER / WYZE_PWD / SUN_API_KEY (the WxData key) are per build type (see buildTypes): debug seeds them
         // from local.properties, release ships empty and the user enters them in Settings.
@@ -59,7 +59,10 @@ android {
             for (key in listOf("GOVEE_API_KEY", "WYZE_USER", "WYZE_PWD", "SUN_API_KEY")) {
                 buildConfigField("String", key, "\"\"")
             }
-            isMinifyEnabled = false
+            // R8 shrink + obfuscate + optimize (Play requires obfuscation). Keep rules for anything
+            // reflective live in proguard-rules.pro; wxdata/Firebase/OkHttp ship consumer rules.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -111,12 +114,13 @@ dependencies {
     // WxData (see wxdata-integration-notes.md) - a local .aar carries no dependency metadata of
     // its own, so every one of its own dependencies must be declared here explicitly too, even
     // the ones it marks "implementation" rather than "api".
-    // 2.26.0904: picks up wxdata's WxCurrentConditions updates + dependency bumps on top of the
-    // 2.26.0903b race-condition hotfix - see max-auto-android-wxdata commit history for details.
-    implementation(files("libs/WxData-debug-2.26.0904.aar"))
+    // 3.26.1031: initialize() now takes a host-built WxDataConfig (no provisioning, no baked-in
+    // URLs); Retrofit/RxJava/GreenRobot were dropped in favour of Gson + CompletableFuture, so only
+    // okhttp (above), logging-interceptor and gson are still needed. See
+    // max-auto-android-wxdata/technotes/initialize.md.
+    implementation(files("libs/wxdata-3.26.1031.aar"))
     implementation("com.squareup.okhttp3:logging-interceptor:5.5.0")
     implementation("com.google.code.gson:gson:2.14.0")
-    implementation("org.greenrobot:eventbus:3.3.1")
 
     implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
     implementation("com.google.firebase:firebase-analytics")

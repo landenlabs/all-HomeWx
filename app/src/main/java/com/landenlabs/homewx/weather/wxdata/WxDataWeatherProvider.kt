@@ -14,6 +14,7 @@ import com.wsi.wxdata.WxAlmanacDailyFetcher
 import com.wsi.wxdata.WxCurrentConditions
 import com.wsi.wxdata.WxCurrentFetcher
 import com.wsi.wxdata.WxData
+import com.wsi.wxdata.WxDataConfig
 import com.wsi.wxdata.WxDataInitializationException
 import com.wsi.wxdata.WxHourlyFetcher
 import com.wsi.wxdata.WxHourlyForecast
@@ -135,40 +136,44 @@ class WxDataWeatherProvider : WeatherProvider {
         private const val FETCH_TIMEOUT_SECONDS = 20L
         private const val DAILY_DERIVATION_DAYS = 7
 
+        /** Weather-data and location-search base URL; the library no longer defaults these. */
+        private const val WX_BASE_URL = "https://api.weather.com"
+
         /** The key [WxData] was initialized with, or null if it hasn't been (no key was set yet). */
         @Volatile
         private var initializedKey: String? = null
 
         /**
-         * Must run once before any [WxDataWeatherProvider] call: at app startup (see
-         * [com.landenlabs.homewx.HomeWxApp]) and again when a key is first saved in Settings. Safe to
-         * call unconditionally regardless of which source is currently active: it does nothing
-         * without a key (WxData isn't offered then) or once initialized, since [WxData.initialize]
-         * is a one-time no-op on repeat calls. This particular AAR build has `USE_PROVISIONING =
-         * false`, so it resolves the override config locally with no network round trip - unlike
-         * the sample app's WxDataHelper, which goes through the full provisioning service.
+         * Must run before any [WxDataWeatherProvider] call: at app startup (see
+         * [com.landenlabs.homewx.HomeWxApp]) and again whenever the key is saved in Settings. Safe
+         * to call unconditionally regardless of which source is currently active: it does nothing
+         * without a key (WxData isn't offered then) or when the key is unchanged. AAR 3.26.1021+
+         * has no provisioning and no built-in URLs - the host supplies everything in a
+         * [WxDataConfig] - and applies a changed config in place (fetchers read the current config
+         * on every fetch), so a replaced key takes effect immediately, no app restart needed.
          */
         @Synchronized
         fun initialize(context: Context) {
             val apiKey = CredentialStore.getWxDataApiKey(context)
-            if (apiKey.isBlank() || initializedKey != null) return
+            if (apiKey.isBlank() || initializedKey == apiKey) return
+            val config = try {
+                WxDataConfig.Builder(apiKey)
+                    .clientName("HomeWx")
+                    .sunBaseUrl(WX_BASE_URL)
+                    .locationBaseUrl(WX_BASE_URL)
+                    .build()
+            } catch (e: IllegalArgumentException) {
+                return // invalid key/URL: leave uninitialized; fetches will fail visibly
+            }
             initializedKey = apiKey
             WxData.getInstance().initialize(
                 context.applicationContext,
-                apiKey,
+                config,
                 object : WxData.InitializationListener {
                     override fun onWxDataInitializationSucceeded() = Unit
                     override fun onWxDataInitializationFailed(error: WxDataInitializationException?) = Unit
-                },
-                mapOf(WxData.OVER_SUN to apiKey)
+                }
             )
-        }
-
-        /** True when the saved key differs from the one [WxData] started with; the SDK can't be
-         *  re-keyed in place, so the new key only applies after the app restarts. */
-        fun needsRestartForKey(context: Context): Boolean {
-            val started = initializedKey ?: return false
-            return started != CredentialStore.getWxDataApiKey(context)
         }
     }
 }
