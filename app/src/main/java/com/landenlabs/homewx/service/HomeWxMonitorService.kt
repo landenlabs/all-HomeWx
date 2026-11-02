@@ -65,12 +65,13 @@ class HomeWxMonitorService : LifecycleService() {
     private val sensorHistoryStore by lazy { SensorHistoryStore(applicationContext) }
     private val weatherMetricsHistoryStore by lazy { WeatherMetricsHistoryStore(applicationContext) }
     private val dailySnapshotStore by lazy { DailySnapshotStore(applicationContext) }
-    private val weatherDailyTracker = WeatherDailyTracker()
+    private var weatherDailyTracker = WeatherDailyTracker()
+    private var trackerEpoch = Long.MIN_VALUE // applicationContext isn't available yet; first poll just resets an empty tracker
     private val newsRepository = NewsRepository()
     private val riverGaugeRepository = RiverGaugeRepository()
     private val riverHistoryStore by lazy { RiverHistoryStore(applicationContext) }
     private val weatherRepository = WeatherRepository(
-        location = HomeLocation.CURRENT,
+        location = { HomeLocation.current(applicationContext) },
         activeSource = { WeatherSourceConfig.getActiveSource(applicationContext) },
         forecastDays = { AppSettings.getForecastDays(applicationContext) }
     )
@@ -228,6 +229,13 @@ class HomeWxMonitorService : LifecycleService() {
                     val current = weatherRepository.getCurrentConditions()
                     val forecast = weatherRepository.getForecast()
                     latestForecast = forecast
+                    // Location changed or its history was cleared - today's running high/low is stale.
+                    HomeLocation.epoch(applicationContext).let { epoch ->
+                        if (epoch != trackerEpoch) {
+                            trackerEpoch = epoch
+                            weatherDailyTracker = WeatherDailyTracker()
+                        }
+                    }
                     weatherDailyTracker.recordSample(current.observedAtMillis, current.temperatureF, current.windSpeedMph)
                     withContext(Dispatchers.IO) { weatherMetricsHistoryStore.record(current, forecast.precipChanceAt(current.observedAtMillis)) }
                     val tempTrend = forecast.hourlyDelta(current.observedAtMillis, 1, current.temperatureF) { it.temperatureF }

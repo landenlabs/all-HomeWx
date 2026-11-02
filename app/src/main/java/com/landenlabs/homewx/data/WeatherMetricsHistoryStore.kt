@@ -259,6 +259,13 @@ class WeatherMetricsHistoryStore(context: Context) :
         return points
     }
 
+    /** Deletes every recorded weather sample (short-term and daily) - used when the home location
+     *  changes so history from the old place isn't mixed in. */
+    fun clearAll() {
+        writableDatabase.delete(TABLE, null, null)
+        writableDatabase.delete(DAILY_TABLE, null, null)
+    }
+
     private fun pruneOlderThanRetention() {
         val cutoff = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(RETENTION_DAYS)
         writableDatabase.delete(TABLE, "$COL_TIMESTAMP_MILLIS < ?", arrayOf(cutoff.toString()))

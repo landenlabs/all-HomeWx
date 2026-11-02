@@ -37,6 +37,13 @@
     <string name="forecast_tab_hourly">Hourly</string>
     <string name="forecast_tab_daily">Daily</string>
     <string name="forecast_tab_rain">Rain</string>
+    <string name="forecast_rain_table_weekly_title">Weekly precipitation (in) - last 12 weeks</string>
+    <string name="forecast_rain_table_monthly_title">Monthly precipitation (in) - previous 3 months</string>
+    <string name="forecast_rain_table_week_header">Week of</string>
+    <string name="forecast_rain_table_month_header">Month</string>
+    <string name="forecast_rain_table_this_year">This year</string>
+    <string name="forecast_rain_table_last_year">Last year</string>
+    <string name="forecast_rain_table_current_note">* week in progress (total so far)</string>
     <string name="forecast_rain_title">Weekly precipitation (in) - last 12 weeks</string>
     <string name="forecast_rain_source">NOAA PRISM gridded analysis via ACIS - weeks start Monday</string>
     <string name="forecast_rain_loading">Loading rain totals...</string>
@@ -103,6 +110,17 @@
     <string name="settings_weather_notification_switch">Show weather notification (expands to next 6 hours)</string>
     <string name="settings_daily_spline_switch">Smooth daily/past forecast graphs (spline)</string>
     <string name="settings_dark_map_switch">Dark map theme (off = light)</string>
+    <string name="settings_home_location_label">Home location (zip code)</string>
+    <string name="settings_home_location_set">Set</string>
+    <string name="settings_home_location_reset">Default</string>
+    <string name="settings_home_location_status">Using %1$s</string>
+    <string name="settings_home_location_failed">Location lookup failed: %1$s</string>
+    <string name="settings_home_location_clear">Clear weather history</string>
+    <string name="settings_home_location_clear_title">Clear weather history?</string>
+    <string name="settings_home_location_clear_message">Deletes the recorded weather history and daily snapshots (graphs, daily high/low, trends). Indoor sensor and river gauge data are kept. This cannot be undone.</string>
+    <string name="settings_home_location_clear_confirm">Clear</string>
+    <string name="settings_home_location_cleared">Weather history cleared</string>
+    <string name="settings_home_location_looking_up">Looking up zip…</string>
     <string name="settings_section_display">DISPLAY</string>
     <string name="settings_screen_brightness_label">Screen brightness</string>
     <string name="settings_night_brightness_label">Night mode brightness</string>

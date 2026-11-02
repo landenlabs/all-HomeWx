@@ -131,7 +131,7 @@
         app:layout_constraintEnd_toEndOf="@id/weatherIcon"
         app:layout_constraintStart_toStartOf="@id/weatherIcon"
         app:layout_constraintTop_toBottomOf="@id/currentTempText"
-        tools:text="+2°F/1hr" />
+        tools:text="+2°F/+1hr" />
 
     <TextView
         android:id="@+id/tempTrend4hText"
@@ -143,7 +143,7 @@
         app:layout_constraintEnd_toEndOf="@id/weatherIcon"
         app:layout_constraintStart_toStartOf="@id/weatherIcon"
         app:layout_constraintTop_toBottomOf="@id/tempTrendText"
-        tools:text="+3°F/4hr" />
+        tools:text="+3°F/+4hr" />
 
     <!-- condition/humidity/wind/precip/pressure table: label,value per row (2 columns -
          narrower than the sw720dp-land tablet layout, so this smaller-screen variant

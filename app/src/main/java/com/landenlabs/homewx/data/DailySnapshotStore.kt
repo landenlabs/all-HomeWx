@@ -135,6 +135,11 @@ class DailySnapshotStore(context: Context) :
     }
 
     /** Oldest saved day, or null if nothing has been saved yet - used to cap how far back swiping can go. */
+    /** Deletes every daily snapshot - used when the home location changes. */
+    fun clearAll() {
+        writableDatabase.delete(TABLE, null, null)
+    }
+
     fun getOldestDayStartMillis(): Long? {
         readableDatabase.rawQuery("SELECT MIN($COL_DAY_START_MILLIS) FROM $TABLE", null).use { cursor ->
             if (!cursor.moveToFirst() || cursor.isNull(0)) return null

@@ -154,21 +154,26 @@ class ForecastPanel(
     }
 
     private fun refresh() {
-        // Rain is always its bar chart, whatever the cards/graph/table toggle last said.
+        // Rain is its bar chart, or its tables when the table toggle is on; cards/graph mean nothing for it.
         val showRain = range == ForecastRange.RAIN
+        val showRainTable = showRain && presentation == ForecastPresentation.TABLE
         val showCards = presentation == ForecastPresentation.CARDS && !showRain
         val showGraph = presentation == ForecastPresentation.GRAPH && !showRain
         val showTable = presentation == ForecastPresentation.TABLE && !showRain
-        val toggleVisibility = if (showRain) View.GONE else View.VISIBLE
-        binding.forecastViewToggleButton.visibility = toggleVisibility
-        binding.forecastTableToggleButton.visibility = toggleVisibility
+        binding.forecastViewToggleButton.visibility = if (showRain) View.GONE else View.VISIBLE
+        binding.forecastTableToggleButton.visibility = View.VISIBLE
+        rainPanel.showTable(showRainTable)
         binding.forecastViewToggleButton.setImageResource(if (showGraph) R.drawable.ic_view_cards else R.drawable.ic_graph)
         binding.forecastViewToggleButton.contentDescription = context.getString(
             if (showGraph) R.string.forecast_switch_to_card_view else R.string.forecast_switch_to_graph_view
         )
-        binding.forecastTableToggleButton.setImageResource(if (showTable) R.drawable.ic_view_cards else R.drawable.ic_table)
+        binding.forecastTableToggleButton.setImageResource(
+            if (showTable) R.drawable.ic_view_cards else if (showRainTable) R.drawable.ic_graph else R.drawable.ic_table
+        )
         binding.forecastTableToggleButton.contentDescription = context.getString(
-            if (showTable) R.string.forecast_switch_to_card_view else R.string.forecast_switch_to_table_view
+            if (showTable) R.string.forecast_switch_to_card_view
+            else if (showRainTable) R.string.forecast_switch_to_graph_view
+            else R.string.forecast_switch_to_table_view
         )
 
         recyclerView.visibility = if (showCards) View.VISIBLE else View.GONE
@@ -214,20 +219,20 @@ class ForecastPanel(
      *  fetches in the background if they're stale. [refresh] runs on every weather update, so a
      *  fetch already in flight is left alone. */
     private fun renderRain() {
-        val location = HomeLocation.CURRENT
-        val cached = rainRepository.cachedWeeks(location)
+        val location = HomeLocation.current(context)
+        val cached = rainRepository.cachedTotals(location)
         if (cached != null) rainPanel.render(cached) else rainPanel.showStatus(context.getString(R.string.forecast_rain_loading))
         if (rainRepository.isFresh(location) || rainJob?.isActive == true) return
 
         rainJob = scope.launch {
             try {
-                val weeks = rainRepository.refresh(location)
-                if (range == ForecastRange.RAIN) rainPanel.render(weeks)
+                val totals = rainRepository.refresh(location)
+                if (range == ForecastRange.RAIN) rainPanel.render(totals)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 // Keep showing stale totals if there are any; only an empty chart needs the error.
-                if (range == ForecastRange.RAIN && rainRepository.cachedWeeks(location) == null) {
+                if (range == ForecastRange.RAIN && rainRepository.cachedTotals(location) == null) {
                     rainPanel.showStatus(context.getString(R.string.forecast_rain_error, e.message ?: e.javaClass.simpleName))
                 }
             }

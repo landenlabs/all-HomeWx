@@ -1,12 +1,17 @@
 package com.landenlabs.homewx.ui
 
 import android.content.Context
+import android.graphics.Typeface
+import android.view.Gravity
 import android.view.View
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import com.landenlabs.homewx.R
 import com.landenlabs.homewx.databinding.PanelForecastBinding
+import com.landenlabs.homewx.rain.MonthlyRain
+import com.landenlabs.homewx.rain.RainTotals
 import com.landenlabs.homewx.rain.WeeklyRain
 import com.github.mikephil.charting.charts.CombinedChart
 import com.github.mikephil.charting.components.XAxis
@@ -33,7 +38,13 @@ class RainChartPanel(private val context: Context, binding: PanelForecastBinding
     private val chart: CombinedChart = binding.forecastRainChart
     private val statusText: TextView = binding.forecastRainStatusText
 
+    private val chartGroup: View = binding.forecastRainChartGroup
+    private val tableScroll: View = binding.forecastRainTableScroll
+    private val tableContent: LinearLayout = binding.forecastRainTableContent
+    private var tableShown = false
+
     private val weekFormat = SimpleDateFormat("M/d", Locale.getDefault())
+    private val monthFormat = SimpleDateFormat("MMM yyyy", Locale.getDefault())
 
     init {
         val axisTextColor = ContextCompat.getColor(context, R.color.text_secondary)
@@ -68,7 +79,68 @@ class RainChartPanel(private val context: Context, binding: PanelForecastBinding
         statusText.visibility = View.VISIBLE
     }
 
-    fun render(weeks: List<WeeklyRain>) {
+    /** Swaps the bar chart for the weekly + monthly tables (same data, as numbers). */
+    fun showTable(show: Boolean) {
+        tableShown = show
+        chartGroup.visibility = if (show) View.GONE else View.VISIBLE
+        tableScroll.visibility = if (show) View.VISIBLE else View.GONE
+    }
+
+    fun render(totals: RainTotals) {
+        renderTables(totals)
+        renderChart(totals.weeks)
+    }
+
+    private fun renderTables(totals: RainTotals) {
+        tableContent.removeAllViews()
+        if (totals.weeks.isEmpty()) return
+        addTitle(R.string.forecast_rain_table_weekly_title, topMargin = false)
+        addRow(context.getString(R.string.forecast_rain_table_week_header), context.getString(R.string.forecast_rain_table_this_year), context.getString(R.string.forecast_rain_table_last_year), header = true)
+        totals.weeks.forEach { w ->
+            val label = weekFormat.format(Date(w.weekStartMillis)) + if (w.isCurrent) " *" else ""
+            addRow(label, inches(w.inches), inches(w.lastYearInches))
+        }
+        if (totals.weeks.any { it.isCurrent }) {
+            tableContent.addView(TextView(context).apply {
+                text = context.getString(R.string.forecast_rain_table_current_note)
+                setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
+                textSize = 12f
+                setPadding(0, 4, 0, 0)
+            })
+        }
+        addTitle(R.string.forecast_rain_table_monthly_title, topMargin = true)
+        addRow(context.getString(R.string.forecast_rain_table_month_header), context.getString(R.string.forecast_rain_table_this_year), context.getString(R.string.forecast_rain_table_last_year), header = true)
+        totals.months.forEach { m -> addRow(monthFormat.format(Date(m.monthStartMillis)), inches(m.inches), inches(m.lastYearInches)) }
+    }
+
+    private fun inches(value: Double?) = value?.let { "%.2f".format(it) } ?: "--"
+
+    private fun addTitle(titleRes: Int, topMargin: Boolean) {
+        tableContent.addView(TextView(context).apply {
+            setText(titleRes)
+            setTextColor(ContextCompat.getColor(context, R.color.accent_cool))
+            textSize = 16f
+            setPadding(0, if (topMargin) 28 else 0, 0, 8)
+        })
+    }
+
+    private fun addRow(label: String, thisYear: String, lastYear: String, header: Boolean = false) {
+        val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 6, 0, 6) }
+        fun cell(text: String, weight: Float, gravity: Int, colorRes: Int) = TextView(context).apply {
+            this.text = text
+            this.gravity = gravity
+            textSize = 15f
+            setTextColor(ContextCompat.getColor(context, colorRes))
+            if (header) setTypeface(typeface, Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, weight)
+        }
+        row.addView(cell(label, 1.2f, Gravity.START, if (header) R.color.text_secondary else R.color.text_primary))
+        row.addView(cell(thisYear, 1f, Gravity.END, if (header) R.color.accent_cool else R.color.text_primary))
+        row.addView(cell(lastYear, 1f, Gravity.END, if (header) R.color.accent_warm else R.color.text_primary))
+        tableContent.addView(row)
+    }
+
+    private fun renderChart(weeks: List<WeeklyRain>) {
         statusText.visibility = View.GONE
         if (weeks.isEmpty()) {
             chart.clear()

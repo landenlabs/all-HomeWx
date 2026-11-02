@@ -20,9 +20,50 @@ interface RainProvider {
     fun getDailyRain(location: GeoLocation, startMillis: Long, endMillis: Long): List<DailyRain>
 }
 
+/** One full calendar month's total, with the same calendar month a year earlier ([lastYearInches],
+ *  null if that wasn't fetched). */
+data class MonthlyRain(val monthStartMillis: Long, val inches: Double, val lastYearInches: Double? = null)
+
+/** What the Rain range shows: the weekly bars plus the monthly table. */
+data class RainTotals(val weeks: List<WeeklyRain>, val months: List<MonthlyRain>)
+
 class RainProviderException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 const val RAIN_WEEKS = 12
+const val RAIN_MONTHS = 3
+
+/** First day (local midnight) of the oldest month in the monthly table. */
+fun rainMonthsWindowStart(nowMillis: Long): Long =
+    Calendar.getInstance().apply {
+        timeInMillis = startOfDay(nowMillis)
+        set(Calendar.DAY_OF_MONTH, 1)
+        add(Calendar.MONTH, -RAIN_MONTHS)
+    }.timeInMillis
+
+/** [atMillis] shifted back one calendar year. */
+fun yearAgo(atMillis: Long): Long =
+    Calendar.getInstance().apply {
+        timeInMillis = atMillis
+        add(Calendar.YEAR, -1)
+    }.timeInMillis
+
+/** The [RAIN_MONTHS] complete calendar months before the one containing [nowMillis], oldest
+ *  first, each beside the same month a year earlier. Missing days count as 0, as for weeks. */
+fun buildMonthlyTotals(days: List<DailyRain>, nowMillis: Long, lastYearDays: List<DailyRain>? = null): List<MonthlyRain> {
+    fun monthTotal(source: List<DailyRain>, monthStart: Long): Double {
+        val monthEnd = Calendar.getInstance().apply { timeInMillis = monthStart; add(Calendar.MONTH, 1) }.timeInMillis
+        return source.filter { it.dayMillis in monthStart until monthEnd }.sumOf { it.inches ?: 0.0 }
+    }
+    val calendar = Calendar.getInstance().apply { timeInMillis = rainMonthsWindowStart(nowMillis) }
+    return (0 until RAIN_MONTHS).map {
+        val monthStart = calendar.timeInMillis
+        calendar.add(Calendar.MONTH, 1)
+        MonthlyRain(
+            monthStart, monthTotal(days, monthStart),
+            lastYearInches = lastYearDays?.let { monthTotal(it, yearAgo(monthStart)) }
+        )
+    }
+}
 
 /** Start (local midnight) of the Monday on or before [atMillis]. */
 fun startOfWeek(atMillis: Long): Long =

@@ -644,8 +644,8 @@ class MainActivity : AppCompatActivity() {
         binding.tempTrendText.visibility = if (liveConditions != null) View.VISIBLE else View.GONE
         binding.tempTrend4hText.visibility = if (liveConditions != null) View.VISIBLE else View.GONE
         binding.currentTempText.text = liveConditions?.temperatureF?.roundToInt()?.let { "$it°F" } ?: ""
-        binding.tempTrendText.text = if (liveConditions != null) formatSignedDelta(state.tempTrendNextHourF, "°F/1hr") else ""
-        binding.tempTrend4hText.text = if (liveConditions != null) formatSignedDelta(state.tempTrendNext4HourF, "°F/4hr") else ""
+        binding.tempTrendText.text = if (liveConditions != null) formatSignedDelta(state.tempTrendNextHourF, "°F/+1hr") else ""
+        binding.tempTrend4hText.text = if (liveConditions != null) formatSignedDelta(state.tempTrendNext4HourF, "°F/+4hr") else ""
 
         // No live reading (never loaded, or stale past the threshold above): hide the whole
         // data grid instead of filling it with "--" placeholders - a wall of dashes reads as

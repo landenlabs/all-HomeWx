@@ -182,6 +182,7 @@ private class GibsTileSource(name: String, layer: RadarLayer, private val timeSt
 class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoroutineScope) {
 
     private val context = container.context
+    private var centeredOn: com.landenlabs.homewx.weather.GeoLocation = HomeLocation.DEFAULT
     private val binding = PanelRadarBinding.inflate(LayoutInflater.from(context), container, false)
     val root: View get() = binding.root
 
@@ -249,7 +250,8 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
             // Above the satellite tiles so borders stay visible; only enabled for those layers.
             overlays.add(bordersOverlay)
             controller.setZoom(HOME_ZOOM)
-            controller.setCenter(GeoPoint(HomeLocation.CURRENT.latitude, HomeLocation.CURRENT.longitude))
+            centeredOn = HomeLocation.current(context)
+            controller.setCenter(GeoPoint(centeredOn.latitude, centeredOn.longitude))
         }
 
         binding.radarLayerGroup.setOnCheckedChangeListener { _, checkedId ->
@@ -373,6 +375,12 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
 
     /** Clears the cached radar tiles and redraws, so reopening this tab shows the latest sweep. */
     fun refresh() {
+        // Home location changed in Settings - move the map there (otherwise leave the user's pan alone).
+        val home = HomeLocation.current(context)
+        if (home != centeredOn) {
+            centeredOn = home
+            binding.radarMapView.controller.setCenter(GeoPoint(home.latitude, home.longitude))
+        }
         applyMapTheme()
         showLiveFrame()
     }

@@ -185,7 +185,7 @@ class NightModePanel(context: Context) {
 
     private fun temperatureReadout(state: UiState): String {
         val temp = state.currentWeather?.temperatureF?.roundToInt()?.let { "$it°" } ?: "--°"
-        val trend = state.tempTrendNext4HourF?.roundToInt()?.let { "  %+d°/4h".format(it) }.orEmpty()
+        val trend = state.tempTrendNext4HourF?.roundToInt()?.let { "  %+d°/+4h".format(it) }.orEmpty()
         return temp + trend
     }
 

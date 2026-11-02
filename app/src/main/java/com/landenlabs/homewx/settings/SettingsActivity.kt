@@ -38,6 +38,7 @@ import com.landenlabs.homewx.rivers.RiverGaugeSettings
 import com.landenlabs.homewx.state.AppState
 import com.landenlabs.homewx.ui.UserBackgroundImages
 import com.landenlabs.homewx.ui.WeatherBackground
+import com.landenlabs.homewx.weather.HomeLocation
 import com.landenlabs.homewx.weather.WeatherSourceConfig
 import com.landenlabs.homewx.weather.WeatherSourceId
 import kotlinx.coroutines.Dispatchers
@@ -123,6 +124,13 @@ class SettingsActivity : AppCompatActivity() {
         }
         binding.importButton.setOnClickListener { importLauncher.launch(arrayOf("application/zip", "application/octet-stream")) }
 
+        binding.homeLocationSetButton.setOnClickListener { onSetHomeLocationClicked() }
+        binding.homeLocationResetButton.setOnClickListener {
+            HomeLocation.reset(this)
+            AppState.notifyConfigChanged()
+            bindHomeLocation()
+        }
+        binding.homeClearHistoryButton.setOnClickListener { confirmClearWeatherHistory() }
         binding.goveeEditButton.setOnClickListener { credentialDialogs.showGovee() }
         binding.wyzeEditButton.setOnClickListener { credentialDialogs.showWyze() }
         binding.wxdataEditButton.setOnClickListener { credentialDialogs.showWxData() }
@@ -425,6 +433,51 @@ class SettingsActivity : AppCompatActivity() {
         })
     }
 
+    /** Home location saves immediately (like the Accounts dialogs) since it needs a network
+     *  lookup to validate; it tells the pollers and tabs via [AppState.notifyConfigChanged]. */
+    private fun onSetHomeLocationClicked() {
+        val zip = binding.homeZipEditText.text.toString().trim()
+        if (zip.length != 5) {
+            binding.homeLocationStatusText.text = getString(R.string.settings_home_location_failed, "enter a 5-digit zip code")
+            return
+        }
+        binding.homeLocationStatusText.text = getString(R.string.settings_home_location_looking_up)
+        lifecycleScope.launch {
+            try {
+                val location = withContext(Dispatchers.IO) { riverGaugeRepository.geocodeZip(zip) }
+                HomeLocation.set(this@SettingsActivity, zip, location)
+                AppState.notifyConfigChanged()
+                bindHomeLocation()
+            } catch (e: Exception) {
+                binding.homeLocationStatusText.text = getString(R.string.settings_home_location_failed, e.message ?: "network error")
+            }
+        }
+    }
+
+    private fun confirmClearWeatherHistory() {
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.settings_home_location_clear_title)
+            .setMessage(R.string.settings_home_location_clear_message)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.settings_home_location_clear_confirm) { _, _ ->
+                lifecycleScope.launch {
+                    withContext(Dispatchers.IO) {
+                        WeatherMetricsHistoryStore(applicationContext).use { it.clearAll() }
+                        DailySnapshotStore(applicationContext).use { it.clearAll() }
+                    }
+                    HomeLocation.bumpEpoch(this@SettingsActivity)
+                    AppState.notifyConfigChanged()
+                    Toast.makeText(this@SettingsActivity, R.string.settings_home_location_cleared, Toast.LENGTH_SHORT).show()
+                }
+            }
+            .show()
+    }
+
+    private fun bindHomeLocation() {
+        binding.homeZipEditText.setText(HomeLocation.getZip(this).orEmpty())
+        binding.homeLocationStatusText.text = getString(R.string.settings_home_location_status, HomeLocation.current(this).label)
+    }
+
     private fun setUpRiverGaugesSection() {
         binding.riverGaugesEnabledSwitch.setOnCheckedChangeListener { _, checked ->
             binding.riverZipEditText.isEnabled = checked
@@ -562,6 +615,8 @@ class SettingsActivity : AppCompatActivity() {
             R.string.settings_webview_logging_path,
             WebRequestLogger.logFile(this).absolutePath
         )
+
+        bindHomeLocation()
 
         val riversEnabled = RiverGaugeSettings.isEnabled(this)
         binding.riverGaugesEnabledSwitch.isChecked = riversEnabled
