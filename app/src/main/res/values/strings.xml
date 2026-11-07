@@ -30,6 +30,8 @@
     <string name="radar_pause_animation">Pause radar animation</string>
     <string name="radar_loading_animation">Loading radar…</string>
     <string name="radar_loading_animation_progress">Loading radar… %1$d%%</string>
+    <!-- Animation frame time while older frames are still downloading, e.g. "8:05 AM · loading 40%". -->
+    <string name="radar_frame_loading">%1$s · loading %2$d%%</string>
     <string name="weather_graph_wind_speed">Wind Speed (mph)</string>
     <string name="weather_graph_precipitation">Precipitation (in)</string>
     <string name="weather_graph_pressure">Pressure (inHg)</string>

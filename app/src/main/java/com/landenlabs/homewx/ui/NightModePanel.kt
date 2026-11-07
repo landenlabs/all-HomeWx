@@ -15,6 +15,7 @@ import com.landenlabs.homewx.model.UiState
 import com.landenlabs.homewx.settings.AppSettings
 import com.landenlabs.homewx.weather.WeatherSourceConfig
 import com.landenlabs.homewx.weather.WeatherSourceId
+import com.landenlabs.homewx.weather.startOfHour
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.Entry
@@ -39,8 +40,8 @@ enum class NightSecondary { WIND, PRECIPITATION, TEMPERATURE_READOUT }
  * current-temperature readout with its 4-hour trend.
  *
  * Past values come from the recorded weather-metrics history; future ones from the hourly
- * forecast. The history store doesn't record precipitation *chance*, so that chart's past half
- * is only whatever past hours the forecast provider itself returned.
+ * forecast. Precipitation chance isn't an observation: its past half is the forecast chance
+ * recorded with each history sample, gap-filled by any past hours the forecast itself returned.
  */
 class NightModePanel(context: Context) {
 
@@ -118,9 +119,18 @@ class NightModePanel(context: Context) {
 
         val wind = past.mapNotNull { p -> p.windSpeedMph?.let { p.timestampMillis to it } } to
             future.mapNotNull { h -> h.windSpeedMph?.let { h.timeMillis to it } }
-        val precipChance = state.weatherForecast?.hourly.orEmpty()
+        val forecastChance = state.weatherForecast?.hourly.orEmpty()
             .filter { it.timeMillis in windowStart..windowEnd }
             .mapNotNull { h -> h.precipitationChancePct?.let { h.timeMillis to it.toDouble() } }
+        // Past half: the chance recorded with each history sample (the forecast chance in
+        // effect at that time), since wxdata's hourly forecast has no already-passed hours.
+        // Forecast-provided past hours (Open-Meteo) only fill hours with no recorded chance.
+        val recordedChance = past.mapNotNull { p -> p.precipChancePct?.let { p.timestampMillis to it.toDouble() } }
+        val recordedHours = recordedChance.mapTo(HashSet()) { startOfHour(it.first) }
+        val pastChance = (recordedChance + forecastChance.filter { it.first < nowMillis && startOfHour(it.first) !in recordedHours })
+            .sortedBy { it.first }
+        val futureChance = forecastChance.filter { it.first >= nowMillis }
+        val precipChance = pastChance + futureChance
 
         val maxWind = maxOf(state.currentWeather?.windSpeedMph ?: 0.0, wind.second.maxOfOrNull { it.second } ?: 0.0)
         val maxPrecipPct = precipChance.filter { it.first >= nowMillis }.maxOfOrNull { it.second } ?: 0.0
@@ -145,7 +155,7 @@ class NightModePanel(context: Context) {
                 binding.nightSecondaryBgText.text = chanceNow?.roundToInt()?.let { "$it%" } ?: ""
                 renderChart(
                     binding.nightSecondaryChart,
-                    precipChance.filter { it.first < nowMillis }, precipChance.filter { it.first >= nowMillis },
+                    pastChance, futureChance,
                     nowMillis, R.color.accent_cool, filled = true, fixedAxisRange = LineChartSetup.PERCENT_AXIS_RANGE,
                     thresholds = listOf(LineChartSetup.ThresholdLine(PRECIP_PCT_THRESHOLD.toFloat(), R.color.white, LineChartSetup.ThresholdDash.DOTTED))
                 )

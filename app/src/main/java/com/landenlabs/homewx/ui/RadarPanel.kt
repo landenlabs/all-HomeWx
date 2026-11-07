@@ -4,21 +4,28 @@ import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
+import android.graphics.Rect
+import android.os.SystemClock
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleCoroutineScope
+import androidx.lifecycle.withStarted
 import com.landenlabs.homewx.R
 import com.landenlabs.homewx.databinding.PanelRadarBinding
 import com.landenlabs.homewx.settings.AppSettings
 import com.landenlabs.homewx.settings.IdleSubPanelKeys
 import com.landenlabs.homewx.state.AppState
+import com.landenlabs.homewx.weather.DeviceLocation
 import com.landenlabs.homewx.weather.HomeLocation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -29,15 +36,18 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.MapTileProviderBasic
-import org.osmdroid.tileprovider.cachemanager.CacheManager
 import org.osmdroid.tileprovider.modules.CantContinueException
 import org.osmdroid.tileprovider.modules.TileDownloader
 import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
+import org.osmdroid.tileprovider.tilesource.TileSourcePolicy
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.tileprovider.util.SimpleInvalidationHandler
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.util.MapTileIndex
+import org.osmdroid.util.RectL
+import org.osmdroid.util.TileSystem
+import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.TilesOverlay
 import java.net.HttpURLConnection
 import java.net.URL
@@ -49,6 +59,17 @@ import java.util.TimeZone
 import java.util.concurrent.atomic.AtomicInteger
 
 private const val HOME_ZOOM = 7.0
+
+// While the tab is showing, the live layer is reloaded on this period - the same cadence as IEM's
+// 5-minute NEXRAD composites and the tiles' max-age=300.
+private const val AUTO_REFRESH_MS = 5 * 60 * 1000L
+// The live IEM tiles are written to osmdroid's disk cache with this much shaved off the server's
+// max-age. Without it, tiles that finished downloading a few seconds after one refresh would
+// still be "fresh" when the next refresh fires exactly 5 minutes later, so they'd be reused from
+// disk and the radar would only really update every other tick (10 minutes).
+private const val LIVE_TILE_EARLY_EXPIRY_MS = 60 * 1000L
+// Bottom of the house path in ic_home_marker (y=21 of 24), so the doorstep sits on the point.
+private const val HOME_MARKER_ANCHOR_Y = 21f / 24f
 private const val LIVE_TILE_URL = "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/"
 
 // IEM's "Q2" radar-based rainfall estimate, summed over the last 72 hours (inches). A rolling
@@ -71,7 +92,9 @@ private const val WEB_MERCATOR_WORLD_METERS = 40075016.685578488
 private const val HISTORY_TILE_URL_PREFIX = "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::USCOMP-N0Q-"
 private const val ANIMATION_HISTORY_MINUTES = 120
 private const val RADAR_STEP_MINUTES = 5
-private const val ANIMATION_FRAME_DELAY_MS = 400L
+// Minimum time each frame stays on screen. A frame can stay longer if the hidden buffer is
+// still loading the next one (see playFrames' per-pass log).
+private const val ANIMATION_FRAME_DELAY_MS = 200L
 
 // NASA GIBS GOES-East satellite imagery (free, no API key), served as WMTS tiles. Frames are
 // every 10 minutes and appear ~15-20 minutes after their valid time, so history frames end
@@ -96,14 +119,17 @@ private const val CLOUDS_ALPHA = 1f
 // disk cache first means playback only has to read from disk, which comfortably fits the budget.
 private const val PREFETCH_CONCURRENCY = 16
 private const val PREFETCH_PROGRESS_STEP = 20
+// Sequential requests per pass in probeConnectionReuse (see TileCacheDiagnostics).
+private const val CONNECTION_PROBE_TILES = 5
 private const val TAG = "RadarPanel"
 
-// TilesOverlay computes its own visible tile rect from the MapView's pixel viewport at draw
-// time, which can round to a 1-tile-wider rect than CacheManager.getTilesRect() gets from the
-// MapView's lat/lon boundingBox corners. Padding the prefetch area avoids a coverage gap at the
-// edges - confirmed from a device log where a tile the overlay needed still had to be fetched
-// live during playback because it fell just outside our unpadded prefetch rect.
-private const val PREFETCH_TILE_PADDING = 1
+// Playback starts as soon as this many frames (downloaded newest first) are cached; the older
+// frames join the loop as their downloads finish, instead of waiting ~12 s for all 25.
+private const val MIN_FRAMES_TO_START = 3
+// How long a frame may take to load into the hidden buffer before it's shown anyway - e.g. a
+// tile the server doesn't have never "arrives", and the loop mustn't stall on it.
+private const val FRAME_LOAD_TIMEOUT_MS = 2_000L
+private const val FRAME_LOAD_POLL_MS = 25L
 
 // Esri "Dark Gray Canvas" (no API key; attribution: Esri, HERE, Garmin, (c) OpenStreetMap contributors).
 // CARTO's dark tiles now return an "API KEY REQUIRED" watermark. The base has no labels or
@@ -119,6 +145,13 @@ private class EsriTileSource(name: String, private val service: String, ext: Str
     override fun getTileURLString(pMapTileIndex: Long): String =
         "$baseUrl$service/MapServer/tile/${MapTileIndex.getZoom(pMapTileIndex)}/" +
             "${MapTileIndex.getY(pMapTileIndex)}/${MapTileIndex.getX(pMapTileIndex)}"
+}
+
+/** Expires cached tiles [LIVE_TILE_EARLY_EXPIRY_MS] before the server says to (never before
+ *  now), so each auto-refresh finds the previous tick's tiles stale and re-downloads them. */
+private class EarlyExpiryTilePolicy : TileSourcePolicy() {
+    override fun computeExpirationTime(pHttpExpiresHeader: String?, pHttpCacheControlHeader: String?, pNow: Long): Long =
+        maxOf(pNow, super.computeExpirationTime(pHttpExpiresHeader, pHttpCacheControlHeader, pNow) - LIVE_TILE_EARLY_EXPIRY_MS)
 }
 
 private val RETRY_REDRAW_DELAYS_MS = longArrayOf(1_000L, 3_000L)
@@ -167,7 +200,7 @@ private class GibsTileSource(name: String, layer: RadarLayer, private val timeSt
     override fun getTileURLString(pMapTileIndex: Long): String {
         val url = "$baseUrl$gibsLayer/default/$timeStamp/$matrixSet/" +
             "${MapTileIndex.getZoom(pMapTileIndex)}/${MapTileIndex.getY(pMapTileIndex)}/${MapTileIndex.getX(pMapTileIndex)}.png"
-        Log.d(TAG, "GibsTileSource.getTileURLString: $url")
+        // Log.d(TAG, "GibsTileSource.getTileURLString: $url")
         return url
     }
 }
@@ -178,11 +211,50 @@ private class GibsTileSource(name: String, layer: RadarLayer, private val timeSt
  *  [container]. Tiles are cached to disk by osmdroid with a short expiry, so [refresh] just
  *  needs to invalidate the map to pick up whatever the server currently has. The play button
  *  loops through the last 2 hours of 5-minute composite frames; [stopAnimation] returns to the
- *  live layer and is called from outside whenever the Radar tab is no longer visible. */
-class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoroutineScope) {
+ *  live layer and is called from outside whenever the Radar tab is no longer visible. While the
+ *  tab is visible and the activity is started, the live layer reloads every [AUTO_REFRESH_MS].
+ *  A house marker shows home: the device's own fix when it is within +/- 5 miles, otherwise the
+ *  Settings zip centroid ([HomeLocation]). */
+class RadarPanel(
+    container: ViewGroup,
+    private val lifecycleScope: LifecycleCoroutineScope,
+    private val lifecycle: Lifecycle,
+) {
 
     private val context = container.context
     private var centeredOn: com.landenlabs.homewx.weather.GeoLocation = HomeLocation.DEFAULT
+
+    // Must run before [binding] is inflated: inflating creates the MapView, whose built-in
+    // base-map tile provider sizes its download/filesystem thread pools from Configuration at
+    // construction and never re-reads it. Kotlin runs initializers in declaration order.
+    init {
+        Configuration.getInstance().apply {
+            userAgentValue = context.packageName
+            // Raise these from osmdroid's defaults (2 download threads, 8 filesystem threads) for
+            // the base map and every TilesOverlay provider, and so the animation prefetch can
+            // actually saturate PREFETCH_CONCURRENCY.
+            tileDownloadThreads = 8
+            tileDownloadMaxQueueSize = 100
+            tileFileSystemThreads = 16
+            tileFileSystemMaxQueueSize = 100
+            // Per-tile logging is off for now. Uncomment to log every tile request/response
+            // (url, HTTP status, mime type) under tag "OsmDroid", so failures during
+            // prefetch/playback show up in logcat instead of silently rendering blank.
+            // isDebugMode = true
+            // isDebugMapTileDownloader = true
+            // Must stay off: besides logging, TilesOverlay draws each tile's top/left edge and
+            // z/x/y index onto the map when this is set.
+            isDebugTileProviders = false
+        }
+        // Resolve the cache dir with a Context first, as MapView's constructor does. Without a
+        // Context osmdroid's base path is null, it caches "/tiles" as the tile cache for the rest
+        // of the process, and the SQLite cache (shared by every layer) can never open.
+        Configuration.getInstance().getOsmdroidTileCache(context)
+        // Switch osmdroid's shared SQLite tile cache to WAL before the MapView (and its base-map
+        // provider) starts using it - see [WalSqlTileWriter].
+        WalSqlTileWriter()
+    }
+
     private val binding = PanelRadarBinding.inflate(LayoutInflater.from(context), container, false)
     val root: View get() = binding.root
 
@@ -195,32 +267,41 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
     }
     private val radarTileProvider: MapTileProviderBasic
     private val tileDownloader = TileDownloader()
+    /** Save/download timings for the radar and reference providers plus the prefetches; logged
+     *  (tag "TileCache") and reset at the end of each prefetch and on each auto-refresh tick. */
+    private val tileTiming = TileTimingStats()
     private var animationJob: Job? = null
     private var overzoomJob: Job? = null
+    private var autoRefreshJob: Job? = null
+    private var homeFixJob: Job? = null
     private var layer = RadarLayer.RADAR
     private val radarOverlay: TilesOverlay
+    /** Animation back buffer, the same kind of layer as [radarTileProvider]/[radarOverlay] and
+     *  drawn in the same z position. During playback the two alternate: the next frame loads into
+     *  whichever one is hidden while the other keeps showing the current frame, and they swap
+     *  only once it has fully loaded - see [startAnimation]. Disabled (and its cache empty)
+     *  whenever no animation is playing. Two providers are needed because osmdroid's memory tile
+     *  cache is keyed by z/x/y only and cleared on every tileSource swap, so one provider can
+     *  never hold two frames at once. */
+    private val frameTileProvider: MapTileProviderBasic
+    private val frameOverlay: TilesOverlay
+    /** Animation prefetch progress (0-100) while it is still downloading, else null. */
+    private var prefetchPercent: Int? = null
+    /** True once [playFrames] has shown its first frame, until [stopAnimation]. */
+    private var playbackRunning = false
     private val referenceTileProvider: MapTileProviderBasic
     private val referenceOverlay: TilesOverlay
     private val bordersOverlay = BordersOverlay(container.resources.displayMetrics.density).apply { isEnabled = false }
+    private val homeMarker = Marker(binding.radarMapView).apply {
+        icon = ContextCompat.getDrawable(context, R.drawable.ic_home_marker)
+        setAnchor(Marker.ANCHOR_CENTER, HOME_MARKER_ANCHOR_Y)
+        setInfoWindow(null)
+        // Swallow taps so they neither open a (missing) info window nor recenter the map.
+        setOnMarkerClickListener { _, _ -> true }
+    }
 
     init {
-        Configuration.getInstance().apply {
-            userAgentValue = context.packageName
-            // Raise these from osmdroid's defaults (2 download threads, 8 filesystem threads) so
-            // the animation prefetch below can actually saturate PREFETCH_CONCURRENCY.
-            tileDownloadThreads = 8
-            tileDownloadMaxQueueSize = 100
-            tileFileSystemThreads = 16
-            tileFileSystemMaxQueueSize = 100
-            // Logs every tile request/response (url, HTTP status, mime type) under tag "OsmDroid",
-            // so failures during prefetch/playback show up in logcat instead of silently
-            // rendering blank.
-            isDebugMode = true
-            isDebugMapTileDownloader = true
-            isDebugTileProviders = true
-        }
-
-        radarTileProvider = MapTileProviderBasic(context, liveTileSource())
+        radarTileProvider = MapTileProviderBasic(context, liveTileSource(), TimingTileWriter(WalSqlTileWriter(), tileTiming))
         // Unlike the MapView's own built-in tile provider (which MapView wires to a
         // SimpleInvalidationHandler itself), a standalone MapTileProviderBasic like this one has
         // no handler by default - every asynchronous tile load completes with nowhere to report
@@ -233,7 +314,17 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
             loadingLineColor = Color.TRANSPARENT
         }
 
-        referenceTileProvider = MapTileProviderBasic(context, DARK_REFERENCE_TILE_SOURCE)
+        frameTileProvider = MapTileProviderBasic(context, liveTileSource(), TimingTileWriter(WalSqlTileWriter(), tileTiming))
+        // Same reason as radarTileProvider: needed if a frame is shown before all its tiles
+        // landed (FRAME_LOAD_TIMEOUT_MS) so the late ones still get drawn.
+        frameTileProvider.tileRequestCompleteHandlers.add(SimpleInvalidationHandler(binding.radarMapView))
+        frameOverlay = TilesOverlay(frameTileProvider, context).apply {
+            loadingBackgroundColor = Color.TRANSPARENT
+            loadingLineColor = Color.TRANSPARENT
+            isEnabled = false
+        }
+
+        referenceTileProvider = MapTileProviderBasic(context, DARK_REFERENCE_TILE_SOURCE, TimingTileWriter(WalSqlTileWriter(), tileTiming))
         referenceTileProvider.tileRequestCompleteHandlers.add(SimpleInvalidationHandler(binding.radarMapView))
         referenceOverlay = TilesOverlay(referenceTileProvider, context).apply {
             loadingBackgroundColor = Color.TRANSPARENT
@@ -245,14 +336,18 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
             setTileSource(baseTileSource())
             setMultiTouchControls(true)
             overlays.add(radarOverlay)
+            overlays.add(frameOverlay)
             // Dark-theme labels/boundaries, above the radar/satellite so they stay readable.
             overlays.add(referenceOverlay)
             // Above the satellite tiles so borders stay visible; only enabled for those layers.
             overlays.add(bordersOverlay)
+            // Last, so the home pin draws on top of every tile layer.
+            overlays.add(homeMarker)
             controller.setZoom(HOME_ZOOM)
             centeredOn = HomeLocation.current(context)
             controller.setCenter(GeoPoint(centeredOn.latitude, centeredOn.longitude))
         }
+        homeMarker.position = GeoPoint(centeredOn.latitude, centeredOn.longitude)
 
         binding.radarLayerGroup.setOnCheckedChangeListener { _, checkedId ->
             val selected = when (checkedId) {
@@ -353,10 +448,10 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
     }
 
     private fun applyLayerAlpha() {
-        radarOverlay.setColorFilter(
-            if (layerAlpha() >= 1f) null
+        val filter = if (layerAlpha() >= 1f) null
             else ColorMatrixColorFilter(ColorMatrix().apply { setScale(1f, 1f, 1f, layerAlpha()) })
-        )
+        radarOverlay.setColorFilter(filter)
+        frameOverlay.setColorFilter(filter)
     }
 
     /** Picks the layer named by an [IdleSubPanelKeys] Map key (default: radar) through the same
@@ -373,7 +468,8 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
         )
     }
 
-    /** Clears the cached radar tiles and redraws, so reopening this tab shows the latest sweep. */
+    /** Clears the cached radar tiles and redraws, so reopening this tab shows the latest sweep.
+     *  Also re-run by the [AUTO_REFRESH_MS] timer while the tab stays visible. */
     fun refresh() {
         // Home location changed in Settings - move the map there (otherwise leave the user's pan alone).
         val home = HomeLocation.current(context)
@@ -383,6 +479,41 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
         }
         applyMapTheme()
         showLiveFrame()
+        updateHomeMarker()
+    }
+
+    /** Re-arms the one-shot auto-refresh. Called after every live-frame load, so the next reload
+     *  is always [AUTO_REFRESH_MS] after the last one however it was triggered (tab switch, layer
+     *  switch, end of animation). The job just ends - no reload, nothing re-armed - if the tab is
+     *  hidden or an animation is playing when it fires; the next [refresh]/[stopAnimation] re-arms
+     *  it. While the activity is stopped it waits, then reloads as soon as it is started again. */
+    private fun scheduleAutoRefresh() {
+        autoRefreshJob?.cancel()
+        autoRefreshJob = lifecycleScope.launch {
+            delay(AUTO_REFRESH_MS)
+            lifecycle.withStarted {}
+            autoRefreshJob = null
+            if (root.isShown && animationJob == null) {
+                Log.i(TAG, "auto-refresh: reloading layer=$layer")
+                tileTiming.report("live loads since last report")
+                refresh()
+            }
+        }
+    }
+
+    /** Puts the house marker on the Settings zip centroid right away, then moves it to the
+     *  device's own position if a fix within +/- 5 miles comes back. */
+    private fun updateHomeMarker() {
+        val home = HomeLocation.current(context)
+        homeMarker.position = GeoPoint(home.latitude, home.longitude)
+        binding.radarMapView.invalidate()
+        homeFixJob?.cancel()
+        homeFixJob = lifecycleScope.launch {
+            val fix = DeviceLocation.accurateFix(context) ?: return@launch
+            Log.i(TAG, "updateHomeMarker: device fix ${fix.provider} +/-${fix.accuracy}m")
+            homeMarker.position = GeoPoint(fix.latitude, fix.longitude)
+            binding.radarMapView.invalidate()
+        }
     }
 
     /** Stops any running animation and drops back to the live tile source. Safe to call even
@@ -391,8 +522,14 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
         if (animationJob == null) return
         animationJob?.cancel()
         animationJob = null
+        prefetchPercent = null
+        playbackRunning = false
         binding.radarPlayButton.setImageResource(R.drawable.ic_play)
         binding.radarPlayButton.contentDescription = context.getString(R.string.radar_play_animation)
+        // The live layer always lives in radarOverlay; drop the back buffer and its frame.
+        radarOverlay.isEnabled = true
+        frameOverlay.isEnabled = false
+        frameTileProvider.clearTileCache()
         showLiveFrame()
     }
 
@@ -401,15 +538,99 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
         val frameTimes = buildFrameTimestamps()
         Log.i(TAG, "startAnimation: ${frameTimes.size} frames, oldest=${frameTimes.first()} newest=${frameTimes.last()}")
         animationJob = lifecycleScope.launch {
-            prefetchFrames(frameTimes)
-            binding.radarPlayButton.setImageResource(R.drawable.ic_pause)
-            binding.radarPlayButton.contentDescription = context.getString(R.string.radar_pause_animation)
-            var index = 0
-            while (true) {
-                showHistoryFrame(frameTimes[index])
-                index = (index + 1) % frameTimes.size
-                delay(ANIMATION_FRAME_DELAY_MS)
+            // Main-thread only: which frames are fully in the disk cache and can be played.
+            val cached = BooleanArray(frameTimes.size)
+            var cachedCount = 0
+            coroutineScope {
+                launch {
+                    prefetchFrames(frameTimes) { frame -> cached[frame] = true; cachedCount++ }
+                }
+                val startAfter = minOf(MIN_FRAMES_TO_START, frameTimes.size)
+                while (cachedCount < startAfter) delay(FRAME_LOAD_POLL_MS)
+                binding.radarPlayButton.setImageResource(R.drawable.ic_pause)
+                binding.radarPlayButton.contentDescription = context.getString(R.string.radar_pause_animation)
+                playFrames(frameTimes, cached)
             }
+        }
+    }
+
+    /** Loops forever over the cached frames in time order (skipping ones still downloading),
+     *  double-buffered so a frame never flashes blank: the next frame loads into the hidden
+     *  overlay while the current one stays on screen, then the two swap. */
+    private suspend fun playFrames(frameTimes: List<Date>, cached: BooleanArray) {
+        var shown = radarOverlay to radarTileProvider
+        var hidden = frameOverlay to frameTileProvider
+        var index = -1
+        var lastSwap = 0L
+        var passStart = SystemClock.uptimeMillis()
+        var passFrames = 0
+        var passLoadMs = 0L
+        while (true) {
+            val next = nextCachedFrame(cached, index)
+            if (next <= index) {
+                // Wrapped around: one full pass through the loop.
+                val elapsed = SystemClock.uptimeMillis() - passStart
+                Log.i(TAG, "playFrames: pass of $passFrames frames in ${elapsed}ms " +
+                    "(${elapsed / passFrames.coerceAtLeast(1)}ms/frame, load avg ${passLoadMs / passFrames.coerceAtLeast(1)}ms, " +
+                    "target ${ANIMATION_FRAME_DELAY_MS}ms)")
+                passStart = SystemClock.uptimeMillis()
+                passFrames = 0
+                passLoadMs = 0L
+            }
+            index = next
+            val time = frameTimes[index]
+            val loadStart = SystemClock.uptimeMillis()
+            loadFrameInto(hidden.first, hidden.second, historyTileSource(time))
+            passLoadMs += SystemClock.uptimeMillis() - loadStart
+            passFrames++
+            val wait = ANIMATION_FRAME_DELAY_MS - (SystemClock.uptimeMillis() - lastSwap)
+            if (wait > 0) delay(wait)
+            hidden.first.isEnabled = true
+            shown.first.isEnabled = false
+            binding.radarMapView.invalidate()
+            lastSwap = SystemClock.uptimeMillis()
+            if (!playbackRunning) Log.i(TAG, "playFrames: first frame on screen, prefetch at ${prefetchPercent ?: 100}%")
+            playbackRunning = true
+            // Log.d(TAG, "playFrames: showing ${frameTimestampFormat.format(time)}")
+            binding.radarUpdatedText.text = prefetchPercent?.let {
+                context.getString(R.string.radar_frame_loading, updatedAtFormat.format(time), it)
+            } ?: updatedAtFormat.format(time)
+            shown = hidden.also { hidden = shown }
+        }
+    }
+
+    /** The next cached frame after [after], wrapping around; at least one is always cached. */
+    private fun nextCachedFrame(cached: BooleanArray, after: Int): Int {
+        for (step in 1..cached.size) {
+            val i = (after + step).mod(cached.size)
+            if (cached[i]) return i
+        }
+        error("no cached frame")
+    }
+
+    /** Points the hidden [overlay]'s [provider] at [source] and has it load every tile in view
+     *  into its memory cache without drawing anything: TilesOverlay.drawTiles with a null canvas
+     *  only requests tiles (osmdroid's own "download, don't display" path), and
+     *  protectDisplayedTilesForCache stops them being evicted before they're shown. Returns
+     *  once every tile is in memory, or after [FRAME_LOAD_TIMEOUT_MS] with whatever arrived. */
+    private suspend fun loadFrameInto(overlay: TilesOverlay, provider: MapTileProviderBasic, source: OnlineTileSourceBase): Boolean {
+        provider.tileSource = source
+        provider.clearTileCache()
+        val viewPort = RectL()
+        val start = SystemClock.uptimeMillis()
+        while (true) {
+            val projection = binding.radarMapView.projection
+            projection.getMercatorViewPort(viewPort)
+            overlay.protectDisplayedTilesForCache(null, projection)
+            overlay.drawTiles(null, projection, projection.zoomLevel, viewPort)
+            val states = overlay.tileStates
+            if (states.notFound == 0) return true
+            if (SystemClock.uptimeMillis() - start >= FRAME_LOAD_TIMEOUT_MS) {
+                Log.w(TAG, "loadFrameInto: ${source.name()} still missing ${states.notFound}/${states.total} tiles " +
+                    "after ${FRAME_LOAD_TIMEOUT_MS}ms - showing it anyway")
+                return false
+            }
+            delay(FRAME_LOAD_POLL_MS)
         }
     }
 
@@ -417,10 +638,11 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
      *  Without this, each frame flip during [startAnimation]'s loop has to fetch its tiles from
      *  the network from scratch - osmdroid's in-memory tile cache is cleared on every tileSource
      *  swap and can only ever hold one frame's worth of tiles - so most frames rendered blank. */
-    private suspend fun prefetchFrames(frameTimes: List<Date>) {
+    private suspend fun prefetchFrames(frameTimes: List<Date>, onFrameCached: (frame: Int) -> Unit) {
         val tileIndices = visibleTileIndices()
         if (tileIndices.isEmpty()) {
             Log.w(TAG, "prefetchFrames: no visible tile indices for current viewport/zoom - skipping prefetch")
+            frameTimes.indices.forEach(onFrameCached)
             return
         }
         val writer = radarTileProvider.tileWriter
@@ -434,53 +656,82 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
                 "${tileIndices.size} tiles), sample url=${sampleSource.getTileURLString(tileIndices.first())}"
         )
         binding.radarUpdatedText.text = context.getString(R.string.radar_loading_animation)
+        prefetchPercent = 0
+        // Tiles still to download per frame; a frame becomes playable when its count hits 0.
+        val remaining = frameTimes.map { AtomicInteger(tileIndices.size) }
+        tileTiming.report("before prefetchFrames (live/background loads)")
+        val prefetchStart = System.currentTimeMillis()
         withContext(Dispatchers.IO) {
-            frameTimes.flatMap { time ->
-                val source = historyTileSource(time)
+            // Newest first, so playback can start on the latest frames within a second or two.
+            // The semaphore is fair (FIFO), so frames finish roughly in this order.
+            frameTimes.indices.reversed().flatMap { frame ->
+                val source = historyTileSource(frameTimes[frame])
                 tileIndices.map { tileIndex ->
                     async {
                         semaphore.withPermit {
+                            val start = System.nanoTime()
                             val drawable = try {
                                 tileDownloader.downloadTile(tileIndex, writer, source)
                             } catch (e: CantContinueException) {
-                                Log.w(TAG, "prefetchFrames: gave up on tile $tileIndex for ${source.name()}", e)
+                                // Log.w(TAG, "prefetchFrames: gave up on tile $tileIndex for ${source.name()}", e)
                                 null
                             }
+                            tileTiming.recordDownload(System.nanoTime() - start)
                             if (drawable == null) failed.incrementAndGet()
                         }
                         val done = completed.incrementAndGet()
-                        if (done == total || done % PREFETCH_PROGRESS_STEP == 0) {
+                        val frameDone = remaining[frame].decrementAndGet() == 0
+                        if (frameDone || done == total || done % PREFETCH_PROGRESS_STEP == 0) {
                             withContext(Dispatchers.Main) {
-                                binding.radarUpdatedText.text = context.getString(
-                                    R.string.radar_loading_animation_progress, done * 100 / total
-                                )
+                                if (frameDone) onFrameCached(frame)
+                                prefetchPercent = done * 100 / total
+                                // Once playback is running, playFrames shows the % beside the frame time.
+                                if (!playbackRunning) {
+                                    binding.radarUpdatedText.text = context.getString(
+                                        R.string.radar_loading_animation_progress, done * 100 / total
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }.awaitAll()
         }
+        prefetchPercent = null
         Log.i(TAG, "prefetchFrames: done, ${total - failed.get()}/$total tiles cached, ${failed.get()} failed")
+        tileTiming.report("prefetchFrames $total tiles x$PREFETCH_CONCURRENCY", System.currentTimeMillis() - prefetchStart)
+        // Once per animation start, after the prefetch so it doesn't compete with it.
+        val probeUrls = tileIndices.take(CONNECTION_PROBE_TILES).map { sampleSource.getTileURLString(it) }
+        lifecycleScope.launch(Dispatchers.IO) { probeConnectionReuse(probeUrls, context.packageName) }
     }
 
-    /** Tile indices (z/x/y, encoded) covering the map's current viewport at its current zoom,
-     *  padded by [PREFETCH_TILE_PADDING] tiles on each side to absorb rounding differences
-     *  between this rect and the one TilesOverlay computes for itself at draw time. */
+    /** Tile indices (z/x/y, encoded) that osmdroid's TilesOverlay will draw for the current
+     *  viewport, computed exactly the way its TileLooper does (mercator viewport ->
+     *  TileSystem.getTileFromMercator at the map zoom), so a prefetch covers the drawn tiles with
+     *  no padding. For layers whose [RadarLayer.maxZoom] is below the map zoom it returns the
+     *  maxZoom parents of those tiles instead - the overlay scales those up. */
     private fun visibleTileIndices(): List<Long> {
-        val mapView = binding.radarMapView
-        val zoom = Math.round(mapView.zoomLevelDouble).toInt().coerceAtMost(layer.maxZoom)
-        val rect = CacheManager.getTilesRect(mapView.boundingBox, zoom)
+        val projection = binding.radarMapView.projection
+        val viewPort = projection.getMercatorViewPort(RectL())
+        val mapZoom = projection.zoomLevel
+        val drawRect = Rect()
+        TileSystem.getTileFromMercator(viewPort, TileSystem.getTileSize(mapZoom), drawRect)
+        val drawZoom = TileSystem.getInputTileZoomLevel(mapZoom)
+        val zoom = drawZoom.coerceAtMost(layer.maxZoom)
+        val shift = drawZoom - zoom
         val tileUpperBound = 1 shl zoom
-        val tiles = mutableListOf<Long>()
-        for (x in (rect.left - PREFETCH_TILE_PADDING)..(rect.right + PREFETCH_TILE_PADDING)) {
-            val wrappedX = ((x % tileUpperBound) + tileUpperBound) % tileUpperBound
-            for (y in (rect.top - PREFETCH_TILE_PADDING)..(rect.bottom + PREFETCH_TILE_PADDING)) {
-                if (y < 0 || y >= tileUpperBound) continue
-                tiles.add(MapTileIndex.getTileIndex(zoom, wrappedX, y))
+        val tiles = LinkedHashSet<Long>()
+        for (x in drawRect.left..drawRect.right) {
+            for (y in drawRect.top..drawRect.bottom) {
+                // Arithmetic shift floors negative (wrapped) indices too.
+                val zx = x shr shift
+                val zy = y shr shift
+                if (zy < 0 || zy >= tileUpperBound) continue
+                tiles.add(MapTileIndex.getTileIndex(zoom, zx.mod(tileUpperBound), zy))
             }
         }
-        Log.i(TAG, "visibleTileIndices: zoom=$zoom rect=$rect padding=$PREFETCH_TILE_PADDING -> ${tiles.size} tiles")
-        return tiles
+        Log.i(TAG, "visibleTileIndices: mapZoom=$mapZoom drawRect=$drawRect -> ${tiles.size} z$zoom tiles")
+        return tiles.toList()
     }
 
     /** Every [RadarLayer.stepMinutes] UTC mark over the last 2 hours, oldest first - ending
@@ -496,15 +747,6 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
         }.timeInMillis
         return (ANIMATION_HISTORY_MINUTES downTo 0 step step)
             .map { minutesAgo -> Date(flooredNow - minutesAgo * 60_000L) }
-    }
-
-    private fun showHistoryFrame(time: Date) {
-        val source = historyTileSource(time)
-        Log.d(TAG, "showHistoryFrame: ${frameTimestampFormat.format(time)} source=${source.name()}")
-        radarTileProvider.tileSource = source
-        radarTileProvider.clearTileCache()
-        binding.radarMapView.invalidate()
-        binding.radarUpdatedText.text = updatedAtFormat.format(time)
     }
 
     private fun showLiveFrame() {
@@ -529,6 +771,7 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
             binding.radarMapView.postDelayed({ binding.radarMapView.invalidate() }, delayMs)
         }
         prefetchOverzoomParents(source)
+        scheduleAutoRefresh()
     }
 
     /** The overlay asks for tiles at the map's zoom, but GIBS satellite layers stop at
@@ -546,22 +789,27 @@ class RadarPanel(container: ViewGroup, private val lifecycleScope: LifecycleCoro
             withContext(Dispatchers.IO) {
                 tiles.map { tile ->
                     async {
+                        val start = System.nanoTime()
                         try {
                             tileDownloader.downloadTile(tile, writer, source)
                         } catch (e: CantContinueException) {
-                            Log.w(TAG, "prefetchOverzoomParents: gave up on tile $tile", e)
+                            // Log.w(TAG, "prefetchOverzoomParents: gave up on tile $tile", e)
                         }
+                        tileTiming.recordDownload(System.nanoTime() - start)
                     }
                 }.awaitAll()
             }
+            tileTiming.report("prefetchOverzoomParents ${tiles.size} tiles")
             Log.i(TAG, "prefetchOverzoomParents: cached ${tiles.size} z${layer.maxZoom} tiles for map zoom $mapZoom")
             binding.radarMapView.invalidate()
         }
     }
 
     private fun liveTileSource(): OnlineTileSourceBase = when (layer) {
-        RadarLayer.RADAR -> XYTileSource("IEM-NEXRAD", 0, 18, 256, ".png", arrayOf(LIVE_TILE_URL))
-        RadarLayer.RAIN_72H -> XYTileSource("IEM-Q2-72H", 0, RAIN_72H_MAX_ZOOM, 256, ".png", arrayOf(RAIN_72H_TILE_URL))
+        RadarLayer.RADAR -> XYTileSource("IEM-NEXRAD", 0, 18, 256, ".png", arrayOf(LIVE_TILE_URL), null, EarlyExpiryTilePolicy())
+        RadarLayer.RAIN_72H -> XYTileSource(
+            "IEM-Q2-72H", 0, RAIN_72H_MAX_ZOOM, 256, ".png", arrayOf(RAIN_72H_TILE_URL), null, EarlyExpiryTilePolicy()
+        )
         RadarLayer.RAIN_FORECAST_72H -> WpcQpfTileSource("WPC-QPF-72H-${frameTimestampFormat.format(Date()).take(10)}")
         // The newest frame that should exist by now, named by its own timestamp so each new
         // 10-minute frame gets a fresh disk-cache key rather than depending on cache expiry.

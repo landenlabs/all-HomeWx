@@ -230,7 +230,7 @@ class MainActivity : AppCompatActivity() {
             onDailyCardClick = ::showTappedForecastDay
         )
         sensorGraphsPanel = SensorGraphsPanel(binding.infoPanelContainer)
-        radarPanel = RadarPanel(binding.infoPanelContainer, lifecycleScope)
+        radarPanel = RadarPanel(binding.infoPanelContainer, lifecycleScope, lifecycle)
         riverGraphsPanel = RiverGraphsPanel(binding.infoPanelContainer)
 
         binding.infoPanelTabBar.newsTabButton.setOnClickListener { selectTab(InfoPanelView.NEWS) }
