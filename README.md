@@ -165,13 +165,14 @@ marketing.
 | 5 | **Sensor, weather, river and rain history** | Automatic | On the tablet only, in a local database | Not sent anywhere. **Export** in Settings writes it to a file you choose; credentials are never included. |
 | 6 | **Usage analytics** (Firebase Analytics) | On by default, when Firebase is built in; can be turned off | Google Cloud (Firebase) | Anonymous usage counts and device info (model, OS version, app version, country), tied to a random app-instance ID. Managed by Google under its privacy policy. |
 | 7 | **Crash and error reports** (Firebase Crashlytics) | On by default, when Firebase is built in; can be turned off | Google Cloud (Firebase) | Crash stack traces and handled errors with device info. An error message can include a Govee device name or a server's error text. Managed by Google. |
-| 8 | **News, map and web pages** | Automatic | Pages and images cached on the tablet | Loading RSS feeds, articles, map tiles, the TradingView widget and the drought map makes requests to those sites, which see your IP address and may set cookies in the app's web view. |
-| 9 | **Android Auto Backup** | Automatic, if backup is on for the tablet | Your Google Drive backup | Android may back up app settings (including the ZIP code) to your Google account. Encrypted credentials can't be decrypted after a restore, because the Keystore key is not backed up. |
+| 8 | **Error log** (Settings > Errors) | Automatic | On the tablet only, in memory. It keeps the last 5 errors and is cleared when the app restarts or you tap **Clear** | Not sent anywhere unless you tap **Share**, which opens Android's share sheet so you pick the app and the recipient. Each entry has the time, which feature failed, the error message and the technical details (stack trace). These can include a Govee device name, a news feed name or a server's error text, but never credentials. |
+| 9 | **News, map and web pages** | Automatic | Pages and images cached on the tablet | Loading RSS feeds, articles, map tiles, the TradingView widget and the drought map makes requests to those sites, which see your IP address and may set cookies in the app's web view. |
+| 10 | **Android Auto Backup** | Automatic, if backup is on for the tablet | Your Google Drive backup | Android may back up app settings (including the ZIP code) to your Google account. Encrypted credentials can't be decrypted after a restore, because the Keystore key is not backed up. |
 
 Google deletes crash reports after 90 days and analytics data after 2 months (Firebase defaults).
 
 **Opting out:** items 1 to 4 can be cleared in **Settings** (leave the field empty, or
-**Clear**). Turn off **Settings > Privacy > Send anonymous usage stats and crash reports** to
+**Clear**), and item 8 with **Clear** in **Settings > Errors**. Turn off **Settings > Privacy > Send anonymous usage stats and crash reports** to
 stop Firebase reporting; this also discards crash reports not yet sent and resets the
 analytics ID. Data already sent can't be deleted from the app and expires as above. Builds
 without a `google-services.json` contain no Firebase reporting at all. Uninstalling the app
