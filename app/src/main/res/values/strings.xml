@@ -225,7 +225,7 @@
 <p><b>Permissions</b><br/>
 <b>Internet, network state:</b> fetch weather, maps, news and river data, and detect when the network is down.<br/>
 <b>Foreground service and notifications:</b> keep updates running while the dashboard is on, shown by an ongoing notification. Updates slow down when the room is dark.<br/>
-<b>Wake lock:</b> lets updates finish while the screen is dimmed.<br/>
+<b>Wake lock, Play install referrer:</b> added by Firebase Analytics, to send reports and record how the app was installed.<br/>
 <b>Run at startup:</b> reopens the dashboard after the tablet restarts.<br/>
 No location, camera, microphone, contacts, photos or storage permission is used. A background-image folder is read only if you pick one in Settings.</p>
 ]]></string>
