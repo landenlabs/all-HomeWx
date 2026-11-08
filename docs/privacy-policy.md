@@ -1,3 +1,11 @@
+---
+# GitHub Pages (Jekyll) front matter: publishes this file as
+# https://landenlabs.github.io/all-HomeWx/privacy-policy.html - the URL given to Google Play.
+layout: default
+title: All HomeWx Privacy Policy
+permalink: /privacy-policy.html
+---
+
 # All HomeWx Privacy Policy
 
 _Last updated: 2026-11-08_
