@@ -7,7 +7,7 @@ import com.landenlabs.homewx.MainActivity
 
 /** Launches [MainActivity] once the device finishes booting, so this always-on wall-mounted
  *  tablet comes back up on the dashboard instead of sitting on the home screen after a reboot.
- *  [HomeWxMonitorService] doesn't need starting here separately - MainActivity.onCreate already
+ *  [HomeWxMonitorService] doesn't need starting here separately - MainActivity.onStart already
  *  starts it. */
 class BootCompletedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {

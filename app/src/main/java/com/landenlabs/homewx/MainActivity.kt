@@ -1,8 +1,10 @@
 package com.landenlabs.homewx
 
-import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Bundle
@@ -13,10 +15,10 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import android.graphics.Typeface
 import androidx.core.content.ContextCompat
+import androidx.core.widget.TextViewCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -79,12 +81,6 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var screenPowerController: ScreenPowerController
-    // Only needed so NewsPanel's "no data" message can name the connected WiFi network -
-    // Android ties real SSID lookups to location permission. Re-render on grant so the
-    // message picks up the SSID immediately instead of waiting for the next news poll.
-    private val locationPermissionRequest = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) newsPanel.onStateUpdated(AppState.uiState.value.newsItemsBySource)
-    }
     private val sensorAdapter = SensorAdapter(onSensorClick = ::showSensorHistory)
     private lateinit var newsPanel: NewsPanel
     private lateinit var sensorChartPanel: SensorChartPanel
@@ -244,17 +240,52 @@ class MainActivity : AppCompatActivity() {
         lastIdleConfig = idleConfig()
         if (AppSettings.getIdlePanel(this) != IdlePanel.CYCLE) applyIdlePanel()
 
-        HomeWxMonitorService.start(this)
-
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            locationPermissionRequest.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-        }
-
         binding.currentLuxText.setOnClickListener { toggleNightMode() }
         observeState()
         startClock()
+    }
+
+    /** ACTION_BATTERY_CHANGED is sticky, so registering also delivers the current level immediately. */
+    private val batteryReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) = updateBatteryLevel(intent)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Here rather than onCreate so the service also comes back after Android 15's dataSync
+        // time limit stopped it (HomeWxMonitorService.onTimeout) while the activity was backgrounded.
+        HomeWxMonitorService.start(this)
+        ContextCompat.registerReceiver(
+            this, batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED
+        )?.let { updateBatteryLevel(it) }
+    }
+
+    override fun onStop() {
+        unregisterReceiver(batteryReceiver)
+        super.onStop()
+    }
+
+    /** Battery percent right of the lux text: hidden at 50%+, yellow for 25..49%, red below 25%. */
+    private fun updateBatteryLevel(intent: Intent) {
+        val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+        val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+        val view = binding.batteryLevelText
+        if (level < 0 || scale <= 0) {
+            view.visibility = View.GONE
+            return
+        }
+        val percent = level * 100 / scale
+        if (percent >= BATTERY_SHOW_BELOW_PERCENT) {
+            view.visibility = View.GONE
+            return
+        }
+        val color = ContextCompat.getColor(
+            this, if (percent < BATTERY_RED_BELOW_PERCENT) R.color.red else R.color.battery_low
+        )
+        view.text = "$percent%"
+        view.setTextColor(color)
+        TextViewCompat.setCompoundDrawableTintList(view, ColorStateList.valueOf(color))
+        view.visibility = View.VISIBLE
     }
 
     override fun onResume() {
@@ -1224,6 +1255,8 @@ class MainActivity : AppCompatActivity() {
         /** Longest side, in pixels, a user background is decoded to - larger photos are scaled down. */
         private const val BACKGROUND_MAX_PX = 2048
         private const val SWIPE_THRESHOLD_PX = 80
+        private const val BATTERY_SHOW_BELOW_PERCENT = 50
+        private const val BATTERY_RED_BELOW_PERCENT = 25
         private const val DAY_MILLIS = 24 * 60 * 60 * 1000L
         private const val STALE_WEATHER_THRESHOLD_MS = 60 * 60 * 1000L
         private const val WAKE_OVERRIDE_DURATION_MS = 5 * 60 * 1000L

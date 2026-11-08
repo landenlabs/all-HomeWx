@@ -25,6 +25,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import com.landenlabs.homewx.BuildConfig
 import com.landenlabs.homewx.R
+import com.landenlabs.homewx.Telemetry
 import com.landenlabs.homewx.data.DailySnapshotStore
 import com.landenlabs.homewx.data.WeatherMetricsHistoryStore
 import com.landenlabs.homewx.databinding.ActivitySettingsBinding
@@ -134,6 +135,8 @@ class SettingsActivity : AppCompatActivity() {
         binding.goveeEditButton.setOnClickListener { credentialDialogs.showGovee() }
         binding.wyzeEditButton.setOnClickListener { credentialDialogs.showWyze() }
         binding.wxdataEditButton.setOnClickListener { credentialDialogs.showWxData() }
+        // The standard flavor has no wxdata AAR, so there is no key to enter.
+        binding.wxdataRow.visibility = if (BuildConfig.HAS_WXDATA) View.VISIBLE else View.GONE
         binding.feedsEditButton.setOnClickListener { credentialDialogs.showFeeds() }
         binding.droughtEditButton.setOnClickListener { credentialDialogs.showDrought() }
         binding.backgroundFolderChooseButton.setOnClickListener { backgroundFolderLauncher.launch(null) }
@@ -170,6 +173,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.undoButton.setOnClickListener { bindCurrentValues() }
 
         binding.errorsButton.setOnClickListener { startActivity(Intent(this, ErrorLogActivity::class.java)) }
+        binding.privacyButton.setOnClickListener { PrivacyDialog.show(this) }
         // Collected live (not just bound once on open) since HomeWxMonitorService keeps polling
         // in the background and can log a new error while this screen is sitting in the foreground.
         lifecycleScope.launch {
@@ -586,6 +590,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.lightThresholdValueText.text = "$lightThresholdLux lux"
 
         binding.dailySplineSwitch.isChecked = AppSettings.isDailyWeatherSplineEnabled(this)
+        binding.telemetrySwitch.isChecked = AppSettings.isTelemetryEnabled(this)
         binding.darkMapSwitch.isChecked = AppSettings.isDarkMapTheme(this)
         bindAccountStatus()
         bindBackgroundFolderStatus()
@@ -706,6 +711,7 @@ class SettingsActivity : AppCompatActivity() {
         AppSettings.setBackgroundDarkenPercent(this, binding.backgroundDarkenSlider.progress)
         AppSettings.setLightThresholdLux(this, progressToLux(binding.lightThresholdSlider.progress).toFloat())
         AppSettings.setDailyWeatherSplineEnabled(this, binding.dailySplineSwitch.isChecked)
+        Telemetry.setEnabled(this, binding.telemetrySwitch.isChecked)
         AppSettings.setDarkMapTheme(this, binding.darkMapSwitch.isChecked)
         AppSettings.setWeatherNotificationEnabled(this, binding.weatherNotificationSwitch.isChecked)
         WeatherNotification.refresh(this)

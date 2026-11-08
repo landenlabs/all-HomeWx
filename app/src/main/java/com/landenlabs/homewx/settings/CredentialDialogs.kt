@@ -16,7 +16,7 @@ import com.landenlabs.homewx.databinding.DialogWxdataBinding
 import com.landenlabs.homewx.databinding.DialogWyzeBinding
 import com.landenlabs.homewx.news.UsStates
 import com.landenlabs.homewx.state.AppState
-import com.landenlabs.homewx.weather.wxdata.WxDataWeatherProvider
+import com.landenlabs.homewx.weather.WxDataSupport
 
 /**
  * The Govee / Wyze / RSS-feed / drought-state dialogs opened from Settings > Accounts & Feeds. Unlike the rest of
@@ -64,7 +64,7 @@ class CredentialDialogs(private val activity: AppCompatActivity, private val onC
 
     /** WxData (AAR 3.26+) re-applies a changed config in place, so a new key is live right away. */
     private fun wxDataKeyChanged() {
-        WxDataWeatherProvider.initialize(activity)
+        WxDataSupport.initialize(activity)
         changed()
     }
 

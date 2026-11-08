@@ -23,5 +23,7 @@
          own @color/red background when the network is failing, so it needs a color that still
          reads as distinct against it, not just against the default dark background. -->
     <color name="red_dark">#8B0000</color>
+    <!-- Low-battery readout next to the lux text: yellow for 25..49%, @color/red below 25%. -->
+    <color name="battery_low">#FFD60A</color>
     <color name="icon_white">@color/white</color>
 </resources>

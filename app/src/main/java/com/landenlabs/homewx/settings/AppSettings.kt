@@ -28,6 +28,7 @@ object AppSettings {
     private const val KEY_FLAT_RANGE_THRESHOLD = "flat_range_threshold"
     private const val KEY_DARK_MAP_THEME = "dark_map_theme"
     private const val KEY_DAILY_WEATHER_SPLINE_ENABLED = "daily_weather_spline_enabled"
+    private const val KEY_TELEMETRY_ENABLED = "telemetry_enabled"
     private const val KEY_WEATHER_NOTIFICATION_ENABLED = "weather_notification_enabled"
     private const val KEY_NEWS_FEED_LABEL_PREFIX = "news_feed_label_"
     private const val KEY_NEWS_FEED_URL_PREFIX = "news_feed_url_"
@@ -150,6 +151,14 @@ object AppSettings {
 
     /** Whether the Daily forecast graphs (temp/wind/precipitation) draw a smoothed spline curve
      *  through each day's point instead of straight line segments. */
+    /** Firebase Analytics + Crashlytics reporting; on by default, the user can opt out in Settings. */
+    fun isTelemetryEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_TELEMETRY_ENABLED, true)
+
+    fun setTelemetryEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit { putBoolean(KEY_TELEMETRY_ENABLED, enabled) }
+    }
+
     fun isDailyWeatherSplineEnabled(context: Context): Boolean =
         prefs(context).getBoolean(KEY_DAILY_WEATHER_SPLINE_ENABLED, true)
 

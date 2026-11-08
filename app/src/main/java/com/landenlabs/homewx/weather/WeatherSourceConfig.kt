@@ -2,6 +2,7 @@ package com.landenlabs.homewx.weather
 
 import android.content.Context
 import androidx.core.content.edit
+import com.landenlabs.homewx.BuildConfig
 import com.landenlabs.homewx.settings.CredentialStore
 
 /**
@@ -17,9 +18,12 @@ object WeatherSourceConfig {
 
     val defaultSource: WeatherSourceId = WeatherSourceId.OPEN_METEO
 
-    /** The sources the user can pick: everything except WxData while it has no API key. */
+    /** The sources the user can pick: everything except WxData unless this is the wxdata flavor
+     *  and it has an API key. */
     fun availableSources(context: Context): List<WeatherSourceId> =
-        WeatherSourceId.values().filter { it != WeatherSourceId.WXDATA || CredentialStore.hasWxData(context) }
+        WeatherSourceId.values().filter {
+            it != WeatherSourceId.WXDATA || (BuildConfig.HAS_WXDATA && CredentialStore.hasWxData(context))
+        }
 
     fun getActiveSource(context: Context): WeatherSourceId {
         val stored = prefs(context).getString(KEY_WEATHER_SOURCE, null) ?: return defaultSource

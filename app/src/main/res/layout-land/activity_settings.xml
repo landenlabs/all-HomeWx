@@ -784,6 +784,7 @@
             </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/wxdataRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
@@ -939,6 +940,32 @@
                         tools:text="Log file: /data/user/0/com.landenlabs.all_homewx/files/webview_request_domains.log" />
             <View style="@style/settings_divider" />
 
+            <!-- PRIVACY: Firebase opt-out; the full data list is behind the footer's Privacy button. -->
+            <TextView
+                style="@style/settings_section_header"
+                android:text="@string/settings_section_privacy" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/settings_label"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:text="@string/settings_telemetry_switch" />
+
+                <Switch
+                    android:id="@+id/telemetrySwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <View style="@style/settings_divider" />
+
             <!-- ABOUT: copyright, license and source link. autoLink makes the URLs tappable. -->
             <TextView
                 style="@style/settings_section_header"
@@ -1007,5 +1034,12 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
             android:text="@string/settings_undo" />
+
+        <Button
+            android:id="@+id/privacyButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="@string/settings_privacy_button" />
     </LinearLayout>
 </LinearLayout>

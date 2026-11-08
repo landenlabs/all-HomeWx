@@ -5,7 +5,6 @@
     <string name="monitor_service_notification_text">Weather and sensor updates running in the background</string>
     <string name="weather_placeholder">Loading weather…</string>
     <string name="news_no_data">No data available</string>
-    <string name="news_no_data_with_wifi">No data available using Wifi %1$s</string>
     <string name="strip_chart_no_data">Not enough history yet</string>
     <string name="webview_load_failed">Couldn\'t load - no network. Will retry automatically.</string>
     <string name="wyze_login_loop_detected">Wyze auto-login didn\'t complete after %1$d attempts - stopped to avoid a reload loop. Tap to try again.</string>
@@ -191,6 +190,8 @@
     <string name="settings_bg_folder_found">%1$s: %2$d images (clear %3$d, cloudy %4$d, rainy %5$d, windy %6$d). Conditions with none use the built-in image.</string>
     <string name="settings_bg_folder_none">%1$s: no matching files. Names look like wx_bg_clear_001.jpg.</string>
     <string name="settings_bg_folder_unreadable">Can\'t read the chosen folder. Choose it again.</string>
+    <string name="settings_section_privacy">PRIVACY</string>
+    <string name="settings_telemetry_switch">Send anonymous usage stats and crash reports (Firebase)</string>
     <string name="settings_section_about">ABOUT</string>
     <string name="settings_about_copyright">Copyright 2026 Dennis Lang (LanDen Labs)</string>
     <string name="settings_about_license">Licensed under the Apache License, Version 2.0 (the \"License\"); you may not use this app except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software distributed under the License is distributed on an \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.</string>
@@ -205,6 +206,29 @@
     <string name="settings_webview_logging_switch">Log WebView request domains</string>
     <string name="settings_webview_logging_path">Log file: %1$s</string>
     <string name="settings_undo">Undo</string>
+    <string name="settings_privacy_button">Privacy</string>
+    <string name="settings_privacy_title">Privacy</string>
+    <!-- Mirrors the README "Privacy" section; keep the two in sync. -->
+    <string name="privacy_html"><![CDATA[
+<p>HomeWx has no account, no ads and no advertising ID, does not ask for location permission, and does not sell or share data for marketing.</p>
+<p><b>1. Home ZIP code</b> (optional)<br/>Stored on this tablet. Sent once to api.zippopotam.us to find its center point, which is then sent to the weather, rain and river services (Open-Meteo, WxData / weather.com, ACIS, Iowa Mesonet, USGS) to get data for your area, including river gauges and rain totals, and marks home on the radar map. The device\'s own GPS position is never read.</p>
+<p><b>2. Wyze email and password</b> (optional)<br/>Stored on this tablet only, encrypted. Entered into the Wyze sign-in page to open your cameras. Not sent anywhere else.</p>
+<p><b>3. Govee API key</b> (optional)<br/>Stored on this tablet only, encrypted. Sent to Govee\'s API to read your sensors. Not sent anywhere else.</p>
+<p><b>4. WxData API key</b> (optional, wxdata build only)<br/>Stored on this tablet only, encrypted. Sent to api.weather.com to get weather. Not sent anywhere else.</p>
+<p><b>5. Sensor, weather, river and rain history</b><br/>Stored on this tablet only. Export writes it to a file you choose; credentials are never included.</p>
+<p><b>6. Usage analytics</b> (Firebase Analytics, on by default)<br/>Anonymous usage counts and device info (model, OS and app version, country), tied to a random ID. Stored in Google Cloud and managed by Google.</p>
+<p><b>7. Crash and error reports</b> (Firebase Crashlytics, on by default)<br/>Crash stack traces and handled errors with device info. An error message can include a Govee device name or a server\'s error text. Stored in Google Cloud and managed by Google.</p>
+<p>Google deletes crash reports after 90 days and analytics data after 2 months (Firebase defaults).</p>
+<p><b>8. News, maps and web pages</b><br/>RSS feeds, articles, map tiles, the stock widget and the drought map are loaded from their sites, which see your IP address and may set cookies.</p>
+<p><b>9. Android backup</b><br/>If backup is on for this tablet, Android may back up app settings (including the ZIP code) to your Google account. Saved credentials can\'t be read after a restore.</p>
+<p><b>Opting out:</b> clear items 1 to 4 here in Settings. Turn off <i>Send anonymous usage stats and crash reports</i> above to stop Firebase reporting; this also discards unsent crash reports and resets the analytics ID. Data already sent can\'t be deleted from the app and expires as above. Uninstalling the app deletes everything it stored on this tablet.</p>
+<p><b>Permissions</b><br/>
+<b>Internet, network state:</b> fetch weather, maps, news and river data, and detect when the network is down.<br/>
+<b>Foreground service and notifications:</b> keep updates running while the dashboard is on, shown by an ongoing notification. Updates slow down when the room is dark.<br/>
+<b>Wake lock:</b> lets updates finish while the screen is dimmed.<br/>
+<b>Run at startup:</b> reopens the dashboard after the tablet restarts.<br/>
+No location, camera, microphone, contacts, photos or storage permission is used. A background-image folder is read only if you pick one in Settings.</p>
+]]></string>
 
     <string name="settings_section_rivers">RIVERS</string>
     <string name="settings_rivers_enabled_switch">Show river gauges</string>

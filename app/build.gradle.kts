@@ -9,10 +9,12 @@ plugins {
 
 // Firebase config is per-developer and gitignored; without it the Firebase plugins would fail the
 // build, so they are only applied when google-services.json is present (Telemetry no-ops otherwise).
+// plugins {} can't be conditional, so they go through pluginManager; the versions come from the
+// root build's `apply false` declarations.
 val hasFirebaseConfig = file("google-services.json").exists()
 if (hasFirebaseConfig) {
-    apply(plugin = "com.google.gms.google-services")
-    apply(plugin = "com.google.firebase.crashlytics")
+    pluginManager.apply("com.google.gms.google-services")
+    pluginManager.apply("com.google.firebase.crashlytics")
 }
 
 val localProperties = Properties().apply {
@@ -30,8 +32,8 @@ android {
         applicationId = "com.landenlabs.all_homewx"
         minSdk = 28 // wxdata's AAR declares minSdk 28 (see wxdata-integration-notes.md)
         targetSdk = 37
-        versionCode = 61035
-        versionName = "6.10.35"
+        versionCode = 61108
+        versionName = "6.11.08"
 
         // GOVEE_API_KEY / WYZE_USER / WYZE_PWD / SUN_API_KEY (the WxData key) are per build type (see buildTypes): debug seeds them
         // from local.properties, release ships empty and the user enters them in Settings.
@@ -67,6 +69,27 @@ android {
         }
     }
 
+    // "standard" (default) ships Open-Meteo only: no wxdata AAR, no WxData key entry, no WxData
+    // weather source. "wxdata" adds the AAR and its Settings options. Code that touches the AAR
+    // lives in src/wxdata; src/standard has a no-op WxDataSupport with the same API.
+    flavorDimensions += "weather"
+    productFlavors {
+        create("standard") {
+            dimension = "weather"
+            isDefault = true
+            buildConfigField("boolean", "HAS_WXDATA", "false")
+        }
+        create("wxdata") {
+            dimension = "weather"
+            buildConfigField("boolean", "HAS_WXDATA", "true")
+        }
+    }
+
+    testOptions {
+        // OkHttp touches android.util.Log on the JVM; return defaults instead of throwing "not mocked".
+        unitTests.isReturnDefaultValues = true
+    }
+
     buildFeatures {
         viewBinding = true
         buildConfig = true
@@ -78,18 +101,19 @@ android {
     }
 }
 
-// Include the version in output file names: HomeWx-6.10.31-release.apk / HomeWx-6.10.31-release.aab.
+// Include the version in output file names: HomeWx-6.10.31-standard-release.apk / .aab.
 // archivesName covers the APK; the bundle is renamed after the bundle task since its name
 // isn't consistently derived from archivesName across AGP versions.
 val versionedName = "HomeWx-${android.defaultConfig.versionName}"
-base.archivesName.set(versionedName)
+base.archivesName = versionedName
 
 tasks.configureEach {
-    val match = Regex("bundle(Debug|Release)").matchEntire(name) ?: return@configureEach
-    val variant = match.groupValues[1].lowercase()
+    val match = Regex("bundle(Standard|Wxdata)(Debug|Release)").matchEntire(name) ?: return@configureEach
+    val flavor = match.groupValues[1].lowercase()
+    val buildType = match.groupValues[2]
     doLast {
-        val dir = layout.buildDirectory.dir("outputs/bundle/$variant").get().asFile
-        val target = File(dir, "$versionedName-$variant.aab")
+        val dir = layout.buildDirectory.dir("outputs/bundle/$flavor$buildType").get().asFile
+        val target = File(dir, "$versionedName-$flavor-${buildType.lowercase()}.aab")
         dir.listFiles { f -> f.extension == "aab" && f.name != target.name }?.forEach { old ->
             target.delete()
             old.renameTo(target)
@@ -98,7 +122,7 @@ tasks.configureEach {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.19.0")
+    implementation("androidx.core:core-ktx:1.19.1")
     implementation("androidx.appcompat:appcompat:1.8.0")
     implementation("com.google.android.material:material:1.14.0")
     implementation("androidx.recyclerview:recyclerview:1.4.0")
@@ -106,7 +130,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
     implementation("androidx.lifecycle:lifecycle-service:2.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
-    implementation("com.squareup.okhttp3:okhttp:5.5.0")
+    implementation("com.squareup.okhttp3:okhttp:5.5.1")
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
     implementation("com.squareup.picasso:picasso:2.71828")
     implementation("org.osmdroid:osmdroid-android:6.1.20")
@@ -118,13 +142,17 @@ dependencies {
     // URLs); Retrofit/RxJava/GreenRobot were dropped in favour of Gson + CompletableFuture, so only
     // okhttp (above), logging-interceptor and gson are still needed. See
     // max-auto-android-wxdata/technotes/initialize.md.
-    implementation(files("libs/wxdata-3.26.1031.aar"))
-    implementation("com.squareup.okhttp3:logging-interceptor:5.5.0")
-    implementation("com.google.code.gson:gson:2.14.0")
+    // Only the "wxdata" flavor carries the AAR and its dependencies.
+    "wxdataImplementation"(files("libs/wxdata-3.26.1031.aar"))
+    "wxdataImplementation"("com.squareup.okhttp3:logging-interceptor:5.5.0")
+    "wxdataImplementation"("com.google.code.gson:gson:2.14.0")
 
     implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-crashlytics")
 
     testImplementation("junit:junit:4.13.2")
+    // android.jar's org.json is a stub in JVM unit tests; use the real implementation
+    // (needed by NestApiClientLiveTest).
+    testImplementation("org.json:json:20250517")
 }

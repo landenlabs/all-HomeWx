@@ -1,8 +1,8 @@
 <table border="0">
   <tr>
     <td>
-      <!-- VERSION -->v6.10.31<br>
-      <!-- DATE -->31-Oct-2026<br>
+      <!-- VERSION -->v6.11.08<br>
+      <!-- DATE -->08-Nov-2026<br>
       Android (Kotlin)<br>
       <a href="https://github.com/landenlabs/all-HomeWx">Repo</a>
     </td>
@@ -126,8 +126,13 @@ Settings sections cover the rivers ZIP code, brightness and the idle panel.
 ### Building
 
 ```
-./gradlew assembleDebug
+./gradlew assembleStandardDebug   # default: Open-Meteo only, no wxdata AAR
+./gradlew assembleWxdataDebug     # adds the wxdata AAR and its Settings options
 ```
+
+The `standard` flavor (the default) leaves out the wxdata library: Settings has no WxData
+key entry and WxData is never offered as a weather source. The `wxdata` flavor needs
+`app/libs/wxdata-*.aar`.
 
 Debug builds can pre-fill the Govee and Wyze credentials from `local.properties`
 (which is not committed):
@@ -141,6 +146,48 @@ SUN_API_KEY=...   # the WxData key
 
 Firebase Analytics and Crashlytics are used only when a `google-services.json` is
 present at build time.
+
+---
+
+### Privacy
+
+The same information is shown in the app under **Settings > Privacy**. HomeWx has no
+account, no ads and no advertising ID (the AD_ID permission is removed from the manifest),
+does not ask for location permission, and does not sell or share data with anyone for
+marketing.
+
+| # | Data | Required? | Where it is kept | Who receives it, and why |
+|---|---|---|---|---|
+| 1 | **Location: home ZIP code** and its center point (latitude/longitude) | Optional (defaults to a built-in location) | On the tablet, in app settings | The ZIP is sent to `api.zippopotam.us` once, to look up its center point. That center point is sent to the weather, rain and river services (Open-Meteo, WxData / weather.com, ACIS, Iowa Mesonet, USGS) to fetch data for your area, including river gauges and rain totals, and marks "home" on the radar map. The device's own GPS position is never read. |
+| 2 | **Wyze email and password** | Optional | On the tablet only, encrypted with the Android Keystore | Entered by the app into the Wyze sign-in page (`auth.wyze.com`) to open your camera page. Not sent anywhere else. |
+| 3 | **Govee API key** | Optional | On the tablet only, encrypted with the Android Keystore | Sent to Govee's API (`openapi.api.govee.com`) to read your sensors. Not sent anywhere else. |
+| 4 | **WxData API key** (wxdata build only) | Optional | On the tablet only, encrypted with the Android Keystore | Sent to `api.weather.com` to fetch weather. Not sent anywhere else. |
+| 5 | **Sensor, weather, river and rain history** | Automatic | On the tablet only, in a local database | Not sent anywhere. **Export** in Settings writes it to a file you choose; credentials are never included. |
+| 6 | **Usage analytics** (Firebase Analytics) | On by default, when Firebase is built in; can be turned off | Google Cloud (Firebase) | Anonymous usage counts and device info (model, OS version, app version, country), tied to a random app-instance ID. Managed by Google under its privacy policy. |
+| 7 | **Crash and error reports** (Firebase Crashlytics) | On by default, when Firebase is built in; can be turned off | Google Cloud (Firebase) | Crash stack traces and handled errors with device info. An error message can include a Govee device name or a server's error text. Managed by Google. |
+| 8 | **News, map and web pages** | Automatic | Pages and images cached on the tablet | Loading RSS feeds, articles, map tiles, the TradingView widget and the drought map makes requests to those sites, which see your IP address and may set cookies in the app's web view. |
+| 9 | **Android Auto Backup** | Automatic, if backup is on for the tablet | Your Google Drive backup | Android may back up app settings (including the ZIP code) to your Google account. Encrypted credentials can't be decrypted after a restore, because the Keystore key is not backed up. |
+
+Google deletes crash reports after 90 days and analytics data after 2 months (Firebase defaults).
+
+**Opting out:** items 1 to 4 can be cleared in **Settings** (leave the field empty, or
+**Clear**). Turn off **Settings > Privacy > Send anonymous usage stats and crash reports** to
+stop Firebase reporting; this also discards crash reports not yet sent and resets the
+analytics ID. Data already sent can't be deleted from the app and expires as above. Builds
+without a `google-services.json` contain no Firebase reporting at all. Uninstalling the app
+deletes everything it stored on the tablet.
+
+#### Permissions
+
+| Permission | Why |
+|---|---|
+| Internet, network state | Fetch weather, maps, news and river data, and detect when the network is down. |
+| Foreground service (`dataSync`) and notifications | Keeps sensor, weather, news and river updates running while the dashboard is on, shown by an ongoing "All HomeWx is watching your home" notification. Updates slow down when the room is dark. On Android 15+ the service stops after Android's 6-hour background limit and restarts when the app is opened again. |
+| Wake lock, Play install referrer | Added by Firebase Analytics, to send reports and record how the app was installed. The app keeps the screen on with a window setting that needs no permission. |
+| Run at startup | Reopens the dashboard after the tablet restarts. |
+
+The app does not ask for location, camera, microphone, contacts, photos or storage permission.
+A background-image folder is read only if you pick one in Settings.
 
 ---
 

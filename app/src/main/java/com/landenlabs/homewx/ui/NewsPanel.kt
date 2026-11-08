@@ -1,10 +1,7 @@
 package com.landenlabs.homewx.ui
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.net.wifi.WifiManager
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -13,7 +10,6 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.widget.TextView
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleCoroutineScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.landenlabs.homewx.R
@@ -28,18 +24,6 @@ import com.landenlabs.homewx.state.AppState
 import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-
-/** Null unless ACCESS_FINE_LOCATION is granted - Android ties real WiFi SSID lookups to location
- *  permission, returning "<unknown ssid>" without it. */
-private fun currentWifiSsid(context: Context): String? {
-    val hasLocationPermission = ContextCompat.checkSelfPermission(
-        context, Manifest.permission.ACCESS_FINE_LOCATION
-    ) == PackageManager.PERMISSION_GRANTED
-    if (!hasLocationPermission) return null
-    val wifiManager = context.applicationContext.getSystemService(WifiManager::class.java) ?: return null
-    val ssid = wifiManager.connectionInfo?.ssid?.trim('"')
-    return ssid?.takeIf { it.isNotBlank() && it != "<unknown ssid>" }
-}
 
 /** A [LoggingWebViewClient] that also flips [errorText]/[view] visibility and reports success
  *  or failure back to the panel, so a failed load can be retried later instead of the WebView
@@ -451,9 +435,7 @@ class NewsPanel(
         binding.newsEmptyText.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
         if (items.isEmpty()) {
             val context = binding.root.context
-            binding.newsEmptyText.text = currentWifiSsid(context)?.let {
-                context.getString(R.string.news_no_data_with_wifi, it)
-            } ?: context.getString(R.string.news_no_data)
+            binding.newsEmptyText.text = context.getString(R.string.news_no_data)
         }
     }
 

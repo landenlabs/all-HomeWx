@@ -19,7 +19,6 @@ import com.landenlabs.homewx.databinding.PanelRadarBinding
 import com.landenlabs.homewx.settings.AppSettings
 import com.landenlabs.homewx.settings.IdleSubPanelKeys
 import com.landenlabs.homewx.state.AppState
-import com.landenlabs.homewx.weather.DeviceLocation
 import com.landenlabs.homewx.weather.HomeLocation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -273,7 +272,6 @@ class RadarPanel(
     private var animationJob: Job? = null
     private var overzoomJob: Job? = null
     private var autoRefreshJob: Job? = null
-    private var homeFixJob: Job? = null
     private var layer = RadarLayer.RADAR
     private val radarOverlay: TilesOverlay
     /** Animation back buffer, the same kind of layer as [radarTileProvider]/[radarOverlay] and
@@ -501,19 +499,12 @@ class RadarPanel(
         }
     }
 
-    /** Puts the house marker on the Settings zip centroid right away, then moves it to the
-     *  device's own position if a fix within +/- 5 miles comes back. */
+    /** Puts the house marker on the Settings zip centroid - the same point the weather data is
+     *  fetched for (the app holds no location permission). */
     private fun updateHomeMarker() {
         val home = HomeLocation.current(context)
         homeMarker.position = GeoPoint(home.latitude, home.longitude)
         binding.radarMapView.invalidate()
-        homeFixJob?.cancel()
-        homeFixJob = lifecycleScope.launch {
-            val fix = DeviceLocation.accurateFix(context) ?: return@launch
-            Log.i(TAG, "updateHomeMarker: device fix ${fix.provider} +/-${fix.accuracy}m")
-            homeMarker.position = GeoPoint(fix.latitude, fix.longitude)
-            binding.radarMapView.invalidate()
-        }
     }
 
     /** Stops any running animation and drops back to the live tile source. Safe to call even

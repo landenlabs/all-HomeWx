@@ -55,6 +55,23 @@
         app:layout_constraintTop_toTopOf="@id/weatherDateTimeText"
         tools:text="8 lux" />
 
+    <!-- Low-battery percent, right of the lux readout; only visible below 50% (set from code). -->
+    <TextView
+        android:id="@+id/batteryLevelText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:drawableStart="@drawable/ic_battery"
+        android:drawablePadding="2dp"
+        android:gravity="center_vertical"
+        android:textColor="@color/battery_low"
+        android:textSize="14sp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/currentLuxText"
+        app:layout_constraintStart_toEndOf="@id/currentLuxText"
+        app:layout_constraintTop_toTopOf="@id/currentLuxText"
+        tools:text="42%"
+        tools:visibility="visible" />
+
     <ImageButton
         android:id="@+id/settingsButton"
         android:layout_width="28dp"

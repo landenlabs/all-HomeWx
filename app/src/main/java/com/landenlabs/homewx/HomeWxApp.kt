@@ -1,7 +1,7 @@
 package com.landenlabs.homewx
 
 import android.app.Application
-import com.landenlabs.homewx.weather.wxdata.WxDataWeatherProvider
+import com.landenlabs.homewx.weather.WxDataSupport
 import com.squareup.picasso.LruCache
 import com.squareup.picasso.OkHttp3Downloader
 import com.squareup.picasso.Picasso
@@ -32,8 +32,8 @@ class HomeWxApp : Application() {
         )
 
         // Once at app startup regardless of which weather source is currently active - see
-        // WxDataWeatherProvider.initialize().
-        WxDataWeatherProvider.initialize(this)
+        // WxDataWeatherProvider.initialize(). A no-op in the standard flavor.
+        WxDataSupport.initialize(this)
     }
 
     override fun onLowMemory() {

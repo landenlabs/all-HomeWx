@@ -336,11 +336,27 @@ class HomeWxMonitorService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
+        // MainActivity.onStart calls start() every time it comes to the front, so this can run on an
+        // already-running service; each startForegroundService() still needs a startForeground().
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification())
+        } catch (e: Exception) {
+            stopSelf()
+        }
         // START_NOT_STICKY: don't let the system auto-restart this service after it's killed -
         // that restart path is what triggers ForegroundServiceStartNotAllowedException above.
-        // MainActivity.onCreate already restarts it (with the required grant) whenever it comes
+        // MainActivity.onStart already restarts it (with the required grant) whenever it comes
         // back up.
         return START_NOT_STICKY
+    }
+
+    /** Android 15+ caps dataSync foreground services at ~6 h per 24 h while the app is in the
+     *  background, then calls this and expects the service to stop within seconds (else it is
+     *  treated as a crash). Stop cleanly; MainActivity.onStart restarts it, with a fresh budget,
+     *  the next time the dashboard comes to the front. */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        Log.w(TAG, "dataSync foreground time limit reached - stopping until the app is reopened")
+        stopSelf()
     }
 
     override fun onDestroy() {
