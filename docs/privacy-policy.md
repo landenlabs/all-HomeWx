@@ -56,4 +56,4 @@ We will update this page when the policy changes and revise the date above.
 
 ## Contact
 <!-- TODO: replace with a real contact address before publishing -->
-Email: YOUR-CONTACT-EMAIL
+Email: landenlabs.app@gmail.com
