@@ -229,6 +229,7 @@
 <b>Wake lock, Play install referrer:</b> added by Firebase Analytics, to send reports and record how the app was installed.<br/>
 <b>Run at startup:</b> reopens the dashboard after the tablet restarts.<br/>
 No location, camera, microphone, contacts, photos or storage permission is used. A background-image folder is read only if you pick one in Settings.</p>
+<p>Full privacy policy: <a href="https://landenlabs.github.io/all-HomeWx/privacy-policy.html">https://landenlabs.github.io/all-HomeWx/privacy-policy.html</a></p>
 ]]></string>
 
     <string name="settings_section_rivers">RIVERS</string>

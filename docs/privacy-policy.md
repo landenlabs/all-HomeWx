@@ -55,5 +55,4 @@ Data on your device is removed when you clear the app's storage or uninstall it.
 We will update this page when the policy changes and revise the date above.
 
 ## Contact
-<!-- TODO: replace with a real contact address before publishing -->
 Email: landenlabs.app@gmail.com

@@ -151,7 +151,8 @@ present at build time.
 
 ### Privacy
 
-The same information is shown in the app under **Settings > Privacy**. HomeWx has no
+The same information is shown in the app under **Settings > Privacy**, and the full
+[privacy policy](https://landenlabs.github.io/all-HomeWx/privacy-policy.html) is published with GitHub Pages. HomeWx has no
 account, no ads and no advertising ID (the AD_ID permission is removed from the manifest),
 does not ask for location permission, and does not sell or share data with anyone for
 marketing.
