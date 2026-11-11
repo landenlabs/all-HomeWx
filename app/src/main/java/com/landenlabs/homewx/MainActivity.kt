@@ -20,6 +20,7 @@ import android.graphics.Typeface
 import androidx.core.content.ContextCompat
 import androidx.core.widget.TextViewCompat
 import androidx.core.view.ViewCompat
+import androidx.core.view.doOnNextLayout
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
@@ -210,9 +211,10 @@ class MainActivity : AppCompatActivity() {
         binding.sensorRecyclerView.adapter = sensorAdapter
         binding.sensorsTitleText.setOnClickListener {
             AppSettings.setSensorsCollapsed(this, !AppSettings.isSensorsCollapsed(this))
-            applySensorsCollapsed()
+            applySensorsCollapsed(animate = true)
         }
         applySensorsCollapsed()
+        setupPhoneWeatherScroll()
         binding.weatherBackgroundImage.setOnTouchListener { _, event -> weatherGestureDetector.onTouchEvent(event) }
         binding.settingsButton.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
 
@@ -1028,6 +1030,7 @@ class MainActivity : AppCompatActivity() {
             rainHoldActive = false
             rainHoldDismissed = true
         }
+        val previousInfoPanel = currentInfoPanel
         currentInfoPanel = panel
         newsPanel.root.visibility = if (panel == InfoPanelView.NEWS) View.VISIBLE else View.GONE
         sensorChartPanel.root.visibility = if (panel == InfoPanelView.SENSOR_CHART) View.VISIBLE else View.GONE
@@ -1042,6 +1045,8 @@ class MainActivity : AppCompatActivity() {
             InfoPanelView.SENSOR_CHART -> sensorChartPanel.resetView()
             InfoPanelView.SENSOR_GRAPHS -> sensorGraphsPanel.resetView()
             InfoPanelView.RIVERS -> riverGraphsPanel.resetView()
+            // Only on actually opening the map, not a re-select while it's already showing.
+            InfoPanelView.RADAR -> if (previousInfoPanel != InfoPanelView.RADAR) radarPanel.showLayerPicker()
             else -> Unit
         }
         updateTabSelection(panel)
@@ -1233,10 +1238,63 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Shows or hides the sensor rows to match the saved state; the weather image grows into the freed space. */
-    private fun applySensorsCollapsed() {
-        binding.sensorRecyclerView.visibility = if (AppSettings.isSensorsCollapsed(this)) View.GONE else View.VISIBLE
+    /** Shows or hides the sensor rows to match the saved state. On tablets the weather image
+     *  grows into / gives up the freed space. On phones (layouts with [ActivityMainBinding.weatherScroll])
+     *  with [animate] set (a tap on the SENSORS header), expanding scrolls down so the rows push
+     *  the weather image up, and collapsing scrolls the image back down before the rows go. */
+    private fun applySensorsCollapsed(animate: Boolean = false) {
+        val collapsed = AppSettings.isSensorsCollapsed(this)
+        val rows = binding.sensorRecyclerView
+        val scroll = binding.weatherScroll
+        val content = binding.weatherScrollContent
+        pendingSensorRowsHide?.let { rows.removeCallbacks(it) }
+        pendingSensorRowsHide = null
+        if (!animate || scroll == null || content == null) {
+            rows.visibility = if (collapsed) View.GONE else View.VISIBLE
+        } else if (collapsed) {
+            // Scroll first, hide after: dropping the rows straight away would shrink the content
+            // to fit the viewport and snap the image back down with no motion.
+            scroll.smoothScrollTo(0, 0, SENSOR_SCROLL_MS)
+            val hide = Runnable {
+                rows.visibility = View.GONE
+                pendingSensorRowsHide = null
+            }
+            pendingSensorRowsHide = hide
+            rows.postDelayed(hide, SENSOR_SCROLL_MS.toLong())
+        } else {
+            rows.visibility = View.VISIBLE
+            // Max scroll once the rows are laid out - smoothScrollTo clamps to it anyway.
+            content.doOnNextLayout { scroll.smoothScrollTo(0, it.height, SENSOR_SCROLL_MS) }
+        }
         updateSensorsTitle()
+    }
+
+    /** Pending "hide the sensor rows" from a phone collapse, waiting on its scroll-down animation. */
+    private var pendingSensorRowsHide: Runnable? = null
+
+    /** Phone layouts only (no-op on tablets, whose layouts have no weatherScroll): keeps
+     *  weatherBlock at least as tall as the scroll area minus the sensor header (divider,
+     *  SENSORS title, error line), so with the rows collapsed the weather block fills the pane
+     *  exactly as the tablet layout's image does, and expanded rows add scrollable height below
+     *  it instead of squeezing it. */
+    private fun setupPhoneWeatherScroll() {
+        val scroll = binding.weatherScroll ?: return
+        val content = binding.weatherScrollContent ?: return
+        val block = binding.weatherBlock ?: return
+        fun View.outerHeight(): Int {
+            if (visibility == View.GONE) return 0
+            val lp = layoutParams as ViewGroup.MarginLayoutParams
+            return height + lp.topMargin + lp.bottomMargin
+        }
+        val fit = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            val header = binding.topDivider.outerHeight() + binding.sensorsTitleText.outerHeight() +
+                binding.sensorErrorText.outerHeight()
+            val wanted = (scroll.height - header).coerceAtLeast(0)
+            // Posted: changing minHeight requests a layout, which isn't allowed mid-layout pass.
+            if (scroll.height > 0 && block.minHeight != wanted) scroll.post { block.minHeight = wanted }
+        }
+        scroll.addOnLayoutChangeListener(fit)
+        content.addOnLayoutChangeListener(fit)
     }
 
     private fun updateSensorsTitle() {
@@ -1254,6 +1312,8 @@ class MainActivity : AppCompatActivity() {
     companion object {
         /** Longest side, in pixels, a user background is decoded to - larger photos are scaled down. */
         private const val BACKGROUND_MAX_PX = 2048
+        /** Phone sensor expand/collapse scroll animation length. */
+        private const val SENSOR_SCROLL_MS = 300
         private const val SWIPE_THRESHOLD_PX = 80
         private const val BATTERY_SHOW_BELOW_PERCENT = 50
         private const val BATTERY_RED_BELOW_PERCENT = 25

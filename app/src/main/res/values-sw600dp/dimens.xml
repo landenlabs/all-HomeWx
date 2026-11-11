@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tablet sizing - matches the layout as it was before phone tuning (see values/dimens.xml). -->
+<resources>
+    <dimen name="forecast_card_min_width">200dp</dimen>
+
+    <!-- 0 = no minimum, so graph sections always share the panel height equally and never
+         scroll, exactly as before. -->
+    <dimen name="graph_min_height">0dp</dimen>
+
+    <!-- weatherDetailsGrid label/value text (wx_label/wx_value) - Tablet size, unchanged.
+         values-sw720dp-land overrides those styles outright with its own 18sp. -->
+    <dimen name="wx_grid_text_size">24sp</dimen>
+    <!-- Top/bottom padding of each wx_label/wx_value grid cell - tablet value, unchanged. -->
+    <dimen name="wx_grid_row_padding">2dp</dimen>
+</resources>

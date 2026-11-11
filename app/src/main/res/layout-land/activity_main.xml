@@ -7,9 +7,10 @@
     android:layout_height="match_parent"
     android:background="@color/bg_root">
 
-    <!-- Landscape: left/right halves. System-bar insets are applied as padding on this
-         root in MainActivity - both halves span full height here, so both their top
-         (status bar) and bottom (nav bar) edges land inside that padded content area. -->
+    <!-- PHONE landscape (smallest width < 600dp): left/right halves. Tablets use
+         layout-sw600dp-land / layout-sw720dp-land instead. The left half's weather + sensors sit in
+         one vertical scroll (weatherScroll) - see the portrait phone layout's comment. System-bar
+         insets are applied as padding on this root in MainActivity. -->
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/middleGuideline"
         android:layout_width="wrap_content"
@@ -17,7 +18,6 @@
         android:orientation="vertical"
         app:layout_constraintGuide_percent="0.5" />
 
-    <!-- LEFT HALF: current weather + upcoming significant changes + indoor sensors -->
     <View
         android:id="@+id/topPanelBackground"
         android:layout_width="0dp"
@@ -28,14 +28,15 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- date/time title row, with the settings gear floating on its right -->
+    <!-- date/time title row, with the settings gear floating on its right - stays put above
+         the scrolling weather/sensor area -->
     <TextView
         android:id="@+id/weatherDateTimeText"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:gravity="center"
         android:textColor="@color/text_secondary"
-        android:textSize="24sp"
+        android:textSize="19sp"
         app:layout_constraintEnd_toStartOf="@id/middleGuideline"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
@@ -47,7 +48,7 @@
         android:layout_height="wrap_content"
         android:padding="12dp"
         android:background="?attr/selectableItemBackgroundBorderless"
-        android:layout_marginStart="24dp"
+        android:layout_marginStart="8dp"
         android:textColor="@color/text_secondary"
         android:textSize="14sp"
         app:layout_constraintBottom_toBottomOf="@id/weatherDateTimeText"
@@ -76,7 +77,7 @@
         android:id="@+id/settingsButton"
         android:layout_width="28dp"
         android:layout_height="28dp"
-        android:layout_marginEnd="24dp"
+        android:layout_marginEnd="16dp"
         android:background="@drawable/bg_settings_gear"
         android:contentDescription="@string/settings_title"
         android:padding="2dp"
@@ -86,220 +87,235 @@
         app:layout_constraintTop_toTopOf="@id/weatherDateTimeText"
         app:tint="@color/text_secondary" />
 
-    <!-- weatherBackgroundImage fills all leftover vertical space down to topDivider (the
-         sensor list below is wrap_content, sized to only its visible rows) and bleeds
-         full-width of the left half behind the icon/grid content, inset via their own margins. -->
-    <ImageView
-        android:id="@+id/weatherBackgroundImage"
+    <!-- Weather block + sensor list in one vertical scroll. weatherBlock's minHeight is set in
+         MainActivity to (visible scroll height - sensor header), so with the sensor rows
+         collapsed everything fits exactly with no scrolling; expanding them adds content below
+         and MainActivity scrolls down, pushing the weather image up. -->
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/weatherScroll"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:contentDescription="@null"
-        android:scaleType="centerCrop"
-        app:layout_constraintBottom_toTopOf="@id/topDivider"
+        android:fillViewport="true"
+        android:overScrollMode="never"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@id/middleGuideline"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/weatherDateTimeText"
-        tools:src="@drawable/wx_bg_clear" />
+        app:layout_constraintTop_toBottomOf="@id/weatherDateTimeText">
 
-    <!-- Darken amount is set from code (foreground.alpha), driven by the settings slider. -->
-    <View
-        android:id="@+id/weatherBackgroundScrim"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:background="#000000"
-        app:layout_constraintBottom_toBottomOf="@id/weatherBackgroundImage"
-        app:layout_constraintEnd_toEndOf="@id/weatherBackgroundImage"
-        app:layout_constraintStart_toStartOf="@id/weatherBackgroundImage"
-        app:layout_constraintTop_toTopOf="@id/weatherBackgroundImage" />
+        <LinearLayout
+            android:id="@+id/weatherScrollContent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
-    <!-- icon + big temperature, centered as a packed chain within weatherBackgroundImage -->
-    <ImageView
-        android:id="@+id/weatherIcon"
-        android:layout_width="144dp"
-        android:layout_height="144dp"
-        android:layout_marginStart="24dp"
-        android:contentDescription="@null"
-        android:src="@drawable/wx_sun_44d"
-        app:layout_constraintBottom_toTopOf="@id/currentTempText"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@id/weatherBackgroundImage"
-        app:layout_constraintVertical_chainStyle="packed" />
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:id="@+id/weatherBlock"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
 
-    <TextView
-        android:id="@+id/currentTempText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/weather_placeholder"
-        android:textColor="@color/text_primary"
-        android:textSize="44sp"
-        android:textStyle="bold"
-        app:layout_constraintBottom_toTopOf="@id/tempTrendText"
-        app:layout_constraintEnd_toEndOf="@id/weatherIcon"
-        app:layout_constraintStart_toStartOf="@id/weatherIcon"
-        app:layout_constraintTop_toBottomOf="@id/weatherIcon" />
+                <!-- Fills the whole block and bleeds full-width behind the icon/grid content,
+                     which stays inset via their own margins. -->
+                <ImageView
+                    android:id="@+id/weatherBackgroundImage"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:contentDescription="@null"
+                    android:scaleType="centerCrop"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    tools:src="@drawable/wx_bg_clear" />
 
-    <TextView
-        android:id="@+id/tempTrendText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textColor="@color/text_secondary"
-        android:textSize="33sp"
-        app:layout_constraintBottom_toTopOf="@id/tempTrend4hText"
-        app:layout_constraintEnd_toEndOf="@id/weatherIcon"
-        app:layout_constraintStart_toStartOf="@id/weatherIcon"
-        app:layout_constraintTop_toBottomOf="@id/currentTempText"
-        tools:text="+2°F/+1hr" />
+                <!-- Darken amount is set from code (foreground.alpha), driven by the settings slider. -->
+                <View
+                    android:id="@+id/weatherBackgroundScrim"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:background="#000000"
+                    app:layout_constraintBottom_toBottomOf="@id/weatherBackgroundImage"
+                    app:layout_constraintEnd_toEndOf="@id/weatherBackgroundImage"
+                    app:layout_constraintStart_toStartOf="@id/weatherBackgroundImage"
+                    app:layout_constraintTop_toTopOf="@id/weatherBackgroundImage" />
 
-    <TextView
-        android:id="@+id/tempTrend4hText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textColor="@color/text_secondary"
-        android:textSize="22sp"
-        app:layout_constraintBottom_toBottomOf="@id/weatherBackgroundImage"
-        app:layout_constraintEnd_toEndOf="@id/weatherIcon"
-        app:layout_constraintStart_toStartOf="@id/weatherIcon"
-        app:layout_constraintTop_toBottomOf="@id/tempTrendText"
-        tools:text="+3°F/+4hr" />
+                <!-- icon + big temperature, centered as a packed chain within the block -->
+                <ImageView
+                    android:id="@+id/weatherIcon"
+                    android:layout_width="116dp"
+                    android:layout_height="116dp"
+                    android:layout_marginStart="16dp"
+                    android:layout_marginTop="8dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/wx_sun_44d"
+                    app:layout_constraintBottom_toTopOf="@id/currentTempText"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintVertical_chainStyle="packed" />
 
-    <!-- condition/humidity/wind/precip/pressure table: label,value per row (2 columns -
-         narrower than the sw720dp-land tablet layout, so this smaller-screen variant
-         stacks each label/value pair into its own row instead of pairing two per row).
-         Column widths size to content and center as a whole within weatherBackgroundImage. -->
-    <GridLayout
-        android:id="@+id/weatherDetailsGrid"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:layout_marginEnd="24dp"
-        android:columnCount="2"
-        app:layout_constraintBottom_toBottomOf="@id/weatherBackgroundImage"
-        app:layout_constraintEnd_toStartOf="@id/middleGuideline"
-        app:layout_constraintStart_toEndOf="@id/weatherIcon"
-        app:layout_constraintTop_toTopOf="@id/weatherBackgroundImage">
+                <TextView
+                    android:id="@+id/currentTempText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/weather_placeholder"
+                    android:textColor="@color/text_primary"
+                    android:textSize="35sp"
+                    android:textStyle="bold"
+                    app:layout_constraintBottom_toTopOf="@id/tempTrendText"
+                    app:layout_constraintEnd_toEndOf="@id/weatherIcon"
+                    app:layout_constraintStart_toStartOf="@id/weatherIcon"
+                    app:layout_constraintTop_toBottomOf="@id/weatherIcon" />
 
-        <TextView style="@style/wx_label" android:text="@string/wx_lbl_condition" />
-        <TextView android:id="@+id/conditionValueText" style="@style/wx_value" />
-        <TextView style="@style/wx_label" android:text="@string/wx_lbl_humidity" />
-        <TextView android:id="@+id/humidityValueText" style="@style/wx_value" />
+                <TextView
+                    android:id="@+id/tempTrendText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="26sp"
+                    app:layout_constraintBottom_toTopOf="@id/tempTrend4hText"
+                    app:layout_constraintEnd_toEndOf="@id/weatherIcon"
+                    app:layout_constraintStart_toStartOf="@id/weatherIcon"
+                    app:layout_constraintTop_toBottomOf="@id/currentTempText"
+                    tools:text="+2°F/+1hr" />
 
-        <TextView style="@style/wx_label" android:text="@string/wx_lbl_temp_high" />
-        <TextView android:id="@+id/tempHighValueText" style="@style/wx_value" />
-        <TextView style="@style/wx_label" android:text="@string/wx_lbl_temp_low" />
-        <TextView android:id="@+id/tempLowValueText" style="@style/wx_value" />
+                <TextView
+                    android:id="@+id/tempTrend4hText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="18sp"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="@id/weatherIcon"
+                    app:layout_constraintStart_toStartOf="@id/weatherIcon"
+                    app:layout_constraintTop_toBottomOf="@id/tempTrendText"
+                    tools:text="+3°F/+4hr" />
 
-        <TextView style="@style/wx_label" android:text="@string/wx_lbl_wind_low" />
-        <TextView android:id="@+id/windLowValueText" style="@style/wx_value" />
-        <TextView style="@style/wx_label" android:text="@string/wx_lbl_wind_high" />
-        <TextView android:id="@+id/windHighValueText" style="@style/wx_value" />
+                <!-- condition/humidity/wind/precip/pressure table: label,value per row (2 columns -
+                     a phone is about as narrow as half a tablet, same as layout-land). Columns
+                     size to content and center as a whole within the block. -->
+                <GridLayout
+                    android:id="@+id/weatherDetailsGrid"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginEnd="16dp"
+                    android:layout_marginBottom="4dp"
+                    android:columnCount="2"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toEndOf="@id/weatherIcon"
+                    app:layout_constraintTop_toTopOf="parent">
 
-        <TextView android:id="@+id/windSpeedLabelText" style="@style/wx_label" android:text="@string/wx_lbl_wind_speed" />
-        <TextView android:id="@+id/windSpeedValueText" style="@style/wx_value" />
-        <TextView android:id="@+id/windDirectionLabelText" style="@style/wx_label" android:text="@string/wx_lbl_wind_direction" />
-        <TextView android:id="@+id/windDirectionValueText" style="@style/wx_value" />
+                    <TextView style="@style/wx_label" android:text="@string/wx_lbl_condition" />
+                    <TextView android:id="@+id/conditionValueText" style="@style/wx_value" />
+                    <TextView style="@style/wx_label" android:text="@string/wx_lbl_humidity" />
+                    <TextView android:id="@+id/humidityValueText" style="@style/wx_value" />
 
-        <TextView style="@style/wx_label" android:text="@string/wx_lbl_precipitation" />
-        <TextView android:id="@+id/precipitationValueText" style="@style/wx_value" />
-        <TextView style="@style/wx_label" android:text="@string/wx_lbl_pressure" />
-        <TextView android:id="@+id/pressureValueText" style="@style/wx_value" />
+                    <TextView style="@style/wx_label" android:text="@string/wx_lbl_temp_high" />
+                    <TextView android:id="@+id/tempHighValueText" style="@style/wx_value" />
+                    <TextView style="@style/wx_label" android:text="@string/wx_lbl_temp_low" />
+                    <TextView android:id="@+id/tempLowValueText" style="@style/wx_value" />
 
-        <!-- Single-column layout: min/max share one row ("LstYr  56°F/72°F") instead of the
-             separate label,value,label,value row the 4-column portrait/sw720dp-land grid
-             uses - see MainActivity.bindLastYearRow(). -->
+                    <TextView style="@style/wx_label" android:text="@string/wx_lbl_wind_low" />
+                    <TextView android:id="@+id/windLowValueText" style="@style/wx_value" />
+                    <TextView style="@style/wx_label" android:text="@string/wx_lbl_wind_high" />
+                    <TextView android:id="@+id/windHighValueText" style="@style/wx_value" />
+
+                    <TextView android:id="@+id/windSpeedLabelText" style="@style/wx_label" android:text="@string/wx_lbl_wind_speed" />
+                    <TextView android:id="@+id/windSpeedValueText" style="@style/wx_value" />
+                    <TextView android:id="@+id/windDirectionLabelText" style="@style/wx_label" android:text="@string/wx_lbl_wind_direction" />
+                    <TextView android:id="@+id/windDirectionValueText" style="@style/wx_value" />
+
+                    <TextView style="@style/wx_label" android:text="@string/wx_lbl_precipitation" />
+                    <TextView android:id="@+id/precipitationValueText" style="@style/wx_value" />
+                    <TextView style="@style/wx_label" android:text="@string/wx_lbl_pressure" />
+                    <TextView android:id="@+id/pressureValueText" style="@style/wx_value" />
+
+        <!-- Single-column layout: min/max share one row ("LstYr  56°F/72°F") - see
+             MainActivity.bindLastYearRow(). -->
         <TextView android:id="@+id/lyMinLabelText" style="@style/wx_label" android:text="@string/wx_lbl_ly" />
         <TextView android:id="@+id/lyMinValueText" style="@style/wx_value" />
-    </GridLayout>
+                </GridLayout>
 
-    <!-- Small attribution badge for the active weather source (Open-Meteo/WxData) - source
-         images are 180x180 square logos, sized down here; alpha keeps it from competing with
-         the actual weather data above it. -->
-    <ImageView
-        android:id="@+id/weatherSourceBadge"
-        android:layout_width="28dp"
-        android:layout_height="28dp"
-        android:layout_margin="12dp"
-        android:alpha="0.85"
-        android:contentDescription="@null"
-        android:scaleType="fitCenter"
-        app:layout_constraintBottom_toBottomOf="@id/weatherBackgroundImage"
-        app:layout_constraintEnd_toEndOf="@id/weatherBackgroundImage"
-        tools:src="@drawable/wx_source_wxdata" />
+                <!-- Attribution badge for the active weather source (Open-Meteo/WxData). -->
+                <ImageView
+                    android:id="@+id/weatherSourceBadge"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_margin="8dp"
+                    android:alpha="0.85"
+                    android:contentDescription="@null"
+                    android:scaleType="fitCenter"
+                    app:layout_constraintBottom_toBottomOf="@id/weatherBackgroundImage"
+                    app:layout_constraintEnd_toEndOf="@id/weatherBackgroundImage"
+                    tools:src="@drawable/wx_source_wxdata" />
 
-    <!-- App launcher icon, mirroring the weather source badge in the opposite (bottom-start)
-         corner of the weather panel image. Decorative only. -->
-    <ImageView
-        android:id="@+id/appIconBadge"
-        android:layout_width="28dp"
-        android:layout_height="28dp"
-        android:layout_margin="12dp"
-        android:alpha="0.85"
-        android:contentDescription="@null"
-        android:scaleType="fitCenter"
-        android:src="@drawable/ic_launcher"
-        app:layout_constraintBottom_toBottomOf="@id/weatherBackgroundImage"
-        app:layout_constraintStart_toStartOf="@id/weatherBackgroundImage" />
+                <!-- App launcher icon, mirroring the source badge in the bottom-start corner. -->
+                <ImageView
+                    android:id="@+id/appIconBadge"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_margin="8dp"
+                    android:alpha="0.85"
+                    android:contentDescription="@null"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_launcher"
+                    app:layout_constraintBottom_toBottomOf="@id/weatherBackgroundImage"
+                    app:layout_constraintStart_toStartOf="@id/weatherBackgroundImage" />
 
-    <!-- SENSORS SECTION -->
-    <View
-        android:id="@+id/topDivider"
-        android:layout_width="0dp"
-        android:layout_height="1dp"
-        android:layout_marginBottom="8dp"
-        android:background="@color/divider"
-        app:layout_constraintBottom_toTopOf="@id/sensorsTitleText"
-        app:layout_constraintEnd_toStartOf="@id/middleGuideline"
-        app:layout_constraintStart_toStartOf="parent" />
+            </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- Bottom-up chain: each view's bottom is pinned to the next one's top, with the
-         single fixed anchor at the end (sensorRecyclerView's bottom, at the true screen
-         bottom here since the left half spans full height). This makes the whole cluster
-         hug the bottom regardless of how tall the sensor list is, while
-         weatherBackgroundImage fills whatever's left above it. (A top-down chain here
-         previously fought a redundant reverse constraint and only resolved correctly
-         when sensorErrorText was GONE.) -->
-    <TextView
-        android:id="@+id/sensorsTitleText"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:clickable="true"
-        android:focusable="true"
-        android:paddingTop="6dp"
-        android:paddingBottom="6dp"
-        android:layout_marginStart="24dp"
-        android:layout_marginEnd="24dp"
-        android:layout_marginBottom="4dp"
-        android:letterSpacing="0.08"
-        android:text="SENSORS"
-        android:textColor="@color/text_secondary"
-        android:textSize="12sp"
-        app:layout_constraintBottom_toTopOf="@id/sensorErrorText"
-        app:layout_constraintEnd_toStartOf="@id/middleGuideline"
-        app:layout_constraintStart_toStartOf="parent" />
+            <!-- SENSORS SECTION -->
+            <View
+                android:id="@+id/topDivider"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginBottom="8dp"
+                android:background="@color/divider" />
 
-    <TextView
-        android:id="@+id/sensorErrorText"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
-        android:textColor="#E36464"
-        android:textSize="13sp"
-        android:visibility="gone"
-        app:layout_constraintBottom_toTopOf="@id/sensorRecyclerView"
-        app:layout_constraintEnd_toEndOf="@id/sensorsTitleText"
-        app:layout_constraintStart_toStartOf="@id/sensorsTitleText"
-        tools:text="Sensor error: timeout" />
+            <TextView
+                android:id="@+id/sensorsTitleText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginBottom="4dp"
+                android:letterSpacing="0.08"
+                android:text="SENSORS"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/sensorRecyclerView"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="24dp"
-        android:layout_marginEnd="24dp"
-        android:clipToPadding="false"
-        android:overScrollMode="never"
-        app:layout_constraintEnd_toStartOf="@id/middleGuideline"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent" />
+            <TextView
+                android:id="@+id/sensorErrorText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginBottom="8dp"
+                android:textColor="#E36464"
+                android:textSize="13sp"
+                android:visibility="gone"
+                tools:text="Sensor error: timeout" />
+
+            <!-- Scrolls with the weather block (nestedScrollingEnabled off), never by itself. -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/sensorRecyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:clipToPadding="false"
+                android:nestedScrollingEnabled="false"
+                android:overScrollMode="never" />
+
+        </LinearLayout>
+
+    </androidx.core.widget.NestedScrollView>
 
     <!-- RIGHT HALF: news tabs / sensor strip chart -->
     <View
@@ -321,8 +337,6 @@
         app:layout_constraintStart_toEndOf="@id/middleGuideline"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Selects which panel shows below it in infoPanelContainer - shared across all
-         activity_main variants, see res/layout/info_panel_tabbar.xml. -->
     <include
         android:id="@+id/infoPanelTabBar"
         layout="@layout/info_panel_tabbar"
@@ -332,9 +346,6 @@
         app:layout_constraintStart_toEndOf="@id/centerDivider"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Holds whichever feature panel (news / sensor chart / weather graphs / article /
-         forecast) is currently showing - each inflates its own layout into this container
-         at runtime, see NewsPanel/SensorChartPanel/ArticlePanel/ForecastPanel. -->
     <FrameLayout
         android:id="@+id/infoPanelContainer"
         android:layout_width="0dp"

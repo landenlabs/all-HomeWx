@@ -4,6 +4,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import com.landenlabs.homewx.R
 import com.landenlabs.homewx.databinding.PanelSensorGraphsBinding
 import com.landenlabs.homewx.model.SensorReading
 import java.util.concurrent.TimeUnit
@@ -17,6 +18,8 @@ class SensorGraphsPanel(container: ViewGroup) {
     val root: View get() = binding.root
     private val chartContainer = binding.sensorGraphsChartContainer
     private val density = context.resources.displayMetrics.density
+    /** Per-chart floor (0 on tablets) - below it the stack scrolls instead of squashing charts. */
+    private val graphMinHeightPx = context.resources.getDimensionPixelSize(R.dimen.graph_min_height)
 
     private val chartsBySensorId = mutableMapOf<String, SensorHistoryChartView>()
 
@@ -56,6 +59,7 @@ class SensorGraphsPanel(container: ViewGroup) {
         chartsBySensorId.values.forEach { it.resetView() }
         fullscreenSensorId = null
         applyFullscreen()
+        binding.sensorGraphsScroll.scrollTo(0, 0)
     }
 
     /** Sensor whose chart is expanded (via long-press) to fill the panel, or null for the row layout. */
@@ -85,6 +89,7 @@ class SensorGraphsPanel(container: ViewGroup) {
             chartView.view.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f).apply {
                 setMargins(marginPx, marginPx, marginPx, marginPx)
             }
+            chartView.view.minimumHeight = graphMinHeightPx
             chartContainer.addView(chartView.view)
             chartView.setOnLongPress { toggleFullscreen(sensor.id) }
             chartsBySensorId[sensor.id] = chartView

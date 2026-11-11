@@ -39,8 +39,22 @@
 
     </RadioGroup>
 
-    <LinearLayout
-        android:id="@+id/sensorGraphsChartContainer"
-        style="@style/graph_equal_section" />
+    <!-- fillViewport: charts share the height by weight when they all fit at graph_min_height
+         (always on tablets, where it's 0); otherwise they hold that minimum and scroll. -->
+    <ScrollView
+        android:id="@+id/sensorGraphsScroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:overScrollMode="never">
+
+        <LinearLayout
+            android:id="@+id/sensorGraphsChartContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+    </ScrollView>
 
 </LinearLayout>

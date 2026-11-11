@@ -156,6 +156,8 @@ class ForecastGraphsPanel(container: ViewGroup) {
     val root: View get() = binding.root
 
     private val collapsedEmptyTextPaddingPx = (12 * context.resources.displayMetrics.density).toInt()
+    /** Matches graph_scroll_section's minHeight - restored when a collapsed section expands again. */
+    private val graphMinHeightPx = context.resources.getDimensionPixelSize(R.dimen.graph_min_height)
 
     private val hourFormat = SimpleDateFormat("h a", Locale.getDefault())
     private val dayFormat = SimpleDateFormat("EEE", Locale.getDefault())
@@ -222,6 +224,7 @@ class ForecastGraphsPanel(container: ViewGroup) {
         sectionsByChart.keys.forEach { LineChartSetup.resetView(it) }
         fullscreenChart = null
         applySectionVisibility()
+        binding.root.scrollTo(0, 0)
     }
 
     private fun toggleFullscreen(chart: LineChart) {
@@ -687,6 +690,9 @@ class ForecastGraphsPanel(container: ViewGroup) {
         sectionParams.height = if (collapsed) ViewGroup.LayoutParams.WRAP_CONTENT else 0
         sectionParams.weight = if (collapsed) 0f else 1f
         section.layoutParams = sectionParams
+        // A collapsed section is just its one-line empty message - it mustn't hold the graph
+        // minimum height (phones only; 0 on tablets) that a live chart gets.
+        section.minimumHeight = if (collapsed) 0 else graphMinHeightPx
 
         val frameParams = chartFrame.layoutParams as LinearLayout.LayoutParams
         frameParams.height = if (collapsed) ViewGroup.LayoutParams.WRAP_CONTENT else 0

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phone (smallest width < 600dp) sizing. Tablet values live in values-sw600dp/dimens.xml and
+     must keep the tablet layouts exactly as they were before phone tuning was added. -->
+<resources>
+    <!-- Narrowest a forecast card (Past/Hourly/Daily grid) may get before the grid drops a
+         column. 170dp fits two cards side by side on a ~393dp-wide phone (e.g. Pixel 5). -->
+    <dimen name="forecast_card_min_width">170dp</dimen>
+
+    <!-- Minimum height of each line-graph section (chart + its legend row) in the forecast,
+         sensor and river graph panels. When the panel is too short to give every section this
+         much, the graph area scrolls vertically instead of squashing the charts. Tune on device
+         for readability. -->
+    <dimen name="graph_min_height">120dp</dimen>
+
+    <!-- weatherDetailsGrid label/value text (wx_label/wx_value) - ~20% under the tablet 24sp so the 2-column grid fits a phone-width pane.
+         values-sw720dp-land overrides those styles outright with its own 18sp. -->
+    <dimen name="wx_grid_text_size">19sp</dimen>
+    <!-- Top/bottom padding of each wx_label/wx_value grid cell - none on phones, so the 11-row grid plus the SENSORS header fit the pane without scrolling. -->
+    <dimen name="wx_grid_row_padding">0dp</dimen>
+</resources>

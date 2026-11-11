@@ -5,9 +5,9 @@
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:textColor">@color/accent_cool</item>
-        <item name="android:textSize">24sp</item>
-        <item name="android:paddingTop">2dp</item>
-        <item name="android:paddingBottom">2dp</item>
+        <item name="android:textSize">@dimen/wx_grid_text_size</item>
+        <item name="android:paddingTop">@dimen/wx_grid_row_padding</item>
+        <item name="android:paddingBottom">@dimen/wx_grid_row_padding</item>
         <item name="android:paddingEnd">8dp</item>
         <item name="android:layout_gravity">end</item>
     </style>
@@ -16,9 +16,9 @@
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:textColor">@color/text_primary</item>
-        <item name="android:textSize">24sp</item>
-        <item name="android:paddingTop">2dp</item>
-        <item name="android:paddingBottom">2dp</item>
+        <item name="android:textSize">@dimen/wx_grid_text_size</item>
+        <item name="android:paddingTop">@dimen/wx_grid_row_padding</item>
+        <item name="android:paddingBottom">@dimen/wx_grid_row_padding</item>
         <item name="android:paddingEnd">16dp</item>
     </style>
 
@@ -100,6 +100,12 @@
         <item name="android:layout_height">0dp</item>
         <item name="android:layout_weight">1</item>
         <item name="android:orientation">vertical</item>
+    </style>
+
+    <!-- A graph_equal_section inside a scrollable graph stack - also holds at least
+         graph_min_height (0 on tablets) so phones scroll rather than squash the charts. -->
+    <style name="graph_scroll_section" parent="graph_equal_section">
+        <item name="android:minHeight">@dimen/graph_min_height</item>
     </style>
 
     <!-- The FrameLayout stacking a chart section's watermark, chart and empty-state text. -->

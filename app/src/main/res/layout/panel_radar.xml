@@ -13,13 +13,27 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <!-- Layer picker: one horizontally scrolling row, so on a narrow phone it stays a single
+         short strip instead of wrapping each label onto several lines (on a tablet it all fits
+         and doesn't scroll). RadarPanel fades it out a few seconds after the last interaction;
+         a tap on the map brings it back. -->
+    <HorizontalScrollView
+        android:id="@+id/radarLayerScroll"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_margin="8dp"
+        android:background="@color/bg_panel_bottom"
+        android:fadingEdgeLength="24dp"
+        android:overScrollMode="never"
+        android:requiresFadingEdge="horizontal"
+        android:scrollbars="none">
+
     <RadioGroup
         android:id="@+id/radarLayerGroup"
         style="@style/graph_period_radio_group"
         android:layout_width="wrap_content"
-        android:layout_gravity="top|start"
-        android:layout_margin="8dp"
-        android:background="@color/bg_panel_bottom"
+        android:layout_margin="0dp"
         android:paddingHorizontal="8dp"
         android:visibility="visible">
 
@@ -54,6 +68,8 @@
             android:text="@string/radar_layer_rain_forecast72" />
 
     </RadioGroup>
+
+    </HorizontalScrollView>
 
     <ImageButton
         android:id="@+id/radarPlayButton"

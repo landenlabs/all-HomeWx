@@ -12,16 +12,26 @@
      outer *Section LinearLayout and its inner *ChartFrame can be collapsed to
      wrap_content/weight=0 by ForecastGraphsPanel when that metric has no data, so the other
      sections' weight=1 absorbs the freed space. -->
-<LinearLayout
+<!-- Wrapped in a fillViewport ScrollView: when every section fits at its graph_min_height (always
+     on tablets, where that minimum is 0) the content is stretched to the viewport and the sections
+     share it by weight exactly as before; on a short phone panel the sections stop at their
+     minimum and the stack scrolls vertically instead. -->
+<ScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:overScrollMode="never">
+
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
     android:orientation="vertical">
 
     <LinearLayout
         android:id="@+id/forecastTempSection"
-        style="@style/graph_equal_section">
+        style="@style/graph_scroll_section">
 
         <FrameLayout
             android:id="@+id/forecastTempChartFrame"
@@ -69,7 +79,7 @@
 
     <LinearLayout
         android:id="@+id/forecastWindSection"
-        style="@style/graph_equal_section">
+        style="@style/graph_scroll_section">
 
         <FrameLayout
             android:id="@+id/forecastWindChartFrame"
@@ -114,7 +124,7 @@
 
     <LinearLayout
         android:id="@+id/forecastPrecipSection"
-        style="@style/graph_equal_section">
+        style="@style/graph_scroll_section">
 
         <FrameLayout
             android:id="@+id/forecastPrecipChartFrame"
@@ -159,7 +169,7 @@
 
     <LinearLayout
         android:id="@+id/forecastPressureSection"
-        style="@style/graph_equal_section"
+        style="@style/graph_scroll_section"
         android:visibility="gone">
 
         <FrameLayout
@@ -204,3 +214,5 @@
     </LinearLayout>
 
 </LinearLayout>
+
+</ScrollView>

@@ -4,6 +4,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import com.landenlabs.homewx.R
 import com.landenlabs.homewx.databinding.PanelRiverGraphsBinding
 import com.landenlabs.homewx.rivers.GaugeReading
 import com.landenlabs.homewx.rivers.GaugeSite
@@ -14,8 +15,10 @@ class RiverGraphsPanel(container: ViewGroup) {
     private val context = container.context
     private val binding = PanelRiverGraphsBinding.inflate(LayoutInflater.from(context), container, false)
     val root: View get() = binding.root
-    private val chartContainer = binding.root
+    private val chartContainer = binding.riverGraphsChartContainer
     private val density = context.resources.displayMetrics.density
+    /** Per-chart floor (0 on tablets) - below it the stack scrolls instead of squashing charts. */
+    private val graphMinHeightPx = context.resources.getDimensionPixelSize(R.dimen.graph_min_height)
 
     private val chartsBySiteId = mutableMapOf<String, RiverGaugeChartView>()
 
@@ -41,6 +44,7 @@ class RiverGraphsPanel(container: ViewGroup) {
         chartsBySiteId.values.forEach { it.resetView() }
         fullscreenSiteId = null
         applyFullscreen()
+        binding.root.scrollTo(0, 0)
     }
 
     /** Gauge whose chart is expanded (via long-press) to fill the panel, or null for the row layout. */
@@ -69,6 +73,7 @@ class RiverGraphsPanel(container: ViewGroup) {
             chartView.view.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f).apply {
                 setMargins(marginPx, marginPx, marginPx, marginPx)
             }
+            chartView.view.minimumHeight = graphMinHeightPx
             chartContainer.addView(chartView.view)
             chartView.setOnLongPress { toggleFullscreen(gauge.siteId) }
             chartsBySiteId[gauge.siteId] = chartView

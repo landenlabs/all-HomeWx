@@ -45,7 +45,8 @@ class ForecastPanel(
     private val dailyAdapter = DailyForecastAdapter(onDailyCardClick)
     private val hourlyAdapter = HourlyForecastAdapter()
     private val layoutManager = GridLayoutManager(context, 1)
-    private val cardMinWidthPx = (CARD_MIN_WIDTH_DP * context.resources.displayMetrics.density).toInt()
+    // Resource-qualified: 200dp on tablets (sw600dp), narrower on phones so two cards fit side by side.
+    private val cardMinWidthPx = context.resources.getDimensionPixelSize(R.dimen.forecast_card_min_width)
     private val graphsPanel = ForecastGraphsPanel(binding.forecastGraphsContainer)
     private val tableAdapter = ForecastTableAdapter()
     private val tableLayoutManager = LinearLayoutManager(context)
@@ -283,7 +284,6 @@ class ForecastPanel(
     }
 
     companion object {
-        private const val CARD_MIN_WIDTH_DP = 200
 
         /** Leaves a little context above the current row when scrolling it into view. */
         private const val NOW_ROW_SCROLL_OFFSET_PX = 120

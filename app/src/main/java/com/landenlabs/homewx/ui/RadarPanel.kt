@@ -46,6 +46,8 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.util.MapTileIndex
 import org.osmdroid.util.RectL
 import org.osmdroid.util.TileSystem
+import org.osmdroid.events.MapEventsReceiver
+import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.TilesOverlay
 import java.net.HttpURLConnection
@@ -62,6 +64,10 @@ private const val HOME_ZOOM = 7.0
 // While the tab is showing, the live layer is reloaded on this period - the same cadence as IEM's
 // 5-minute NEXRAD composites and the tiles' max-age=300.
 private const val AUTO_REFRESH_MS = 5 * 60 * 1000L
+/** How long the layer picker stays up after it's shown or last touched before fading out. */
+private const val LAYER_PICKER_VISIBLE_MS = 5_000L
+private const val LAYER_PICKER_FADE_IN_MS = 150L
+private const val LAYER_PICKER_FADE_OUT_MS = 600L
 // The live IEM tiles are written to osmdroid's disk cache with this much shaved off the server's
 // max-age. Without it, tiles that finished downloading a few seconds after one refresh would
 // still be "fresh" when the next refresh fires exactly 5 minutes later, so they'd be reused from
@@ -341,6 +347,15 @@ class RadarPanel(
             overlays.add(bordersOverlay)
             // Last, so the home pin draws on top of every tile layer.
             overlays.add(homeMarker)
+            // Bottom of the stack (overlays get taps top-down), so the home marker still swallows
+            // its own taps: a single tap anywhere else on the map brings the faded layer picker back.
+            overlays.add(0, MapEventsOverlay(object : MapEventsReceiver {
+                override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean {
+                    showLayerPicker()
+                    return true
+                }
+                override fun longPressHelper(p: GeoPoint?): Boolean = false
+            }))
             controller.setZoom(HOME_ZOOM)
             centeredOn = HomeLocation.current(context)
             controller.setCenter(GeoPoint(centeredOn.latitude, centeredOn.longitude))
@@ -375,6 +390,13 @@ class RadarPanel(
             withContext(Dispatchers.IO) { bordersOverlay.load(context) }
             binding.radarMapView.invalidate()
         }
+
+        // Any touch on the picker - tapping a layer (even the already-checked one) or scrolling the
+        // row sideways - restarts its fade-out countdown (and undoes a fade already under way).
+        for (i in 0 until binding.radarLayerGroup.childCount) {
+            binding.radarLayerGroup.getChildAt(i).setOnClickListener { showLayerPicker() }
+        }
+        binding.radarLayerScroll.setOnScrollChangeListener { _, _, _, _, _ -> showLayerPicker() }
 
         applyPlayButtonState()
         binding.radarPlayButton.setOnClickListener {
@@ -450,6 +472,33 @@ class RadarPanel(
             else ColorMatrixColorFilter(ColorMatrix().apply { setScale(1f, 1f, 1f, layerAlpha()) })
         radarOverlay.setColorFilter(filter)
         frameOverlay.setColorFilter(filter)
+    }
+
+    private val fadeOutLayerPicker = Runnable {
+        binding.radarLayerScroll.animate()
+            .alpha(0f)
+            .setDuration(LAYER_PICKER_FADE_OUT_MS)
+            // INVISIBLE (not just transparent) so taps up there fall through to the map, whose
+            // single-tap handler is what brings the picker back.
+            .withEndAction { binding.radarLayerScroll.visibility = View.INVISIBLE }
+            .start()
+    }
+
+    /** Fades the layer picker in (if it had faded out) and restarts its [LAYER_PICKER_VISIBLE_MS]
+     *  countdown. Called when the map tab is opened and on any single tap on the map. */
+    fun showLayerPicker() {
+        val picker = binding.radarLayerScroll
+        // Cancelling also drops a pending fade-out's end action, so it can't re-hide the picker.
+        picker.animate().cancel()
+        picker.visibility = View.VISIBLE
+        picker.animate().alpha(1f).setDuration(LAYER_PICKER_FADE_IN_MS).start()
+        scheduleLayerPickerFade()
+    }
+
+    private fun scheduleLayerPickerFade() {
+        val picker = binding.radarLayerScroll
+        picker.removeCallbacks(fadeOutLayerPicker)
+        picker.postDelayed(fadeOutLayerPicker, LAYER_PICKER_VISIBLE_MS)
     }
 
     /** Picks the layer named by an [IdleSubPanelKeys] Map key (default: radar) through the same

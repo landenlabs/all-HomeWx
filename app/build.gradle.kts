@@ -47,6 +47,22 @@ android {
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
     }
 
+    // Release signing (upload key) comes from the gitignored local.properties:
+    //   RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD
+    // When RELEASE_STORE_FILE is absent (other clones, CI without secrets) release builds stay
+    // unsigned rather than failing; Android Studio's "Generate Signed Bundle" still works either way.
+    val releaseStoreFile = localProperties.getProperty("RELEASE_STORE_FILE")
+    if (releaseStoreFile != null) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(releaseStoreFile)
+                storePassword = localProperties.getProperty("RELEASE_STORE_PASSWORD")
+                keyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS")
+                keyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         // Default (first-run) credentials for the Credentials & Feeds dialogs in Settings; see
         // CredentialStore. Only debug builds read local.properties - a release bundle must never
@@ -60,6 +76,9 @@ android {
         release {
             for (key in listOf("GOVEE_API_KEY", "WYZE_USER", "WYZE_PWD", "SUN_API_KEY")) {
                 buildConfigField("String", key, "\"\"")
+            }
+            if (releaseStoreFile != null) {
+                signingConfig = signingConfigs.getByName("release")
             }
             // R8 shrink + obfuscate + optimize (Play requires obfuscation). Keep rules for anything
             // reflective live in proguard-rules.pro; wxdata/Firebase/OkHttp ship consumer rules.
