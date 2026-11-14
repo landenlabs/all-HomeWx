@@ -13,15 +13,33 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <!-- Top overlay: the rainfall color legend (only for the two 72h rain layers) above the
+         layer picker. RadarPanel fades this whole container out a few seconds after the last
+         interaction; a tap on the map brings it back. -->
+    <LinearLayout
+        android:id="@+id/radarTopOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:orientation="vertical">
+
+    <!-- Thin color bar spanning the map width, in the gap above the picker. -->
+    <com.landenlabs.homewx.ui.PrecipLegendView
+        android:id="@+id/radarPrecipLegend"
+        android:layout_width="match_parent"
+        android:layout_height="12dp"
+        android:layout_marginHorizontal="2dp"
+        android:layout_marginTop="2dp"
+        android:visibility="gone" />
+
     <!-- Layer picker: one horizontally scrolling row, so on a narrow phone it stays a single
          short strip instead of wrapping each label onto several lines (on a tablet it all fits
-         and doesn't scroll). RadarPanel fades it out a few seconds after the last interaction;
-         a tap on the map brings it back. -->
+         and doesn't scroll). -->
     <HorizontalScrollView
         android:id="@+id/radarLayerScroll"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
+        android:layout_gravity="start"
         android:layout_margin="8dp"
         android:background="@color/bg_panel_bottom"
         android:fadingEdgeLength="24dp"
@@ -70,6 +88,8 @@
     </RadioGroup>
 
     </HorizontalScrollView>
+
+    </LinearLayout>
 
     <ImageButton
         android:id="@+id/radarPlayButton"

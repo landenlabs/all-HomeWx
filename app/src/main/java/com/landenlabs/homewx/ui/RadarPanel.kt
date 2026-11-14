@@ -377,6 +377,7 @@ class RadarPanel(
             // Only the opaque satellite imagery needs the borders drawn over it; radar and the
             // rainfall total are transparent where there's no data, so the base map shows through.
             bordersOverlay.isEnabled = layer.isSatellite
+            applyPrecipLegend()
             applyPlayButtonState()
             applyLayerAlpha()
             showLiveFrame()
@@ -398,6 +399,7 @@ class RadarPanel(
         }
         binding.radarLayerScroll.setOnScrollChangeListener { _, _, _, _, _ -> showLayerPicker() }
 
+        applyPrecipLegend()
         applyPlayButtonState()
         binding.radarPlayButton.setOnClickListener {
             if (animationJob == null) startAnimation() else stopAnimation()
@@ -467,6 +469,19 @@ class RadarPanel(
         binding.radarPlayButton.alpha = if (layer.isAnimatable) 1f else 0.3f
     }
 
+    /** Shows the color bar for the two rainfall-total layers (each in its own server's palette)
+     *  and hides it for radar/satellite. It lives in [PanelRadarBinding.radarTopOverlay] with the
+     *  picker, so it fades out and back in along with it. */
+    private fun applyPrecipLegend() {
+        val legend = when (layer) {
+            RadarLayer.RAIN_72H -> PrecipLegend.RAIN_72H
+            RadarLayer.RAIN_FORECAST_72H -> PrecipLegend.RAIN_FORECAST_72H
+            else -> null
+        }
+        binding.radarPrecipLegend.legend = legend
+        binding.radarPrecipLegend.visibility = if (legend == null) View.GONE else View.VISIBLE
+    }
+
     private fun applyLayerAlpha() {
         val filter = if (layerAlpha() >= 1f) null
             else ColorMatrixColorFilter(ColorMatrix().apply { setScale(1f, 1f, 1f, layerAlpha()) })
@@ -474,20 +489,24 @@ class RadarPanel(
         frameOverlay.setColorFilter(filter)
     }
 
+    /** Faded as one: the layer picker plus the rainfall legend above it. */
+    private val topOverlay: View get() = binding.radarTopOverlay
+
     private val fadeOutLayerPicker = Runnable {
-        binding.radarLayerScroll.animate()
+        topOverlay.animate()
             .alpha(0f)
             .setDuration(LAYER_PICKER_FADE_OUT_MS)
             // INVISIBLE (not just transparent) so taps up there fall through to the map, whose
             // single-tap handler is what brings the picker back.
-            .withEndAction { binding.radarLayerScroll.visibility = View.INVISIBLE }
+            .withEndAction { topOverlay.visibility = View.INVISIBLE }
             .start()
     }
 
-    /** Fades the layer picker in (if it had faded out) and restarts its [LAYER_PICKER_VISIBLE_MS]
-     *  countdown. Called when the map tab is opened and on any single tap on the map. */
+    /** Fades the layer picker and legend in (if they had faded out) and restarts the
+     *  [LAYER_PICKER_VISIBLE_MS] countdown. Called when the map tab is opened and on any single
+     *  tap on the map. */
     fun showLayerPicker() {
-        val picker = binding.radarLayerScroll
+        val picker = topOverlay
         // Cancelling also drops a pending fade-out's end action, so it can't re-hide the picker.
         picker.animate().cancel()
         picker.visibility = View.VISIBLE
@@ -496,7 +515,7 @@ class RadarPanel(
     }
 
     private fun scheduleLayerPickerFade() {
-        val picker = binding.radarLayerScroll
+        val picker = topOverlay
         picker.removeCallbacks(fadeOutLayerPicker)
         picker.postDelayed(fadeOutLayerPicker, LAYER_PICKER_VISIBLE_MS)
     }
