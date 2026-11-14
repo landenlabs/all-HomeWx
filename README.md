@@ -1,8 +1,8 @@
 <table border="0">
   <tr>
     <td>
-      <!-- VERSION -->v6.11.10<br>
-      <!-- DATE -->08-Nov-2026<br>
+      <!-- VERSION -->v6.11.12<br>
+      <!-- DATE -->14-Nov-2026<br>
       Android (Kotlin)<br>
       <a href="https://github.com/landenlabs/all-HomeWx">Repo</a>
     </td>
