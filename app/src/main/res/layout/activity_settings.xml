@@ -395,6 +395,13 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
                     android:text="@string/settings_bg_folder_clear" />
+
+                <Button
+                    android:id="@+id/backgroundFolderHelpButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/settings_bg_folder_help" />
             </LinearLayout>
 
             <TextView

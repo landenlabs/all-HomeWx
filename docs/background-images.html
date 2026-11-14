@@ -1,0 +1,208 @@
+---
+# GitHub Pages (Jekyll) front matter: publishes this file as
+# https://landenlabs.github.io/all-HomeWx/background-images.html
+#
+# The app can open this page with the current weather panel size so it shows up in the size table.
+# The app puts the values in the #fragment (never sent to the server); ?query works too:
+#   background-images.html#w=1200&h=1080&o=land&device=Pixel%207
+#     w, h    weather panel size in physical pixels, in the current orientation (required, 1-10000)
+#     o       current orientation, "land" or "port" (optional; else the browser's orientation is used)
+#     device  optional label for the row (shown as plain text)
+layout: default
+title: All HomeWx - Your Own Weather Backgrounds
+permalink: /background-images.html
+---
+
+<style>
+  .bg-table { border-collapse: collapse; margin: 0.5em 0 1.5em; }
+  .bg-table th, .bg-table td { border: 1px solid #ccc; padding: 4px 10px; text-align: left; }
+  .bg-table th { background: #f2f2f2; }
+  .bg-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .bg-table tr.yours td { background: #fff6d5; font-weight: bold; }
+  .bg-note { color: #555; font-size: 0.95em; }
+  #your-device { border-left: 4px solid #e0b000; background: #fffbea; padding: 8px 12px; margin: 1em 0; }
+</style>
+
+<h1>Your Own Weather Backgrounds</h1>
+
+<p><em>Last updated: 2026-11-14</em></p>
+
+<p>The weather panel in All HomeWx shows a photo behind the current conditions that matches the
+weather: clear, cloudy, rainy or windy. You can replace the built-in photos with your own by putting
+image files in a folder on the device and choosing that folder in the app.</p>
+
+<div id="your-device" hidden></div>
+
+<h2>Setting it up</h2>
+<ol>
+  <li>Copy your images into a folder on the device, for example <code>Documents/all-HomeWx</code>.
+      Images in sub-folders are not read.</li>
+  <li>In the app, open <strong>Settings &gt; Display &gt; Your background images</strong> and tap
+      <strong>Choose folder&hellip;</strong>, then pick that folder.</li>
+  <li>The line under the button shows how many images matched for each condition. If a file is
+      missing from the count, check its name against the rules below.</li>
+</ol>
+<p>To go back to the built-in photos, tap <strong>Clear</strong>. Adding or removing files later is
+picked up when you return from Settings.</p>
+
+<h2>File names</h2>
+<p>Each file name starts with <code>wx_bg_</code> and the condition, may add an underscore and any text
+you like, and ends with a supported extension:</p>
+<pre><code>wx_bg_&lt;condition&gt;[_anything].&lt;jpg|jpeg|png|webp&gt;</code></pre>
+
+<table class="bg-table">
+  <tr><th>Condition</th><th>Shown when</th><th>Example names</th></tr>
+  <tr><td><code>clear</code></td><td>Sunny or clear sky</td>
+      <td><code>wx_bg_clear.jpg</code>, <code>wx_bg_clear_002.jpg</code></td></tr>
+  <tr><td><code>cloudy</code></td><td>Partly cloudy, overcast, fog and anything else not listed here</td>
+      <td><code>wx_bg_cloudy_lake.webp</code></td></tr>
+  <tr><td><code>rainy</code></td><td>Any rain, showers, thunderstorms or snow</td>
+      <td><code>wx_bg_rainy_01.png</code></td></tr>
+  <tr><td><code>windy</code></td><td>Wind of 20 mph or more, when it is not raining or snowing</td>
+      <td><code>wx_bg_windy_beach.jpeg</code></td></tr>
+</table>
+
+<ul>
+  <li>Upper or lower case doesn't matter: <code>WX_BG_Clear_01.JPG</code> works.</li>
+  <li>You can have as many images per condition as you like. The app starts at a random one, then
+      shows the next one in name order each hour, wrapping back to the first. Number them
+      (<code>_001</code>, <code>_002</code>, &hellip;) to control the order.</li>
+  <li>A condition with no matching file keeps using the built-in photo, so you can replace only the
+      ones you want.</li>
+  <li>Files with any other name are ignored.</li>
+</ul>
+
+<h2>Image types</h2>
+<table class="bg-table">
+  <tr><th>Type</th><th>Extensions</th><th>Notes</th></tr>
+  <tr><td>JPEG</td><td><code>.jpg</code>, <code>.jpeg</code></td>
+      <td>Best choice for photos. Quality 80-85% is plenty.</td></tr>
+  <tr><td>WebP</td><td><code>.webp</code></td>
+      <td>Smaller files than JPEG at the same quality.</td></tr>
+  <tr><td>PNG</td><td><code>.png</code></td>
+      <td>Works, but photo files are much larger. Use it for artwork or graphics.</td></tr>
+</table>
+<p class="bg-note">Phone photos taken sideways are turned upright using their EXIF orientation tag.
+HEIC, GIF and other formats are not read; convert them to JPEG first.</p>
+
+<h2>Image size</h2>
+<p>The weather panel always fills <strong>half the screen</strong>: the left half in landscape and
+the top half in portrait. Its shape therefore flips when the device rotates. On a tablet it is taller
+than wide in landscape and wider than tall in portrait.</p>
+<p>The image is scaled to <strong>fill</strong> the panel and the overflow is cropped equally from both
+sides (or top and bottom), so:</p>
+<ul>
+  <li>Keep the subject near the <strong>center</strong> of the image. The edges may be cut off.</li>
+  <li>An image at least as large as the panel stays sharp. A smaller image is stretched and looks soft.</li>
+  <li>If the device is used in both orientations, a <strong>square</strong> image as wide as the
+      panel's longer side covers both without being stretched.</li>
+  <li>Keep the longest side at about <strong>2048 pixels or less</strong>. Larger images look no
+      better on screen, use more memory and take longer to load.</li>
+  <li>The weather text is drawn on top of the photo. Busy or very bright photos are harder to read
+      over; use <strong>Settings &gt; Display &gt; Darken background image</strong> to dim them.</li>
+</ul>
+
+<h3>Recommended sizes</h3>
+<p class="bg-note">Panel sizes are in physical pixels and are approximate: status and navigation bars
+take a little of the screen. The app's own panel size is shown in the highlighted row when this page
+is opened from the app.</p>
+
+<table class="bg-table" id="size-table">
+  <thead>
+    <tr>
+      <th>Device type</th>
+      <th>Screen (pixels)</th>
+      <th>Panel in landscape</th>
+      <th>Panel in portrait</th>
+      <th>Recommended image, both orientations</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<h2>Tips</h2>
+<ul>
+  <li>Copying files from a computer with <code>adb</code>:
+<pre><code>adb shell mkdir /sdcard/Documents/all-HomeWx
+adb push wx_bg_*.jpg /sdcard/Documents/all-HomeWx</code></pre></li>
+  <li>If an image can't be read (deleted, or the folder access was revoked) the app skips it and
+      shows the next one. If the whole folder becomes unreadable, Settings says so; choose the folder
+      again.</li>
+  <li>The app only reads the folder you choose. See the <a href="privacy-policy.html">privacy policy</a>.</li>
+</ul>
+
+<p><a href="index.html">All HomeWx home</a></p>
+
+<script>
+(function () {
+  // [label, long side, short side] of the full screen in physical pixels.
+  var DEVICES = [
+    ["Small phone",                          1600,  720],
+    ["Typical phone (Pixel, Galaxy S)",      2400, 1080],
+    ["Large phone (Galaxy S Ultra)",         3120, 1440],
+    ["8 inch tablet (Fire HD 8, Tab M8)",    1280,  800],
+    ["10 inch tablet (Fire HD 10, Tab A)",   1920, 1200],
+    ["11 inch tablet (Galaxy Tab S, Pixel Tablet)", 2560, 1600],
+    ["12-14 inch tablet (Galaxy Tab S Plus/Ultra)", 2960, 1848]
+  ];
+
+  function size(w, h) { return w + " × " + h; }
+
+  function cell(row, text, isNum) {
+    var td = document.createElement("td");
+    td.textContent = text;
+    if (isNum) td.className = "num";
+    row.appendChild(td);
+  }
+
+  // Panel is half the screen: landscape panel = long/2 x short, portrait panel = short x long/2.
+  // Rotating swaps the panel's width and height, so one square of the longer side covers both.
+  function addRow(tbody, label, screen, landW, landH, highlight) {
+    var tr = document.createElement("tr");
+    if (highlight) tr.className = "yours";
+    var side = Math.max(landW, landH);
+    cell(tr, label);
+    cell(tr, screen, true);
+    cell(tr, size(landW, landH), true);
+    cell(tr, size(landH, landW), true);
+    cell(tr, size(side, side), true);
+    tbody.appendChild(tr);
+    return tr;
+  }
+
+  var tbody = document.querySelector("#size-table tbody");
+  DEVICES.forEach(function (d) {
+    var half = Math.round(d[1] / 2);
+    addRow(tbody, d[0], size(d[2], d[1]), half, d[2], false);
+  });
+
+  // Optional w, h, o, device from the app (in the #fragment, or ?query): the panel size now.
+  var params = new URLSearchParams(window.location.hash.slice(1) || window.location.search);
+  function px(name) {
+    var v = parseInt(params.get(name), 10);
+    return (v >= 1 && v <= 10000) ? v : null;
+  }
+  var w = px("w"), h = px("h");
+  if (w === null || h === null) return;
+
+  var device = (params.get("device") || "").trim().slice(0, 60) || "This device";
+  // Rotating swaps the panel's width and height, so the other orientation is just w/h swapped.
+  var o = (params.get("o") || "").toLowerCase();
+  var isLand = o === "land" ? true : o === "port" ? false : window.innerWidth >= window.innerHeight;
+  var landW = isLand ? w : h, landH = isLand ? h : w;
+  var orientation = w > h ? "wider than tall" : (w < h ? "taller than wide" : "square");
+  var row = addRow(tbody, device + " (yours)", "—", landW, landH, true);
+  tbody.insertBefore(row, tbody.firstChild);
+
+  var side = Math.max(w, h);
+  var box = document.getElementById("your-device");
+  var title = document.createElement("strong");
+  title.textContent = device + ": ";
+  box.appendChild(title);
+  box.appendChild(document.createTextNode(
+    "the weather panel is " + size(w, h) + " pixels right now (" + orientation + "). " +
+    "Use images at least " + size(w, h) + " for this orientation, or " + size(side, side) +
+    " to look sharp in both orientations."));
+  box.hidden = false;
+})();
+</script>

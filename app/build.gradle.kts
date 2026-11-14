@@ -166,7 +166,7 @@ dependencies {
     "wxdataImplementation"("com.squareup.okhttp3:logging-interceptor:5.5.0")
     "wxdataImplementation"("com.google.code.gson:gson:2.14.0")
 
-    implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
+    implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-crashlytics")
 

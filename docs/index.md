@@ -10,4 +10,5 @@ All HomeWx is an Android tablet dashboard by LanDen Labs. It shows the local wea
 forecast, radar, indoor sensor readings, river levels, rain totals and news on one always-on screen.
 
 - [Privacy policy](privacy-policy.html)
+- [Your own weather backgrounds](background-images.html)
 - [Source code](https://github.com/landenlabs/all-HomeWx)

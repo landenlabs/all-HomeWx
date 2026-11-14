@@ -186,6 +186,8 @@
     <string name="settings_bg_folder_label">Your background images</string>
     <string name="settings_bg_folder_choose">Choose folder…</string>
     <string name="settings_bg_folder_clear">Clear</string>
+    <string name="settings_bg_folder_help">Help</string>
+    <string name="settings_bg_folder_help_no_browser">No browser found. See %1$s</string>
     <string name="settings_bg_folder_builtin">Using the built-in images. Choose a folder with files named wx_bg_clear, wx_bg_cloudy, wx_bg_rainy or wx_bg_windy, optionally followed by _anything (e.g. wx_bg_clear_002.png), as .jpg, .png or .webp. One is picked at random and changes every hour.</string>
     <string name="settings_bg_folder_found">%1$s: %2$d images (clear %3$d, cloudy %4$d, rainy %5$d, windy %6$d). Conditions with none use the built-in image.</string>
     <string name="settings_bg_folder_none">%1$s: no matching files. Names look like wx_bg_clear_001.jpg.</string>

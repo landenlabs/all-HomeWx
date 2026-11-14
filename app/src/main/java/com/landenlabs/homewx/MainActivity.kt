@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.IntentFilter
 import android.os.BatteryManager
 import android.content.Intent
+import android.content.res.Configuration
 import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Bundle
@@ -201,7 +202,7 @@ class MainActivity : AppCompatActivity() {
         screenPowerController = ScreenPowerController(this)
         nightModePanel = NightModePanel(this)
         nightModePanel.hide()
-        nightModePanel.setOnSettingsClick { startActivity(Intent(this, SettingsActivity::class.java)) }
+        nightModePanel.setOnSettingsClick { openSettings() }
         applySystemBarInsetPadding(nightModePanel.root)
         addContentView(
             nightModePanel.root,
@@ -216,7 +217,7 @@ class MainActivity : AppCompatActivity() {
         applySensorsCollapsed()
         setupPhoneWeatherScroll()
         binding.weatherBackgroundImage.setOnTouchListener { _, event -> weatherGestureDetector.onTouchEvent(event) }
-        binding.settingsButton.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
+        binding.settingsButton.setOnClickListener { openSettings() }
 
         newsPanel = NewsPanel(binding.infoPanelContainer, lifecycleScope, onArticleClick = ::showNewsArticle)
         sensorChartPanel = SensorChartPanel(binding.infoPanelContainer)
@@ -1227,6 +1228,21 @@ class MainActivity : AppCompatActivity() {
                 setWeatherBackground(iconKey, windSpeedMph)
             }
         }
+    }
+
+    /** Opens Settings with the weather panel's current size, which its background-images Help
+     *  link puts on the help page (Settings can't measure a view in this activity). */
+    private fun openSettings() {
+        val panel = binding.weatherBackgroundImage
+        startActivity(
+            Intent(this, SettingsActivity::class.java)
+                .putExtra(SettingsActivity.EXTRA_PANEL_WIDTH, panel.width)
+                .putExtra(SettingsActivity.EXTRA_PANEL_HEIGHT, panel.height)
+                .putExtra(
+                    SettingsActivity.EXTRA_PANEL_LANDSCAPE,
+                    resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                )
+        )
     }
 
     /** Re-reads the folder chosen in Settings (files may have been added or removed) and re-applies

@@ -1,6 +1,7 @@
 package com.landenlabs.homewx.settings
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -140,6 +141,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.feedsEditButton.setOnClickListener { credentialDialogs.showFeeds() }
         binding.droughtEditButton.setOnClickListener { credentialDialogs.showDrought() }
         binding.backgroundFolderChooseButton.setOnClickListener { backgroundFolderLauncher.launch(null) }
+        binding.backgroundFolderHelpButton.setOnClickListener { openBackgroundImagesHelp() }
         binding.backgroundFolderClearButton.setOnClickListener {
             AppSettings.getBackgroundFolder(this)?.let(::releaseFolderGrant)
             AppSettings.setBackgroundFolder(this, null)
@@ -635,6 +637,27 @@ class SettingsActivity : AppCompatActivity() {
         rebuildRiverGaugeCheckBoxes(riverGaugeCandidates, checkedSiteIds = riverGaugeCandidates.map { it.siteId }.toSet())
     }
 
+    /** Opens the background-images help page in the browser. The weather panel's size (passed in by
+     *  MainActivity) and the device model go in the URL fragment, which browsers never send to the
+     *  server, so the page can show them in its size table without them reaching GitHub. */
+    private fun openBackgroundImagesHelp() {
+        val width = intent.getIntExtra(EXTRA_PANEL_WIDTH, 0)
+        val height = intent.getIntExtra(EXTRA_PANEL_HEIGHT, 0)
+        val url = Uri.parse(BACKGROUND_HELP_URL).buildUpon().apply {
+            if (width > 0 && height > 0) {
+                val orientation = if (intent.getBooleanExtra(EXTRA_PANEL_LANDSCAPE, false)) "land" else "port"
+                encodedFragment(
+                    "w=$width&h=$height&o=$orientation&device=" + Uri.encode(Build.MODEL.orEmpty())
+                )
+            }
+        }.build()
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, url))
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this, getString(R.string.settings_bg_folder_help_no_browser, BACKGROUND_HELP_URL), Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun releaseFolderGrant(folder: android.net.Uri) {
         try {
             contentResolver.releasePersistableUriPermission(folder, Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -749,5 +772,14 @@ class SettingsActivity : AppCompatActivity() {
         riverGaugeLabelEditTexts.forEach { labelEditText ->
             RiverGaugeSettings.setGaugeLabel(this, labelEditText.tag as String, labelEditText.text.toString())
         }
+    }
+
+    companion object {
+        /** Weather panel size in pixels and orientation, from MainActivity, for [openBackgroundImagesHelp]. */
+        const val EXTRA_PANEL_WIDTH = "panelWidth"
+        const val EXTRA_PANEL_HEIGHT = "panelHeight"
+        const val EXTRA_PANEL_LANDSCAPE = "panelLandscape"
+
+        private const val BACKGROUND_HELP_URL = "https://landenlabs.github.io/all-HomeWx/background-images.html"
     }
 }
