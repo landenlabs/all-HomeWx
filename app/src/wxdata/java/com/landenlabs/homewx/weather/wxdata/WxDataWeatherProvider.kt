@@ -1,3 +1,8 @@
+// ----------------------------------------------------------------------
+// Copyright (c) 2026 LanDen Labs - Dennis Lang
+// https://landenlabs.com
+// ----------------------------------------------------------------------
+
 package com.landenlabs.homewx.weather.wxdata
 
 import android.content.Context
@@ -178,7 +183,7 @@ class WxDataWeatherProvider : WeatherProvider {
     }
 }
 
-private fun GeoLocation.toWxLocation(): WxLocation =
+internal fun GeoLocation.toWxLocation(): WxLocation =
     WxLocation(label, "", "", "", latitude, longitude, TimeZone.getDefault().id)
 
 private fun Number?.finiteOrNull(): Double? = this?.toDouble()?.takeIf { !it.isNaN() }

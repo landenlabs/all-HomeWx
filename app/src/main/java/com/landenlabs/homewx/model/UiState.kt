@@ -1,5 +1,11 @@
+// ----------------------------------------------------------------------
+// Copyright (c) 2026 LanDen Labs - Dennis Lang
+// https://landenlabs.com
+// ----------------------------------------------------------------------
+
 package com.landenlabs.homewx.model
 
+import com.landenlabs.homewx.alerts.WeatherAlert
 import com.landenlabs.homewx.news.NewsItem
 import com.landenlabs.homewx.news.NewsSource
 import com.landenlabs.homewx.rivers.GaugeReading
@@ -43,5 +49,9 @@ data class UiState(
     val riverReadings: Map<String, GaugeReading> = emptyMap(),
     val riverReadingsUpdatedAtMillis: Long? = null,
     val riverError: String? = null,
+    /** Active watches/warnings for the home location, most severe first; see AlertRepository. */
+    val weatherAlerts: List<WeatherAlert> = emptyList(),
+    val alertsUpdatedAtMillis: Long? = null,
+    val alertsSource: String? = null,
     val errorLog: List<AppErrorEntry> = emptyList()
 )

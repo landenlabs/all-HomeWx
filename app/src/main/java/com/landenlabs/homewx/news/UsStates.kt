@@ -1,3 +1,8 @@
+// ----------------------------------------------------------------------
+// Copyright (c) 2026 LanDen Labs - Dennis Lang
+// https://landenlabs.com
+// ----------------------------------------------------------------------
+
 package com.landenlabs.homewx.news
 
 /** The 50 states, by the 2-letter code the US Drought Monitor's state page takes (`...?NH`). */

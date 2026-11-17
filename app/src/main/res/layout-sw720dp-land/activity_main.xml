@@ -243,6 +243,34 @@
         app:layout_constraintBottom_toBottomOf="@id/weatherBackgroundImage"
         app:layout_constraintStart_toStartOf="@id/weatherBackgroundImage" />
 
+    <!-- Weather alert: flashing icon in the panel's top-start corner, only visible while an alert is
+         active for home (MainActivity.bindAlerts). Tapping it shows alertPanel over the weather panel. -->
+    <ImageView
+        android:id="@+id/alertIcon"
+        android:layout_width="@dimen/weather_alert_icon_size"
+        android:layout_height="@dimen/weather_alert_icon_size"
+        android:layout_margin="10dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/alert_icon_description"
+        android:padding="2dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_weather_alert"
+        android:visibility="gone"
+        app:layout_constraintStart_toStartOf="@id/weatherBackgroundImage"
+        app:layout_constraintTop_toTopOf="@id/weatherBackgroundImage"
+        tools:visibility="visible" />
+
+    <include
+        android:id="@+id/alertPanel"
+        layout="@layout/panel_alerts"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/weatherBackgroundImage"
+        app:layout_constraintEnd_toEndOf="@id/weatherBackgroundImage"
+        app:layout_constraintStart_toStartOf="@id/weatherBackgroundImage"
+        app:layout_constraintTop_toTopOf="@id/weatherBackgroundImage" />
+
     <!-- SENSORS SECTION -->
     <View
         android:id="@+id/topDivider"

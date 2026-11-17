@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Weather-alert badge: filled warning triangle with a dark "!" cut in. White so MainActivity can
+     tint it by the most severe active alert (alert_* colors). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="0.8"
+        android:strokeLineJoin="round"
+        android:pathData="M12,1.8 L23,21.5 L1,21.5 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M10.9,8.2h2.2l-0.4,7.3h-1.4z M12,17.1a1.35,1.35 0,1 1,0 2.7a1.35,1.35 0,1 1,0 -2.7z" />
+</vector>

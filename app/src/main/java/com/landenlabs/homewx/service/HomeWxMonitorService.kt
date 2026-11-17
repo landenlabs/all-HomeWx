@@ -1,3 +1,8 @@
+// ----------------------------------------------------------------------
+// Copyright (c) 2026 LanDen Labs - Dennis Lang
+// https://landenlabs.com
+// ----------------------------------------------------------------------
+
 package com.landenlabs.homewx.service
 
 import android.app.Notification
@@ -16,6 +21,7 @@ import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.landenlabs.homewx.MainActivity
 import com.landenlabs.homewx.R
+import com.landenlabs.homewx.alerts.AlertRepository
 import com.landenlabs.homewx.data.DailySnapshot
 import com.landenlabs.homewx.data.DailySnapshotStore
 import com.landenlabs.homewx.data.GoveeRepository
@@ -74,6 +80,10 @@ class HomeWxMonitorService : LifecycleService() {
         location = { HomeLocation.current(applicationContext) },
         activeSource = { WeatherSourceConfig.getActiveSource(applicationContext) },
         forecastDays = { AppSettings.getForecastDays(applicationContext) }
+    )
+    private val alertRepository = AlertRepository(
+        location = { HomeLocation.current(applicationContext) },
+        activeSource = { WeatherSourceConfig.getActiveSource(applicationContext) }
     )
     private var latestForecast: WeatherForecast? = null
     private var historicalAverageFetchedForDay: Long? = null
@@ -272,6 +282,32 @@ class HomeWxMonitorService : LifecycleService() {
                 }
                 val normalIntervalMs = AppSettings.getWeatherSampleIntervalMinutes(applicationContext) * 60_000L
                 waitForNextPoll(consecutiveFailures, normalIntervalMs)
+            }
+        }
+
+        // Watches/warnings for home. On failure the last known list is kept (an outage shouldn't
+        // make a warning vanish) until every alert in it has ended; the error goes to the error log.
+        lifecycleScope.launch {
+            var consecutiveFailures = 0
+            while (true) {
+                try {
+                    val result = alertRepository.getActiveAlerts()
+                    AppState.uiState.update {
+                        it.copy(
+                            weatherAlerts = result.alerts,
+                            alertsUpdatedAtMillis = System.currentTimeMillis(),
+                            alertsSource = result.sourceLabel
+                        )
+                    }
+                    consecutiveFailures = 0
+                } catch (e: Exception) {
+                    consecutiveFailures++
+                    Log.e(TAG, "Alert refresh failed (attempt $consecutiveFailures)", e)
+                    AppState.recordError("Alerts", e)
+                    val now = System.currentTimeMillis()
+                    AppState.uiState.update { state -> state.copy(weatherAlerts = state.weatherAlerts.filter { it.isActive(now) }) }
+                }
+                waitForNextPoll(consecutiveFailures, ALERT_POLL_INTERVAL_MS)
             }
         }
 
@@ -553,6 +589,8 @@ class HomeWxMonitorService : LifecycleService() {
         private const val SENSOR_TREND_TOLERANCE_MS = 20 * 60 * 1000L
         private const val NEWS_POLL_INTERVAL_MS = 10 * 60 * 1000L
         private const val RIVER_POLL_INTERVAL_MS = 15 * 60 * 1000L
+        /** NWS updates alerts within a minute or two and asks clients not to poll faster than this. */
+        private const val ALERT_POLL_INTERVAL_MS = 5 * 60 * 1000L
         private const val RIVER_BACKFILL_MILLIS = 7 * 24 * 60 * 60 * 1000L
         private const val NETWORK_WATCHDOG_INTERVAL_MS = 30 * 1000L
         private const val RETRY_BASE_MS = 20 * 1000L

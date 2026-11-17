@@ -1,6 +1,13 @@
+// ----------------------------------------------------------------------
+// Copyright (c) 2026 LanDen Labs - Dennis Lang
+// https://landenlabs.com
+// ----------------------------------------------------------------------
+
 package com.landenlabs.homewx.weather
 
 import android.content.Context
+import com.landenlabs.homewx.alerts.AlertProvider
+import com.landenlabs.homewx.weather.wxdata.WxDataAlertProvider
 import com.landenlabs.homewx.weather.wxdata.WxDataWeatherProvider
 
 /** "wxdata" flavor: forwards to the AAR-backed [WxDataWeatherProvider]. The "standard" flavor has a
@@ -10,4 +17,6 @@ object WxDataSupport {
     fun initialize(context: Context) = WxDataWeatherProvider.initialize(context)
 
     fun createProvider(): WeatherProvider? = WxDataWeatherProvider()
+
+    fun createAlertProvider(): AlertProvider? = WxDataAlertProvider()
 }

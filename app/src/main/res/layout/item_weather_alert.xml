@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One alert in the alert panel: a severity-colored stripe, then the kind of alert, headline,
+     timing/area table and the full description + instructions (never truncated - the list scrolls). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:background="@color/bg_panel_bottom"
+    android:orientation="horizontal">
+
+    <View
+        android:id="@+id/alertSeverityStripe"
+        android:layout_width="6dp"
+        android:layout_height="match_parent"
+        tools:background="@color/alert_severe" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:padding="10dp">
+
+        <TextView
+            android:id="@+id/alertEventText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="19sp"
+            android:textStyle="bold"
+            tools:text="Winter Storm Warning"
+            tools:textColor="@color/alert_severe" />
+
+        <TextView
+            android:id="@+id/alertHeadlineText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp"
+            tools:text="Winter Storm Warning issued November 17 at 3:12AM EST until November 18 at 7:00PM EST by NWS Boston/Norton MA" />
+
+        <!-- label/value rows; rows with no value are hidden from code -->
+        <GridLayout
+            android:id="@+id/alertDetailsGrid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:columnCount="2"
+            android:useDefaultMargins="false">
+
+            <TextView android:id="@+id/alertSeverityLabel" style="@style/alert_label" android:text="@string/alert_lbl_severity" />
+            <TextView android:id="@+id/alertSeverityValue" style="@style/alert_value" tools:text="Severe · Expected · Likely" />
+            <TextView android:id="@+id/alertIssuedLabel" style="@style/alert_label" android:text="@string/alert_lbl_issued" />
+            <TextView android:id="@+id/alertIssuedValue" style="@style/alert_value" tools:text="Mon 17 Nov 3:12 AM" />
+            <TextView android:id="@+id/alertEffectiveLabel" style="@style/alert_label" android:text="@string/alert_lbl_effective" />
+            <TextView android:id="@+id/alertEffectiveValue" style="@style/alert_value" tools:text="Mon 17 Nov 3:12 AM" />
+            <TextView android:id="@+id/alertOnsetLabel" style="@style/alert_label" android:text="@string/alert_lbl_onset" />
+            <TextView android:id="@+id/alertOnsetValue" style="@style/alert_value" tools:text="Mon 17 Nov 7:00 PM" />
+            <TextView android:id="@+id/alertExpiresLabel" style="@style/alert_label" android:text="@string/alert_lbl_expires" />
+            <TextView android:id="@+id/alertExpiresValue" style="@style/alert_value" tools:text="Tue 18 Nov 11:15 AM" />
+            <TextView android:id="@+id/alertEndsLabel" style="@style/alert_label" android:text="@string/alert_lbl_ends" />
+            <TextView android:id="@+id/alertEndsValue" style="@style/alert_value" tools:text="Tue 18 Nov 7:00 PM" />
+            <TextView android:id="@+id/alertAreaLabel" style="@style/alert_label" android:text="@string/alert_lbl_area" />
+            <TextView android:id="@+id/alertAreaValue" style="@style/alert_value" tools:text="Western Essex; Eastern Rockingham" />
+            <TextView android:id="@+id/alertSenderLabel" style="@style/alert_label" android:text="@string/alert_lbl_issued_by" />
+            <TextView android:id="@+id/alertSenderValue" style="@style/alert_value" tools:text="NWS Boston/Norton MA" />
+        </GridLayout>
+
+        <TextView
+            android:id="@+id/alertDescriptionText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:lineSpacingMultiplier="1.1"
+            android:textColor="@color/text_primary"
+            android:textIsSelectable="false"
+            android:textSize="14sp"
+            tools:text="* WHAT...Heavy snow expected. Total snow accumulations of 8 to 12 inches." />
+
+        <TextView
+            android:id="@+id/alertInstructionLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:letterSpacing="0.08"
+            android:text="@string/alert_lbl_instructions"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/alertInstructionText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:lineSpacingMultiplier="1.1"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp"
+            tools:text="Travel could be very difficult. If you must travel, keep an extra flashlight, food and water in your vehicle." />
+    </LinearLayout>
+</LinearLayout>

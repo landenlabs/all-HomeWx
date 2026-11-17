@@ -20,11 +20,12 @@ If you enter Govee, Wyze or WxData credentials, they are stored on the tablet on
 If Android backup is turned on for your tablet, Android may back up the app's settings (including the zip code) to your Google account. Saved credentials can't be decrypted after a restore.
 
 ## Location
-The app does not ask for location permission and never reads your device's GPS or network position. Weather, rain, river and radar data are fetched for the center point of the zip code you enter in Settings, and the "home" marker on the radar map is placed at that same point.
+The app does not ask for location permission and never reads your device's GPS or network position. Weather, weather alerts, rain, river and radar data are fetched for the center point of the zip code you enter in Settings, and the "home" marker on the radar map is placed at that same point.
 
 ## Data sent to third parties
-To show you content, the app sends requests to the services below. Those requests necessarily include your IP address and, for weather, rain and river data, the coordinates of your zip code's center point. Each service has its own privacy policy.
+To show you content, the app sends requests to the services below. Those requests necessarily include your IP address and, for weather, alert, rain and river data, the coordinates of your zip code's center point. Each service has its own privacy policy.
 - Weather: Open-Meteo, and WxData (weather.com) in builds that include it, if you enter a key
+- Weather alerts: National Weather Service (api.weather.gov), or WxData (weather.com) when it is the selected weather source
 - Zip code lookup: zippopotam.us
 - Rivers: USGS Water Data
 - Radar, maps, rain and drought: Iowa Environmental Mesonet, NASA GIBS, Esri ArcGIS, NOAA, ACIS, US Drought Monitor

@@ -1,3 +1,8 @@
+// ----------------------------------------------------------------------
+// Copyright (c) 2026 LanDen Labs - Dennis Lang
+// https://landenlabs.com
+// ----------------------------------------------------------------------
+
 package com.landenlabs.homewx
 
 import android.content.BroadcastReceiver
@@ -47,6 +52,7 @@ import com.landenlabs.homewx.settings.IdlePanel
 import com.landenlabs.homewx.settings.IdleSubPanelKeys
 import com.landenlabs.homewx.settings.SettingsActivity
 import com.landenlabs.homewx.state.AppState
+import com.landenlabs.homewx.ui.AlertPanel
 import com.landenlabs.homewx.ui.ArticlePanel
 import com.landenlabs.homewx.ui.ForecastPanel
 import com.landenlabs.homewx.ui.ForecastRange
@@ -91,6 +97,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sensorGraphsPanel: SensorGraphsPanel
     private lateinit var radarPanel: RadarPanel
     private lateinit var riverGraphsPanel: RiverGraphsPanel
+    /** Flashing alert icon + the alert list it opens over the weather panel. */
+    private lateinit var alertPanel: AlertPanel
+    /** Running while the alert list is open; closes it after [ALERT_PANEL_TIMEOUT_MS] with no
+     *  interaction (restarted from [onUserInteraction]), so a wall tablet doesn't stay stuck on it. */
+    private var alertPanelCloseJob: Job? = null
     private val sensorHistoryStore by lazy { SensorHistoryStore(applicationContext) }
     private val weatherMetricsHistoryStore by lazy { WeatherMetricsHistoryStore(applicationContext) }
     private val dailySnapshotStore by lazy { DailySnapshotStore(applicationContext) }
@@ -231,6 +242,7 @@ class MainActivity : AppCompatActivity() {
         sensorGraphsPanel = SensorGraphsPanel(binding.infoPanelContainer)
         radarPanel = RadarPanel(binding.infoPanelContainer, lifecycleScope, lifecycle)
         riverGraphsPanel = RiverGraphsPanel(binding.infoPanelContainer)
+        alertPanel = AlertPanel(binding.alertIcon, binding.alertPanel, onIconClick = ::openAlertPanel, onBack = ::closeAlertPanel)
 
         binding.infoPanelTabBar.newsTabButton.setOnClickListener { selectTab(InfoPanelView.NEWS) }
         binding.infoPanelTabBar.forecastTabButton.setOnClickListener { selectTab(InfoPanelView.FORECAST) }
@@ -261,10 +273,12 @@ class MainActivity : AppCompatActivity() {
         ContextCompat.registerReceiver(
             this, batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED
         )?.let { updateBatteryLevel(it) }
+        alertPanel.resume()
     }
 
     override fun onStop() {
         unregisterReceiver(batteryReceiver)
+        alertPanel.pause()
         super.onStop()
     }
 
@@ -356,6 +370,9 @@ class MainActivity : AppCompatActivity() {
         if (forecastPreviewRevertJob != null) {
             scheduleForecastPreviewRevert()
         }
+        if (alertPanelCloseJob != null) {
+            scheduleAlertPanelClose()
+        }
         // A fixed idle panel has no cycle to pause, but taps still restart the countdown that
         // returns to it. Not while rain pins the radar - that hold manages its own panel.
         val returnsToFixedPanel = AppSettings.getIdlePanel(this) != IdlePanel.CYCLE && !rainHoldActive
@@ -434,6 +451,37 @@ class MainActivity : AppCompatActivity() {
         nightModePanel.render(AppState.uiState.value, pastPoints, now)
     }
 
+    /** Alerts are about right now, so the icon shows even while a past/forecast day is being
+     *  viewed. Ended alerts are dropped here too, between the service's 5-minute polls. */
+    private fun bindAlerts(state: UiState) {
+        val now = System.currentTimeMillis()
+        val active = state.weatherAlerts.filter { it.isActive(now) }
+        alertPanel.bind(active, state.alertsUpdatedAtMillis, state.alertsSource)
+        if (active.isEmpty() && alertPanel.isOpen) closeAlertPanel()
+    }
+
+    private fun openAlertPanel() {
+        alertPanel.open()
+        // Phone: weatherBlock may be partly scrolled off the top by the expanded sensor list.
+        binding.weatherScroll?.smoothScrollTo(0, 0)
+        scheduleAlertPanelClose()
+    }
+
+    private fun closeAlertPanel() {
+        alertPanelCloseJob?.cancel()
+        alertPanelCloseJob = null
+        alertPanel.close()
+    }
+
+    private fun scheduleAlertPanelClose() {
+        alertPanelCloseJob?.cancel()
+        alertPanelCloseJob = lifecycleScope.launch {
+            delay(ALERT_PANEL_TIMEOUT_MS)
+            alertPanelCloseJob = null
+            alertPanel.close()
+        }
+    }
+
     private fun showNewsArticle(item: NewsItem) {
         activeSensorHistoryId = null
         showInfoPanel(InfoPanelView.ARTICLE)
@@ -491,6 +539,7 @@ class MainActivity : AppCompatActivity() {
                 if (viewingDayOffset == 0) {
                     bindLiveWeather(state)
                 }
+                bindAlerts(state)
 
                 val error = state.lastError
                 binding.sensorErrorText.text = error?.let { "Sensor error: $it" }
@@ -1337,6 +1386,7 @@ class MainActivity : AppCompatActivity() {
         private const val STALE_WEATHER_THRESHOLD_MS = 60 * 60 * 1000L
         private const val WAKE_OVERRIDE_DURATION_MS = 5 * 60 * 1000L
         private const val FORECAST_PREVIEW_TIMEOUT_MS = 10 * 60 * 1000L
+        private const val ALERT_PANEL_TIMEOUT_MS = 3 * 60 * 1000L
         private const val RAIN_HOLD_PCT = 50
         private const val RAIN_HOLD_IDLE_MS = 60 * 1000L
         private const val AUTO_CYCLE_INTERVAL_MS = 5 * 60 * 1000L

@@ -17,4 +17,7 @@
     <dimen name="wx_grid_text_size">19sp</dimen>
     <!-- Top/bottom padding of each wx_label/wx_value grid cell - none on phones, so the 11-row grid plus the SENSORS header fit the pane without scrolling. -->
     <dimen name="wx_grid_row_padding">0dp</dimen>
+
+    <!-- Flashing weather-alert icon in the weather panel's top-start corner (phone size). -->
+    <dimen name="weather_alert_icon_size">30dp</dimen>
 </resources>

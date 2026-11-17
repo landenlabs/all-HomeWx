@@ -26,4 +26,12 @@
     <!-- Low-battery readout next to the lux text: yellow for 25..49%, @color/red below 25%. -->
     <color name="battery_low">#FFD60A</color>
     <color name="icon_white">@color/white</color>
+
+    <!-- Weather alert icon tint and list-item stripe, by CAP severity of the alert. -->
+    <color name="alert_extreme">#FF1744</color>
+    <color name="alert_severe">#FF3B30</color>
+    <color name="alert_moderate">#FF9500</color>
+    <color name="alert_minor">#FFD60A</color>
+    <color name="alert_unknown">#9AA7B4</color>
+    <color name="alert_panel_bg">#EE101826</color>
 </resources>

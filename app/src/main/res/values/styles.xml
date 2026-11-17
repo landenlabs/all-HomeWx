@@ -1,6 +1,28 @@
 <resources>
     <!-- Used as GridLayout cells in weatherDetailsGrid - column widths size to content,
          so no explicit weight; paddingEnd gives label/value and column gutters. -->
+    <!-- Alert panel detail rows (item_weather_alert.xml). The value column takes the remaining
+         width (columnWeight) so long area lists wrap instead of running off the panel. -->
+    <style name="alert_label">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/accent_cool</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:paddingEnd">10dp</item>
+        <item name="android:paddingTop">1dp</item>
+        <item name="android:paddingBottom">1dp</item>
+    </style>
+
+    <style name="alert_value">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_columnWeight">1</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:paddingTop">1dp</item>
+        <item name="android:paddingBottom">1dp</item>
+    </style>
+
     <style name="wx_label">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>

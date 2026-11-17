@@ -159,7 +159,7 @@ marketing.
 
 | # | Data | Required? | Where it is kept | Who receives it, and why |
 |---|---|---|---|---|
-| 1 | **Location: home ZIP code** and its center point (latitude/longitude) | Optional (defaults to a built-in location) | On the tablet, in app settings | The ZIP is sent to `api.zippopotam.us` once, to look up its center point. That center point is sent to the weather, rain and river services (Open-Meteo, WxData / weather.com, ACIS, Iowa Mesonet, USGS) to fetch data for your area, including river gauges and rain totals, and marks "home" on the radar map. The device's own GPS position is never read. |
+| 1 | **Location: home ZIP code** and its center point (latitude/longitude) | Optional (defaults to a built-in location) | On the tablet, in app settings | The ZIP is sent to `api.zippopotam.us` once, to look up its center point. That center point is sent to the weather, alert, rain and river services (Open-Meteo, WxData / weather.com, National Weather Service, ACIS, Iowa Mesonet, USGS) to fetch data for your area, including weather alerts, river gauges and rain totals, and marks "home" on the radar map. The device's own GPS position is never read. |
 | 2 | **Wyze email and password** | Optional | On the tablet only, encrypted with the Android Keystore | Entered by the app into the Wyze sign-in page (`auth.wyze.com`) to open your camera page. Not sent anywhere else. |
 | 3 | **Govee API key** | Optional | On the tablet only, encrypted with the Android Keystore | Sent to Govee's API (`openapi.api.govee.com`) to read your sensors. Not sent anywhere else. |
 | 4 | **WxData API key** (wxdata build only) | Optional | On the tablet only, encrypted with the Android Keystore | Sent to `api.weather.com` to fetch weather. Not sent anywhere else. |

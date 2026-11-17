@@ -213,7 +213,7 @@
     <!-- Mirrors the README "Privacy" section; keep the two in sync. -->
     <string name="privacy_html"><![CDATA[
 <p>HomeWx has no account, no ads and no advertising ID, does not ask for location permission, and does not sell or share data for marketing.</p>
-<p><b>1. Home ZIP code</b> (optional)<br/>Stored on this tablet. Sent once to api.zippopotam.us to find its center point, which is then sent to the weather, rain and river services (Open-Meteo, WxData / weather.com, ACIS, Iowa Mesonet, USGS) to get data for your area, including river gauges and rain totals, and marks home on the radar map. The device\'s own GPS position is never read.</p>
+<p><b>1. Home ZIP code</b> (optional)<br/>Stored on this tablet. Sent once to api.zippopotam.us to find its center point, which is then sent to the weather, alert, rain and river services (Open-Meteo, WxData / weather.com, National Weather Service, ACIS, Iowa Mesonet, USGS) to get data for your area, including weather alerts, river gauges and rain totals, and marks home on the radar map. The device\'s own GPS position is never read.</p>
 <p><b>2. Wyze email and password</b> (optional)<br/>Stored on this tablet only, encrypted. Entered into the Wyze sign-in page to open your cameras. Not sent anywhere else.</p>
 <p><b>3. Govee API key</b> (optional)<br/>Stored on this tablet only, encrypted. Sent to Govee\'s API to read your sensors. Not sent anywhere else.</p>
 <p><b>4. WxData API key</b> (optional, wxdata build only)<br/>Stored on this tablet only, encrypted. Sent to api.weather.com to get weather. Not sent anywhere else.</p>
@@ -241,6 +241,22 @@ No location, camera, microphone, contacts, photos or storage permission is used.
     <string name="settings_rivers_searching">Searching for nearby gauges…</string>
     <string name="settings_rivers_no_gauges_found">No river gauges found near that zip code</string>
     <string name="settings_rivers_search_failed">Gauge search failed: %1$s</string>
+
+    <string name="alert_icon_description">Weather alert active, tap for details</string>
+    <string name="alert_panel_title">%1$d weather alert</string>
+    <string name="alert_panel_title_plural">%1$d weather alerts</string>
+    <string name="alert_panel_source">Source: %1$s · updated %2$s</string>
+    <string name="alert_panel_none">No active alerts</string>
+    <string name="alert_back_description">Back to weather</string>
+    <string name="alert_lbl_severity">Severity</string>
+    <string name="alert_lbl_issued">Issued</string>
+    <string name="alert_lbl_effective">Effective</string>
+    <string name="alert_lbl_onset">Begins</string>
+    <string name="alert_lbl_expires">Expires</string>
+    <string name="alert_lbl_ends">Ends</string>
+    <string name="alert_lbl_area">Area</string>
+    <string name="alert_lbl_issued_by">Issued by</string>
+    <string name="alert_lbl_instructions">WHAT TO DO</string>
 
     <string name="settings_errors_button">Errors (%1$d)</string>
     <string name="settings_errors_button_empty">Errors</string>

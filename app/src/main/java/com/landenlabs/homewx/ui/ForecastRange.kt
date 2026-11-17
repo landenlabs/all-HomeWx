@@ -1,3 +1,8 @@
+// ----------------------------------------------------------------------
+// Copyright (c) 2026 LanDen Labs - Dennis Lang
+// https://landenlabs.com
+// ----------------------------------------------------------------------
+
 package com.landenlabs.homewx.ui
 
 /** Which slice of data the forecast panel's 2nd tab bar is showing - HOURLY/DAILY read from
