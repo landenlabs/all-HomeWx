@@ -2,7 +2,7 @@
 <!-- OpenStreetMap view with one tile layer drawn on top, chosen by radarLayerGroup: the Iowa
      Environmental Mesonet NEXRAD composite reflectivity, or NASA GIBS GOES satellite clouds
      (GeoColor / infrared), the IEM past-72-hour rainfall total, or the WPC forecast 72-hour total - see RadarPanel. -->
-<FrameLayout
+<com.landenlabs.homewx.ui.TouchObserverFrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -15,7 +15,7 @@
 
     <!-- Top overlay: the rainfall color legend (only for the two 72h rain layers) above the
          layer picker. RadarPanel fades this whole container out a few seconds after the last
-         interaction; a tap on the map brings it back. -->
+         interaction; any touch on the map (tap, pan, zoom) brings it back. -->
     <LinearLayout
         android:id="@+id/radarTopOverlay"
         android:layout_width="match_parent"
@@ -130,4 +130,4 @@
         android:textSize="12sp"
         android:visibility="gone" />
 
-</FrameLayout>
+</com.landenlabs.homewx.ui.TouchObserverFrameLayout>
