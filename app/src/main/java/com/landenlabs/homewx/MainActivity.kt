@@ -621,6 +621,7 @@ class MainActivity : AppCompatActivity() {
         if (!rainHoldActive && !rainHoldDismissed && idle) {
             rainHoldActive = true
             stopAutoCycle()
+            resetWeatherToNow()
             rainHoldSwitching = true
             selectTab(InfoPanelView.RADAR)
             rainHoldSwitching = false
@@ -632,6 +633,7 @@ class MainActivity : AppCompatActivity() {
     /** Shows the Settings > Idle Panel choice. Cycle starts on News and rotates the top tabs;
      *  every other choice stops any rotation and shows its panel (and sub-tab) until a tap. */
     private fun applyIdlePanel() {
+        resetWeatherToNow()
         val subKey = AppSettings.getIdleSubPanel(this)
         when (AppSettings.getIdlePanel(this)) {
             IdlePanel.CYCLE -> {
@@ -695,7 +697,12 @@ class MainActivity : AppCompatActivity() {
         autoCycleResumeJob = lifecycleScope.launch {
             delay(AUTO_CYCLE_PAUSE_MS)
             autoCycleResumeJob = null
-            if (AppSettings.getIdlePanel(this@MainActivity) == IdlePanel.CYCLE) startAutoCycle() else applyIdlePanel()
+            if (AppSettings.getIdlePanel(this@MainActivity) == IdlePanel.CYCLE) {
+                resetWeatherToNow()
+                startAutoCycle()
+            } else {
+                applyIdlePanel()
+            }
         }
     }
 
@@ -946,6 +953,16 @@ class MainActivity : AppCompatActivity() {
             viewingDayOffset = 0
             loadViewedDay()
         }
+    }
+
+    /** Part of every idle action: drops any swiped-to past/forecast day or tapped Past/Daily
+     *  preview so the weather panel shows live "now" weather again. No-op when already live. */
+    private fun resetWeatherToNow() {
+        cancelForecastPreviewRevert()
+        if (viewingDayOffset == 0 && viewingPastPoint == null) return
+        viewingPastPoint = null
+        viewingDayOffset = 0
+        loadViewedDay()
     }
 
     private fun cancelForecastPreviewRevert() {
